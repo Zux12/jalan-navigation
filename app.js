@@ -76,16 +76,25 @@ $('toggle-panel').addEventListener('click',()=>{
 });
 
 
-// V3 research tools: compare the same destination manually in Waze.
-// No Waze traffic is scraped, extracted, or injected into Jalan.
+// V3.1: Official Waze deep link to the selected destination.
+// Waze determines its own starting location; this does not transfer
+// Jalan's chosen starting point or import any Waze data.
 $('open-waze').addEventListener('click', () => {
-  const url = 'https://www.waze.com/live-map/';
-  const win = window.open(url, '_blank', 'noopener,noreferrer');
-  if (!win) {
-    statusEl.textContent = 'Allow pop-ups, or open waze.com/live-map in another tab.';
-  } else {
-    statusEl.textContent = 'Waze Live Map opened. Compare routes manually.';
+  if (!destination || !Number.isFinite(destination[0]) || !Number.isFinite(destination[1])) {
+    statusEl.textContent = 'Search and select a destination in Jalan first.';
+    return;
   }
+  const coords = `${destination[0].toFixed(6)},${destination[1].toFixed(6)}`;
+  const url = `https://waze.com/ul?ll=${encodeURIComponent(coords)}&navigate=yes`;
+  // Direct click handler avoids popup blockers; on iPhone Waze may open the app.
+  const link = document.createElement('a');
+  link.href = url;
+  link.target = '_blank';
+  link.rel = 'noopener noreferrer';
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  statusEl.textContent = 'Opening destination in Waze. Waze uses its own start location; check both endpoints.';
 });
 $('copy-route').addEventListener('click', async () => {
   if (!startPoint || !destination) {

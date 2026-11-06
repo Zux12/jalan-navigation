@@ -1,11 +1,17 @@
-# Jalan V3 — Waze comparison prototype
+# Jalan Navigation V3.1 — Waze Destination Deep Link
 
-Upload `index.html`, `style.css`, and `app.js` to the root of your existing GitHub Pages repository, replacing the previous versions.
+Upload `index.html`, `style.css`, and `app.js` into the root of the existing `zux12/jalan-navigation` GitHub Pages repository, replacing the prior files.
 
-Keeps all V2.3 features. Adds a **Compare in Waze Live Map** button (opens Waze in a separate tab) and **Copy route coordinates** for manual side-by-side comparisons. No Google Cloud project or API key required.
+## Changes
+- **Open destination in Waze** uses the official Waze URL scheme: `https://waze.com/ul?ll=LAT,LON&navigate=yes`.
+- Select a destination from Jalan search results first. Waze will use its own origin/current location; the Jalan start location cannot be reliably passed using this link.
+- Keeps the V3 map, routing, community reports, and copy-route comparison tools.
+- Does not scrape, embed, or obtain Waze traffic data.
 
-**Important:** This version does **not** embed Waze traffic on OpenStreetMap, automate Waze, or obtain Waze incident feeds. The Waze web page may differ from the mobile app. Waze's published partner data feed requires permission before reuse.
+## Test
+1. Open Jalan and search for KLCC, then select a result.
+2. Expand route details and press **Open destination in Waze**.
+3. Check Waze's destination. If Waze opens the iPhone app instead of Live Map, that is expected.
+4. Confirm Waze's starting point before comparing ETA.
 
-Test: (1) refresh to locate, (2) search KLCC and select it, (3) confirm route fits screen, (4) expand panel and click Compare in Waze, (5) compare manually, (6) test on iPhone.
-
-Uses public OSM/Nominatim/OSRM demo endpoints with their usage limits; not for production or safety-critical driving.
+Note: Public OpenStreetMap/Nominatim/OSRM demo services are for low-volume testing, not production or safety-critical navigation.
