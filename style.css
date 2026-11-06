@@ -58,3 +58,21 @@ body { position:relative; height:100vh; height:100dvh; }
 .waze-test-tools button{border:1px solid #bfdbfe;border-radius:10px;padding:10px 12px;background:#f0f6ff;color:#1e40af;font-weight:700;cursor:pointer;min-height:42px}
 #waze-note{flex-basis:100%;font-size:11px;line-height:1.5;color:#64748b;margin:2px 0 6px}
 @media(max-width:650px){.waze-test-tools button{flex:1 1 140px;font-size:12px}}
+
+/* V3.3 — manual Waze ETA comparison */
+.compare-card{border:1px solid #dbe5f4;background:#f8fbff;border-radius:14px;padding:13px;margin:12px 0}
+.compare-title{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
+.compare-title strong{font-size:15px}
+.compare-hint{font-size:11px;line-height:1.5;color:#64748b;margin:8px 0}
+.compare-route{font-size:12px;color:#334155;margin:10px 0;font-weight:600;overflow-wrap:anywhere}
+.compare-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.compare-grid label{display:block;font-size:11px;font-weight:650;color:#475569;margin-bottom:4px}
+.compare-grid input{display:block;width:100%;min-width:0;padding:10px 8px;border:1px solid #cbd5e1;border-radius:9px;font-size:16px;background:white}
+.compare-grid input[readonly]{background:#eaf1fa;color:#334155}
+.compare-difference{padding:10px;border-radius:9px;background:#eaf1ff;color:#1e40af;font-size:13px;font-weight:700;margin:12px 0}
+.compare-actions{display:flex;flex-wrap:wrap;gap:7px}
+.compare-actions button{border:1px solid #bfdbfe;background:#fff;color:#1d4ed8;border-radius:9px;padding:10px;font-weight:700;cursor:pointer;min-height:42px}
+.compare-actions button:first-child{background:#2563eb;color:white}
+.compare-history{font-size:11px;color:#475569;max-height:120px;overflow:auto}
+.compare-history div{padding:6px 0;border-bottom:1px solid #e2e8f0}
+@media(max-width:650px){.compare-card{padding:10px}.compare-actions button{flex:1 1 120px}}

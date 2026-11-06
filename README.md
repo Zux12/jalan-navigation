@@ -1,19 +1,9 @@
-# Jalan V3.2 — Waze Both-Point URL Test
+# Jalan Navigation V3.3 — Waze ETA Comparison
 
-## Deploy
-Replace index.html, style.css and app.js in the root of zux12/jalan-navigation on GitHub Pages. Commit and hard-refresh.
+Upload index.html, style.css, app.js, and comparison.js to the ROOT of your existing GitHub Pages repository. Replace the first three files and ADD comparison.js. Commit, then hard refresh.
 
-## What changed
-- **Test both points in Waze** constructs an *experimental* Waze Live Map URL using the same `from=ll.latitude,longitude` and `to=ll.latitude,longitude` format seen in the user's screenshot.
-- **Open destination only (official)** retains the supported Waze deep-link fallback.
-- All existing Jalan map, routes, GPS, reporting and mobile layout remain intact.
-- Cache-busting query strings updated to V3.2.
+The original V3.2 map, search, routing, reporting, Waze two-point link, official fallback, and mobile layout are retained.
 
-## Test
-1. Open Jalan on your Mac; select a starting location and destination (e.g., Suria KLCC).
-2. Click **Test both points in Waze**.
-3. Confirm whether Waze populated *both* fields correctly and whether it calculated routes automatically or required clicking **Leave now**.
-4. If it fails, try the **Open destination only (official)** fallback.
-5. On iPhone, prefer the official link if the experimental Live Map URL does not behave correctly.
+To test: calculate a Jalan route, expand Show route details, open Waze separately, and enter Waze's ETA and distance in the comparison panel. The Jalan fields automatically show the currently selected route. Save a comparison or export all saved comparisons to CSV. Use Load example to prefill Waze 70 minutes / 34 km; the Jalan 36-minute estimate is a historical example and is NOT substituted for the actual route estimate.
 
-**Important:** Waze Live Map's both-point URL is an observed, undocumented URL pattern, not an official public routing API. It may stop working or behave differently across browsers. It does not return route data or traffic to Jalan. This prototype does not scrape Waze. OpenStreetMap/Nominatim/OSRM demo services are for low-volume testing only.
+Comparison records are saved only to this browser's localStorage. They are not shared across devices. No Waze data is scraped or fetched. Waze's web links may behave differently across browsers. OSRM and Nominatim are public demo services subject to usage policies and not suitable for production-scale traffic.
