@@ -18,3 +18,9 @@ Upload `index.html`, `style.css`, `app.js` to the root of your existing `zux12/j
 - Location requires HTTPS (GitHub Pages provides this) and permission.
 - Search only targets Malaysia; Nominatim's public API must not be used for client-side autocomplete or high-volume requests.
 - Map data © OpenStreetMap contributors.
+
+## V2.1 fixes
+- On refresh, request location permission and center the map on the user when allowed.
+- Fix `routeLayer.getBounds is not a function` by fitting to the selected route geometry.
+- Fit the complete route with space for the bottom panel and search bar.
+- If location permission is denied, the map remains on the default view; choose a start point manually.
