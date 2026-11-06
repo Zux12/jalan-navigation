@@ -76,17 +76,15 @@ $('toggle-panel').addEventListener('click',()=>{
 });
 
 
-// V3.1: Official Waze deep link to the selected destination.
-// Waze determines its own starting location; this does not transfer
-// Jalan's chosen starting point or import any Waze data.
-$('open-waze').addEventListener('click', () => {
-  if (!destination || !Number.isFinite(destination[0]) || !Number.isFinite(destination[1])) {
-    statusEl.textContent = 'Search and select a destination in Jalan first.';
-    return;
-  }
-  const coords = `${destination[0].toFixed(6)},${destination[1].toFixed(6)}`;
-  const url = `https://waze.com/ul?ll=${encodeURIComponent(coords)}&navigate=yes`;
-  // Direct click handler avoids popup blockers; on iPhone Waze may open the app.
+// V3.2: Experimental Waze Live Map URL containing BOTH endpoints.
+// The /live-map/directions URL is observed in Waze's UI, not a documented API.
+// Waze may ignore these parameters, require a manual click, or change its URL format.
+function validCoordinates(p) {
+  return Array.isArray(p) && p.length === 2 &&
+    Number.isFinite(p[0]) && Number.isFinite(p[1]) &&
+    Math.abs(p[0]) <= 90 && Math.abs(p[1]) <= 180;
+}
+function openExternal(url) {
   const link = document.createElement('a');
   link.href = url;
   link.target = '_blank';
@@ -94,7 +92,31 @@ $('open-waze').addEventListener('click', () => {
   document.body.appendChild(link);
   link.click();
   link.remove();
-  statusEl.textContent = 'Opening destination in Waze. Waze uses its own start location; check both endpoints.';
+}
+$('open-waze').addEventListener('click', () => {
+  if (!validCoordinates(startPoint) || !validCoordinates(destination)) {
+    statusEl.textContent = 'Select both a starting point and destination in Jalan first.';
+    return;
+  }
+  const point = p => `ll.${p[0].toFixed(7)},${p[1].toFixed(7)}`;
+  const params = new URLSearchParams({
+    navigate: 'yes',
+    to: point(destination),
+    from: point(startPoint)
+  });
+  const url = `https://www.waze.com/live-map/directions?${params.toString()}`;
+  openExternal(url);
+  statusEl.textContent = 'Testing both coordinates in Waze Live Map. Verify the origin, destination, and Leave now selection.';
+});
+// Official Waze deep link fallback: destination only.
+$('open-waze-official').addEventListener('click', () => {
+  if (!validCoordinates(destination)) {
+    statusEl.textContent = 'Select a destination in Jalan first.';
+    return;
+  }
+  const coords = `${destination[0].toFixed(6)},${destination[1].toFixed(6)}`;
+  openExternal(`https://waze.com/ul?ll=${encodeURIComponent(coords)}&navigate=yes`);
+  statusEl.textContent = 'Opening destination with the official Waze deep link.';
 });
 $('copy-route').addEventListener('click', async () => {
   if (!startPoint || !destination) {
