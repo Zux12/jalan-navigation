@@ -76,3 +76,14 @@ body { position:relative; height:100vh; height:100dvh; }
 .compare-history{font-size:11px;color:#475569;max-height:120px;overflow:auto}
 .compare-history div{padding:6px 0;border-bottom:1px solid #e2e8f0}
 @media(max-width:650px){.compare-card{padding:10px}.compare-actions button{flex:1 1 120px}}
+
+/* V3.4: authorized external GeoJSON feasibility panel */
+.traffic-card{margin:14px 0;padding:16px;border:1px solid #dce5f2;border-radius:16px;background:#fff;max-width:100%;box-sizing:border-box}
+.traffic-card .compare-title{display:flex;gap:10px;flex-wrap:wrap;align-items:center;justify-content:space-between}
+.traffic-consent{display:flex;gap:9px;align-items:flex-start;margin:12px 0;font-size:13px;line-height:1.5}
+.traffic-consent input{width:18px;height:18px;flex:0 0 auto;margin-top:1px}
+.traffic-file-label{display:block;font-size:13px;font-weight:600;margin:10px 0 5px}
+#traffic-file{display:block;max-width:100%;font-size:13px;margin:8px 0 12px}
+.traffic-card .compare-actions{display:flex;gap:8px;flex-wrap:wrap}
+.traffic-card .compare-actions button{flex:1 1 135px;min-height:42px}
+@media(max-width:520px){.traffic-card{padding:12px}.traffic-card .compare-actions button{font-size:13px}}

@@ -1,9 +1,19 @@
-# Jalan Navigation V3.3 — Waze ETA Comparison
+# Jalan Navigation V3.4 — External Traffic Overlay Feasibility
 
-Upload index.html, style.css, app.js, and comparison.js to the ROOT of your existing GitHub Pages repository. Replace the first three files and ADD comparison.js. Commit, then hard refresh.
+This version preserves V3.3 features and adds a **local GeoJSON overlay experiment**. It does **not** retrieve Waze traffic data. The Waze comparison remains in a separate tab.
 
-The original V3.2 map, search, routing, reporting, Waze two-point link, official fallback, and mobile layout are retained.
+## GitHub Pages deployment
+Upload `index.html`, `style.css`, `app.js`, `comparison.js`, and **new** `traffic-test.js` to the repository root. `example-traffic.geojson` is optional and is only a synthetic sample file. Do not upload real sensitive traffic datasets to a public repository.
 
-To test: calculate a Jalan route, expand Show route details, open Waze separately, and enter Waze's ETA and distance in the comparison panel. The Jalan fields automatically show the currently selected route. Save a comparison or export all saved comparisons to CSV. Use Load example to prefill Waze 70 minutes / 34 km; the Jalan 36-minute estimate is a historical example and is NOT substituted for the actual route estimate.
+## Test
+1. Refresh Jalan and search for a destination to verify existing routing.
+2. Expand route details and click **Show synthetic demo**. A red segment and an orange marker should appear. They are fictional and do not represent actual traffic.
+3. Click **Clear overlay**.
+4. Tick the permission checkbox, then import `example-traffic.geojson`. The sample should display.
+5. Check the iPhone layout and V3.3 comparison / CSV export.
 
-Comparison records are saved only to this browser's localStorage. They are not shared across devices. No Waze data is scraped or fetched. Waze's web links may behave differently across browsers. OSRM and Nominatim are public demo services subject to usage policies and not suitable for production-scale traffic.
+## Data format
+GeoJSON FeatureCollection with up to 500 Point, LineString, or MultiLineString features, up to 1 MB. Properties may contain `label` and `severity` (`high`, `medium`, other). The file is read locally in the browser and is not sent to a server. This generic format is **not a claim of compatibility with any Waze API**.
+
+## Limitations
+Waze data access, permissions and feed format remain unresolved. This is not real-time navigation, a live traffic feed, or a commercial data integration. OSM public tiles, Nominatim and OSRM demo services have usage policies and are not production infrastructure.
