@@ -52,3 +52,9 @@ body { position:relative; height:100vh; height:100dvh; }
   .brand small { display:none; }
   .actions button span { font-size:10px; }
 }
+
+/* V3 Waze comparison test */
+.waze-test-tools{display:flex;flex-wrap:wrap;gap:7px;margin:9px 0}
+.waze-test-tools button{border:1px solid #bfdbfe;border-radius:10px;padding:10px 12px;background:#f0f6ff;color:#1e40af;font-weight:700;cursor:pointer;min-height:42px}
+#waze-note{flex-basis:100%;font-size:11px;line-height:1.5;color:#64748b;margin:2px 0 6px}
+@media(max-width:650px){.waze-test-tools button{flex:1 1 140px;font-size:12px}}

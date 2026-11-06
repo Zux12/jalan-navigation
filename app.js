@@ -74,3 +74,29 @@ $('toggle-panel').addEventListener('click',()=>{
  setPanelCollapsed(collapse);
  if(collapse && routes.length)renderRoutes();
 });
+
+
+// V3 research tools: compare the same destination manually in Waze.
+// No Waze traffic is scraped, extracted, or injected into Jalan.
+$('open-waze').addEventListener('click', () => {
+  const url = 'https://www.waze.com/live-map/';
+  const win = window.open(url, '_blank', 'noopener,noreferrer');
+  if (!win) {
+    statusEl.textContent = 'Allow pop-ups, or open waze.com/live-map in another tab.';
+  } else {
+    statusEl.textContent = 'Waze Live Map opened. Compare routes manually.';
+  }
+});
+$('copy-route').addEventListener('click', async () => {
+  if (!startPoint || !destination) {
+    statusEl.textContent = 'Choose a starting point and destination first.';
+    return;
+  }
+  const text = `Jalan route comparison\nStart: ${startPoint[0].toFixed(6)}, ${startPoint[1].toFixed(6)}\nDestination: ${destination[0].toFixed(6)}, ${destination[1].toFixed(6)}\nJalan route: ${routes.length ? fmtDist(routes[selectedRoute].distance) + ', ' + fmtTime(routes[selectedRoute].duration) : 'Not calculated'}\nWaze: enter the same places in Waze Live Map and compare manually.`;
+  try {
+    await navigator.clipboard.writeText(text);
+    statusEl.textContent = 'Route comparison details copied.';
+  } catch {
+    statusEl.textContent = 'Clipboard unavailable. Use Waze Live Map to compare manually.';
+  }
+});
