@@ -13,6 +13,7 @@
   <header class="topbar">
     <div class="brand"><span class="brand-icon">↗</span><strong>Jalan</strong><small>prototype</small></div>
     <form id="search-form" class="search">
+      <select id="start-choice" aria-label="Starting point"><option value="gps">My location</option><option value="map">Choose on map</option></select>
       <input id="destination" type="search" placeholder="Where to? Search a place in Malaysia" autocomplete="off" aria-label="Destination" required />
       <button type="submit">Search</button>
     </form>
@@ -25,15 +26,18 @@
   <section class="bottom-panel">
     <div class="panel-head"><div><b>Explore Malaysia</b><p id="status">Search for a destination or add a report.</p></div><span class="demo-tag">DEMO</span></div>
     <div id="route-summary" class="route-summary hidden"></div>
+    <div id="route-options" class="route-options hidden"></div>
+    <div id="route-steps" class="route-steps hidden"></div>
+    <div class="route-buttons"><button id="start-guidance" class="hidden">Follow my location</button><button id="clear-route" class="hidden">Clear route</button></div>
     <div class="actions">
       <button id="report-accident">🚗 <span>Accident</span></button>
       <button id="report-flood">🌊 <span>Flood</span></button>
       <button id="report-hazard">⚠️ <span>Hazard</span></button>
       <button id="report-rain">🌧️ <span>Heavy rain</span></button>
     </div>
-    <p class="disclaimer">Community reports are stored only in this browser. No live traffic, verified incidents, or turn-by-turn navigation yet.</p>
+    <p class="disclaimer">Community reports are stored only in this browser. No live traffic or verified incidents. Routes are estimates; follow-location mode is not voice-guided navigation.</p>
   </section>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
-  <script src="app.js"></script>
+  <script src="app.js?v=2"></script>
 </body>
 </html>
