@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#ffffff" />
+  <title>Jalan — Navigation Prototype</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzxXwFZf+Gm2Jv6LkLwYQF8Y=" crossorigin="" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div id="map" aria-label="Interactive map"></div>
+  <header class="topbar">
+    <div class="brand"><span class="brand-icon">↗</span><strong>Jalan</strong><small>prototype</small></div>
+    <form id="search-form" class="search">
+      <input id="destination" type="search" placeholder="Where to? Search a place in Malaysia" autocomplete="off" aria-label="Destination" required />
+      <button type="submit">Search</button>
+    </form>
+  </header>
+  <section id="results" class="results hidden" aria-live="polite"></section>
+  <aside class="controls">
+    <button id="locate" title="My location" aria-label="Find my location">◎</button>
+    <button id="reset" title="Reset map" aria-label="Reset map">⌂</button>
+  </aside>
+  <section class="bottom-panel">
+    <div class="panel-head"><div><b>Explore Malaysia</b><p id="status">Search for a destination or add a report.</p></div><span class="demo-tag">DEMO</span></div>
+    <div id="route-summary" class="route-summary hidden"></div>
+    <div class="actions">
+      <button id="report-accident">🚗 <span>Accident</span></button>
+      <button id="report-flood">🌊 <span>Flood</span></button>
+      <button id="report-hazard">⚠️ <span>Hazard</span></button>
+      <button id="report-rain">🌧️ <span>Heavy rain</span></button>
+    </div>
+    <p class="disclaimer">Community reports are stored only in this browser. No live traffic, verified incidents, or turn-by-turn navigation yet.</p>
+  </section>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <script src="app.js"></script>
+</body>
+</html>
