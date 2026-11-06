@@ -1,620 +1,76 @@
-
-/* Jalan V2.2 — Navigation prototype.
-   Uses public OpenStreetMap, Nominatim and OSRM demo services.
-   Intended for light testing only.
-*/
-
-const KL = [3.139, 101.6869];
-const map = L.map('map', { zoomControl: false }).setView(KL, 12);
-
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-  maxZoom: 19,
-  attribution: '&copy; OpenStreetMap contributors'
-}).addTo(map);
-
-L.control.zoom({ position: 'bottomright' }).addTo(map);
-
-const $ = id => document.getElementById(id);
-const statusEl = $('status');
-const resultsEl = $('results');
-const routeEl = $('route-summary');
-
-const reportLayer = L.layerGroup().addTo(map);
-const routeLayer = L.layerGroup().addTo(map);
-const pointLayer = L.layerGroup().addTo(map);
-
-const reportTypes = {
-  accident: '🚗',
-  flood: '🌊',
-  hazard: '⚠️',
-  rain: '🌧️'
-};
-
-const storageKey = 'jalan-demo-reports-v1';
-
-let reportMode = null;
-let chooseStart = false;
-let userLocation = null;
-let locationMarker = null;
-let startPoint = null;
-let startMarker = null;
-let destination = null;
-let destinationMarker = null;
-let routes = [];
-let selectedRoute = 0;
-let watchId = null;
-
-const getReports = () => {
-  try {
-    return JSON.parse(localStorage.getItem(storageKey) || '[]');
-  } catch {
-    return [];
-  }
-};
-
-function showReport(r) {
-  const icon = L.divIcon({
-    className: 'report-marker',
-    html: reportTypes[r.type] || '⚠️',
-    iconSize: [32, 32],
-    iconAnchor: [16, 16]
-  });
-
-  L.marker([r.lat, r.lng], { icon })
-    .addTo(reportLayer)
-    .bindPopup(
-      `${reportTypes[r.type] || ''} ${r.type.toUpperCase()} (demo)<br>` +
-      `Unverified community report<br>` +
-      new Date(r.time).toLocaleString()
-    );
-}
-
+/* Jalan V2: browser-only prototype. Public OSM Nominatim + OSRM demo services are for light testing only. */
+const KL=[3.139,101.6869], map=L.map('map',{zoomControl:false}).setView(KL,12);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'&copy; OpenStreetMap contributors'}).addTo(map);
+L.control.zoom({position:'bottomright'}).addTo(map);
+const $=id=>document.getElementById(id), statusEl=$('status'), resultsEl=$('results'), routeEl=$('route-summary');
+const reportLayer=L.layerGroup().addTo(map),routeLayer=L.layerGroup().addTo(map),pointLayer=L.layerGroup().addTo(map);
+const reportTypes={accident:'🚗',flood:'🌊',hazard:'⚠️',rain:'🌧️'},storageKey='jalan-demo-reports-v1';
+let reportMode=null,chooseStart=false, userLocation=null,locationMarker=null,startPoint=null,startMarker=null,destination=null,destinationMarker=null,routes=[],selectedRoute=0,watchId=null;
+const getReports=()=>{try{return JSON.parse(localStorage.getItem(storageKey)||'[]')}catch{return []}};
+function showReport(r){const icon=L.divIcon({className:'report-marker',html:reportTypes[r.type]||'⚠️',iconSize:[32,32],iconAnchor:[16,16]});L.marker([r.lat,r.lng],{icon}).addTo(reportLayer).bindPopup(`${reportTypes[r.type]||''} ${r.type.toUpperCase()} (demo)<br>Unverified community report<br>${new Date(r.time).toLocaleString()}`)}
 getReports().forEach(showReport);
+for(const type of Object.keys(reportTypes)){$('report-'+type).addEventListener('click',()=>{reportMode=type;chooseStart=false;statusEl.textContent=`Tap the map to report ${type}.`})}
+map.on('click',e=>{if(reportMode){const r={type:reportMode,lat:e.latlng.lat,lng:e.latlng.lng,time:Date.now()};const all=getReports();all.push(r);localStorage.setItem(storageKey,JSON.stringify(all));showReport(r);statusEl.textContent=`Demo ${reportMode} report saved.`;reportMode=null;return}if(chooseStart){chooseStart=false;setStart([e.latlng.lat,e.latlng.lng],'Chosen starting point');if(destination)calculateRoutes();}});
+function setStart(point,label){startPoint=point;if(startMarker)pointLayer.removeLayer(startMarker);startMarker=L.marker(point,{icon:L.divIcon({className:'map-start-pin',html:'🟢',iconSize:[28,28],iconAnchor:[14,24]})}).addTo(pointLayer).bindPopup(label);statusEl.textContent=label+' selected.'}
+function updateLocation(point){userLocation=point;if(locationMarker)pointLayer.removeLayer(locationMarker);locationMarker=L.circleMarker(point,{radius:8,color:'#fff',weight:3,fillColor:'#2563eb',fillOpacity:1}).addTo(pointLayer).bindPopup('Your location')}
+function getGPS(center=false){return new Promise((resolve,reject)=>{if(!navigator.geolocation)return reject(new Error('Location is not supported'));navigator.geolocation.getCurrentPosition(p=>{const point=[p.coords.latitude,p.coords.longitude];updateLocation(point);if(center)map.setView(point,15);resolve(point)},()=>reject(new Error('Location unavailable. Allow location access or choose a starting point on the map.')),{enableHighAccuracy:true,timeout:14000})})}
+$('locate').addEventListener('click',async()=>{statusEl.textContent='Finding your location…';try{await getGPS(true);statusEl.textContent='Location found.'}catch(e){statusEl.textContent=e.message}});
+$('start-choice').addEventListener('change',async()=>{if($('start-choice').value==='map'){chooseStart=true;reportMode=null;statusEl.textContent='Tap the map to choose a starting point.'}else{chooseStart=false;statusEl.textContent='Using your current location as the starting point.'}});
+function clearRoute(clearDestination=false){routeLayer.clearLayers();routes=[];routeEl.classList.add('hidden');$('route-options').classList.add('hidden');$('route-steps').classList.add('hidden');$('start-guidance').classList.add('hidden');$('clear-route').classList.add('hidden');if(watchId!==null){navigator.geolocation.clearWatch(watchId);watchId=null;$('start-guidance').textContent='Follow my location'}if(clearDestination){destination=null;if(destinationMarker){pointLayer.removeLayer(destinationMarker);destinationMarker=null}}}
+$('clear-route').addEventListener('click',()=>{setPanelCollapsed(false);clearRoute(true);statusEl.textContent='Route cleared.'});
+$('reset').addEventListener('click',()=>{setPanelCollapsed(false);clearRoute(true);map.setView(KL,12);statusEl.textContent='Map reset to Kuala Lumpur.'});
+const fmtDist=m=>m>=1000?(m/1000).toFixed(1)+' km':Math.round(m)+' m';
+const fmtTime=s=>{const min=Math.max(1,Math.round(s/60));return min>=60?`${Math.floor(min/60)} hr ${min%60} min`:`${min} min`};
+async function calculateRoutes(){if(!destination||!startPoint)return;clearRoute(false);statusEl.textContent='Calculating driving routes…';routeEl.textContent='Calculating…';routeEl.classList.remove('hidden');try{
+ const [a,b]=[startPoint,destination].map(p=>`${p[1]},${p[0]}`);
+ const url=`https://router.project-osrm.org/route/v1/driving/${a};${b}?overview=full&geometries=geojson&steps=true&alternatives=true`;
+ const response=await fetch(url);if(!response.ok)throw Error('Routing service unavailable');const data=await response.json();if(data.code!=='Ok'||!data.routes?.length)throw Error('No driving route found between these points');routes=data.routes;selectedRoute=0;setPanelCollapsed(true);renderRoutes();statusEl.textContent=`Found ${routes.length} driving route${routes.length===1?'':'s'}.`;
+ }catch(e){routeEl.textContent='Could not calculate route: '+e.message;statusEl.textContent='Try a different start or destination.';console.error(e)}}
+function renderRoutes(){routeLayer.clearLayers();routes.forEach((r,i)=>{const points=r.geometry.coordinates.map(p=>[p[1],p[0]]);L.polyline(points,{color:i===selectedRoute?'#2563eb':'#94a3b8',weight:i===selectedRoute?7:5,opacity:i===selectedRoute?0.95:0.65}).addTo(routeLayer).on('click',()=>selectRoute(i))});
+ const chosen=routes[selectedRoute];
+ const bounds=L.latLngBounds(chosen.geometry.coordinates.map(p=>[p[1],p[0]]));
+ // Update the panel first; fitBounds runs after the layout has settled.
+ const fitSelectedRoute=()=>{
+   if(!bounds.isValid())return;
+   map.invalidateSize();
+   const h=map.getSize().y,w=map.getSize().x;
+   const top=Math.min(200,Math.round(h*0.23));
+   const bottom=Math.min(140,Math.round(h*0.17));
+   const side=Math.min(50,Math.round(w*0.07));
+   map.fitBounds(bounds,{paddingTopLeft:[side,top],paddingBottomRight:[side,bottom],maxZoom:15,animate:true});
+ };
+ requestAnimationFrame(()=>requestAnimationFrame(fitSelectedRoute));
+ routeEl.innerHTML=`<strong>🚘 ${fmtTime(chosen.duration)} · ${fmtDist(chosen.distance)}</strong><div class="route-warning">Estimated driving time only — live traffic is not included.</div>`;
+ const opts=$('route-options');opts.replaceChildren();routes.forEach((r,i)=>{const btn=document.createElement('button');btn.className=i===selectedRoute?'selected':'';btn.textContent=`Route ${i+1} · ${fmtTime(r.duration)} · ${fmtDist(r.distance)}`;btn.onclick=()=>selectRoute(i);opts.appendChild(btn)});opts.classList.remove('hidden');
+ const steps=$('route-steps');steps.replaceChildren();const title=document.createElement('strong');title.textContent='Directions (preview)';steps.appendChild(title);const legs=chosen.legs||[];for(const leg of legs){for(const step of leg.steps||[]){if(step.maneuver.type==='arrive')continue;const div=document.createElement('div');const road=step.name||'unnamed road';const maneuver=step.maneuver.modifier||step.maneuver.type||'continue';div.textContent=`${maneuver.replace(/\b\w/g,c=>c.toUpperCase())} onto ${road} · ${fmtDist(step.distance)}`;steps.appendChild(div)}}steps.classList.remove('hidden');$('clear-route').classList.remove('hidden');$('start-guidance').classList.remove('hidden');}
+function selectRoute(i){selectedRoute=i;renderRoutes()}
+$('start-guidance').addEventListener('click',()=>{if(watchId!==null){navigator.geolocation.clearWatch(watchId);watchId=null;$('start-guidance').textContent='Follow my location';statusEl.textContent='Location following stopped.';return}if(!navigator.geolocation){statusEl.textContent='Location is unavailable.';return}watchId=navigator.geolocation.watchPosition(p=>{const pos=[p.coords.latitude,p.coords.longitude];updateLocation(pos);map.panTo(pos);statusEl.textContent='Following your location. This is not turn-by-turn navigation.'},()=>{statusEl.textContent='Unable to follow location. Check browser permission.';navigator.geolocation.clearWatch(watchId);watchId=null;$('start-guidance').textContent='Follow my location'},{enableHighAccuracy:true,maximumAge:3000,timeout:15000});$('start-guidance').textContent='Stop following';});
+let lastSearchAt=0;
+$('search-form').addEventListener('submit',async e=>{e.preventDefault();const q=$('destination').value.trim();if(!q)return;statusEl.textContent='Searching destinations…';resultsEl.classList.add('hidden');try{const wait=Math.max(0,1100-(Date.now()-lastSearchAt));if(wait)await new Promise(r=>setTimeout(r,wait));lastSearchAt=Date.now();const response=await fetch('https://nominatim.openstreetmap.org/search?format=json&limit=5&countrycodes=my&q='+encodeURIComponent(q));if(!response.ok)throw Error('Search service unavailable');const places=await response.json();resultsEl.replaceChildren();if(!places.length){statusEl.textContent='No locations found. Try another search.';return}for(const place of places){const btn=document.createElement('button');btn.textContent=place.display_name;btn.onclick=async()=>{destination=[Number(place.lat),Number(place.lon)];if(destinationMarker)pointLayer.removeLayer(destinationMarker);destinationMarker=L.marker(destination).addTo(pointLayer).bindPopup('Destination: '+place.display_name);resultsEl.classList.add('hidden');if($('start-choice').value==='map'){if(!startPoint){chooseStart=true;statusEl.textContent='Tap the map to choose your starting point.';map.setView(destination,12);return}}else{try{statusEl.textContent='Finding your starting location…';setStart(await getGPS(),'Your starting location')}catch(err){statusEl.textContent=err.message+' Select “Choose on map” to continue.';map.setView(destination,13);return}}await calculateRoutes()};resultsEl.appendChild(btn)}resultsEl.classList.remove('hidden');statusEl.textContent='Choose a destination from the results.'}catch(err){statusEl.textContent='Search unavailable. Try again later.';console.error(err)}});
 
-for (const type of Object.keys(reportTypes)) {
-  $('report-' + type).addEventListener('click', () => {
-    reportMode = type;
-    chooseStart = false;
-    statusEl.textContent = `Tap the map to report ${type}.`;
+// Locate the user automatically on each fresh page load, subject to browser permission.
+// Never override a route the user has already requested.
+window.addEventListener('load',()=>{
+  setTimeout(()=>map.invalidateSize(),150);
+  getGPS(false).then(point=>{
+    if(!destination && !routes.length && !chooseStart && !reportMode){
+      map.setView(point,15);
+      statusEl.textContent='Showing your current location. Search for a destination.';
+    }
+  }).catch(()=>{
+    if(!destination && !routes.length)statusEl.textContent='Allow location access to start at your position, or choose a starting point on the map.';
   });
-}
-
-map.on('click', e => {
-  if (reportMode) {
-    const r = {
-      type: reportMode,
-      lat: e.latlng.lat,
-      lng: e.latlng.lng,
-      time: Date.now()
-    };
-
-    const all = getReports();
-    all.push(r);
-    localStorage.setItem(storageKey, JSON.stringify(all));
-    showReport(r);
-
-    statusEl.textContent = `Demo ${reportMode} report saved.`;
-    reportMode = null;
-    return;
-  }
-
-  if (chooseStart) {
-    chooseStart = false;
-    setStart(
-      [e.latlng.lat, e.latlng.lng],
-      'Chosen starting point'
-    );
-
-    if (destination) calculateRoutes();
-  }
 });
 
-function setStart(point, label) {
-  startPoint = point;
-
-  if (startMarker) pointLayer.removeLayer(startMarker);
-
-  startMarker = L.marker(point, {
-    icon: L.divIcon({
-      className: 'map-start-pin',
-      html: '🟢',
-      iconSize: [28, 28],
-      iconAnchor: [14, 24]
-    })
-  }).addTo(pointLayer).bindPopup(label);
-
-  statusEl.textContent = label + ' selected.';
+// Collapse route details to reveal the map. Tap to expand them.
+function setPanelCollapsed(collapsed){
+ const panel=$('info-panel'),toggle=$('toggle-panel');
+ panel.classList.toggle('collapsed',collapsed);
+ toggle.textContent=collapsed?'Show route details ▴':'Hide details ▾';
+ toggle.setAttribute('aria-expanded',String(!collapsed));
 }
-
-function updateLocation(point) {
-  userLocation = point;
-
-  if (locationMarker) pointLayer.removeLayer(locationMarker);
-
-  locationMarker = L.circleMarker(point, {
-    radius: 8,
-    color: '#fff',
-    weight: 3,
-    fillColor: '#2563eb',
-    fillOpacity: 1
-  }).addTo(pointLayer).bindPopup('Your location');
-}
-
-function getGPS(center = false) {
-  return new Promise((resolve, reject) => {
-    if (!navigator.geolocation) {
-      return reject(new Error('Location is not supported'));
-    }
-
-    navigator.geolocation.getCurrentPosition(
-      p => {
-        const point = [
-          p.coords.latitude,
-          p.coords.longitude
-        ];
-
-        updateLocation(point);
-
-        if (center) map.setView(point, 15);
-
-        resolve(point);
-      },
-      () => reject(new Error(
-        'Location unavailable. Allow location access or choose a starting point on the map.'
-      )),
-      {
-        enableHighAccuracy: true,
-        timeout: 14000
-      }
-    );
-  });
-}
-
-$('locate').addEventListener('click', async () => {
-  statusEl.textContent = 'Finding your location…';
-
-  try {
-    await getGPS(true);
-    statusEl.textContent = 'Location found.';
-  } catch (e) {
-    statusEl.textContent = e.message;
-  }
-});
-
-$('start-choice').addEventListener('change', () => {
-  if ($('start-choice').value === 'map') {
-    chooseStart = true;
-    reportMode = null;
-    statusEl.textContent = 'Tap the map to choose a starting point.';
-  } else {
-    chooseStart = false;
-    statusEl.textContent =
-      'Using your current location as the starting point.';
-  }
-});
-
-function clearRoute(clearDestination = false) {
-  routeLayer.clearLayers();
-  routes = [];
-
-  routeEl.classList.add('hidden');
-  $('route-options').classList.add('hidden');
-  $('route-steps').classList.add('hidden');
-  $('start-guidance').classList.add('hidden');
-  $('clear-route').classList.add('hidden');
-
-  if (watchId !== null) {
-    navigator.geolocation.clearWatch(watchId);
-    watchId = null;
-    $('start-guidance').textContent = 'Follow my location';
-  }
-
-  if (clearDestination) {
-    destination = null;
-
-    if (destinationMarker) {
-      pointLayer.removeLayer(destinationMarker);
-      destinationMarker = null;
-    }
-  }
-}
-
-$('clear-route').addEventListener('click', () => {
-  setPanelCollapsed(false);
-  clearRoute(true);
-  statusEl.textContent = 'Route cleared.';
-});
-
-$('reset').addEventListener('click', () => {
-  setPanelCollapsed(false);
-  clearRoute(true);
-  map.setView(KL, 12);
-  statusEl.textContent = 'Map reset to Kuala Lumpur.';
-});
-
-const fmtDist = m =>
-  m >= 1000
-    ? (m / 1000).toFixed(1) + ' km'
-    : Math.round(m) + ' m';
-
-const fmtTime = s => {
-  const min = Math.max(1, Math.round(s / 60));
-
-  return min >= 60
-    ? `${Math.floor(min / 60)} hr ${min % 60} min`
-    : `${min} min`;
-};
-
-async function calculateRoutes() {
-  if (!destination || !startPoint) return;
-
-  clearRoute(false);
-
-  statusEl.textContent = 'Calculating driving routes…';
-  routeEl.textContent = 'Calculating…';
-  routeEl.classList.remove('hidden');
-
-  try {
-    const [a, b] = [startPoint, destination]
-      .map(p => `${p[1]},${p[0]}`);
-
-    const url =
-      `https://router.project-osrm.org/route/v1/driving/${a};${b}` +
-      '?overview=full&geometries=geojson&steps=true&alternatives=true';
-
-    const response = await fetch(url);
-
-    if (!response.ok) {
-      throw Error('Routing service unavailable');
-    }
-
-    const data = await response.json();
-
-    if (data.code !== 'Ok' || !data.routes?.length) {
-      throw Error('No driving route found between these points');
-    }
-
-    routes = data.routes;
-    selectedRoute = 0;
-
-    setPanelCollapsed(true);
-    renderRoutes();
-
-    statusEl.textContent =
-      `Found ${routes.length} driving route` +
-      `${routes.length === 1 ? '' : 's'}.`;
-
-  } catch (e) {
-    routeEl.textContent =
-      'Could not calculate route: ' + e.message;
-
-    statusEl.textContent =
-      'Try a different start or destination.';
-
-    console.error(e);
-  }
-}
-
-function renderRoutes() {
-  routeLayer.clearLayers();
-
-  routes.forEach((r, i) => {
-    const points = r.geometry.coordinates.map(
-      p => [p[1], p[0]]
-    );
-
-    L.polyline(points, {
-      color: i === selectedRoute ? '#2563eb' : '#94a3b8',
-      weight: i === selectedRoute ? 7 : 5,
-      opacity: i === selectedRoute ? 0.95 : 0.65
-    })
-      .addTo(routeLayer)
-      .on('click', () => selectRoute(i));
-  });
-
-  const chosen = routes[selectedRoute];
-
-  const bounds = L.latLngBounds(
-    chosen.geometry.coordinates.map(
-      p => [p[1], p[0]]
-    )
-  );
-
-  // Adjust the view to show the entire route.
-  // Allow space for the search bar and bottom panel.
-  const fitSelectedRoute = () => {
-    if (!bounds.isValid()) return;
-
-    map.invalidateSize();
-
-    const h = map.getSize().y;
-    const w = map.getSize().x;
-
-    const top = Math.min(200, Math.round(h * 0.23));
-    const bottom = Math.min(140, Math.round(h * 0.17));
-    const side = Math.min(50, Math.round(w * 0.07));
-
-    map.fitBounds(bounds, {
-      paddingTopLeft: [side, top],
-      paddingBottomRight: [side, bottom],
-      maxZoom: 15,
-      animate: true
-    });
-  };
-
-  requestAnimationFrame(() =>
-    requestAnimationFrame(fitSelectedRoute)
-  );
-
-  routeEl.innerHTML =
-    `<strong>🚘 ${fmtTime(chosen.duration)} · ` +
-    `${fmtDist(chosen.distance)}</strong>` +
-    `<div class="route-warning">` +
-    `Estimated driving time only — live traffic is not included.` +
-    `</div>`;
-
-  const opts = $('route-options');
-  opts.replaceChildren();
-
-  routes.forEach((r, i) => {
-    const btn = document.createElement('button');
-
-    btn.className = i === selectedRoute ? 'selected' : '';
-    btn.textContent =
-      `Route ${i + 1} · ${fmtTime(r.duration)} · ` +
-      fmtDist(r.distance);
-
-    btn.onclick = () => selectRoute(i);
-    opts.appendChild(btn);
-  });
-
-  opts.classList.remove('hidden');
-
-  const steps = $('route-steps');
-  steps.replaceChildren();
-
-  const title = document.createElement('strong');
-  title.textContent = 'Directions (preview)';
-  steps.appendChild(title);
-
-  for (const leg of chosen.legs || []) {
-    for (const step of leg.steps || []) {
-      if (step.maneuver.type === 'arrive') continue;
-
-      const div = document.createElement('div');
-      const road = step.name || 'unnamed road';
-
-      const maneuver =
-        step.maneuver.modifier ||
-        step.maneuver.type ||
-        'continue';
-
-      div.textContent =
-        `${maneuver.replace(/\b\w/g, c => c.toUpperCase())}` +
-        ` onto ${road} · ${fmtDist(step.distance)}`;
-
-      steps.appendChild(div);
-    }
-  }
-
-  steps.classList.remove('hidden');
-  $('clear-route').classList.remove('hidden');
-  $('start-guidance').classList.remove('hidden');
-}
-
-function selectRoute(i) {
-  selectedRoute = i;
-  renderRoutes();
-}
-
-$('start-guidance').addEventListener('click', () => {
-  if (watchId !== null) {
-    navigator.geolocation.clearWatch(watchId);
-    watchId = null;
-
-    $('start-guidance').textContent = 'Follow my location';
-    statusEl.textContent = 'Location following stopped.';
-    return;
-  }
-
-  if (!navigator.geolocation) {
-    statusEl.textContent = 'Location is unavailable.';
-    return;
-  }
-
-  watchId = navigator.geolocation.watchPosition(
-    p => {
-      const pos = [
-        p.coords.latitude,
-        p.coords.longitude
-      ];
-
-      updateLocation(pos);
-      map.panTo(pos);
-
-      statusEl.textContent =
-        'Following your location. This is not turn-by-turn navigation.';
-    },
-    () => {
-      statusEl.textContent =
-        'Unable to follow location. Check browser permission.';
-
-      navigator.geolocation.clearWatch(watchId);
-      watchId = null;
-
-      $('start-guidance').textContent = 'Follow my location';
-    },
-    {
-      enableHighAccuracy: true,
-      maximumAge: 3000,
-      timeout: 15000
-    }
-  );
-
-  $('start-guidance').textContent = 'Stop following';
-});
-
-let lastSearchAt = 0;
-
-$('search-form').addEventListener('submit', async e => {
-  e.preventDefault();
-
-  const q = $('destination').value.trim();
-  if (!q) return;
-
-  statusEl.textContent = 'Searching destinations…';
-  resultsEl.classList.add('hidden');
-
-  try {
-    const wait = Math.max(
-      0,
-      1100 - (Date.now() - lastSearchAt)
-    );
-
-    if (wait) {
-      await new Promise(r => setTimeout(r, wait));
-    }
-
-    lastSearchAt = Date.now();
-
-    const response = await fetch(
-      'https://nominatim.openstreetmap.org/search' +
-      '?format=json&limit=5&countrycodes=my&q=' +
-      encodeURIComponent(q)
-    );
-
-    if (!response.ok) {
-      throw Error('Search service unavailable');
-    }
-
-    const places = await response.json();
-    resultsEl.replaceChildren();
-
-    if (!places.length) {
-      statusEl.textContent =
-        'No locations found. Try another search.';
-      return;
-    }
-
-    for (const place of places) {
-      const btn = document.createElement('button');
-      btn.textContent = place.display_name;
-
-      btn.onclick = async () => {
-        destination = [
-          Number(place.lat),
-          Number(place.lon)
-        ];
-
-        if (destinationMarker) {
-          pointLayer.removeLayer(destinationMarker);
-        }
-
-        destinationMarker = L.marker(destination)
-          .addTo(pointLayer)
-          .bindPopup('Destination: ' + place.display_name);
-
-        resultsEl.classList.add('hidden');
-
-        if ($('start-choice').value === 'map') {
-          if (!startPoint) {
-            chooseStart = true;
-
-            statusEl.textContent =
-              'Tap the map to choose your starting point.';
-
-            map.setView(destination, 12);
-            return;
-          }
-        } else {
-          try {
-            statusEl.textContent =
-              'Finding your starting location…';
-
-            setStart(
-              await getGPS(),
-              'Your starting location'
-            );
-          } catch (err) {
-            statusEl.textContent =
-              err.message +
-              ' Select “Choose on map” to continue.';
-
-            map.setView(destination, 13);
-            return;
-          }
-        }
-
-        await calculateRoutes();
-      };
-
-      resultsEl.appendChild(btn);
-    }
-
-    resultsEl.classList.remove('hidden');
-    statusEl.textContent =
-      'Choose a destination from the results.';
-
-  } catch (err) {
-    statusEl.textContent =
-      'Search unavailable. Try again later.';
-
-    console.error(err);
-  }
-});
-
-// Automatically locate the user when the page loads.
-// Requires browser location permission.
-window.addEventListener('load', () => {
-  setTimeout(() => map.invalidateSize(), 150);
-
-  getGPS(false)
-    .then(point => {
-      if (
-        !destination &&
-        !routes.length &&
-        !chooseStart &&
-        !reportMode
-      ) {
-        map.setView(point, 15);
-
-        statusEl.textContent =
-          'Showing your current location. Search for a destination.';
-      }
-    })
-    .catch(() => {
-      if (!destination && !routes.length) {
-        statusEl.textContent =
-          'Allow location access to start at your position, ' +
-          'or choose a starting point on the map.';
-      }
-    });
-});
-
-// Collapsible bottom panel.
-function setPanelCollapsed(collapsed) {
-  const panel = $('info-panel');
-  const toggle = $('toggle-panel');
-
-  panel.classList.toggle('collapsed', collapsed);
-
-  toggle.textContent = collapsed
-    ? 'Show route details ▴'
-    : 'Hide details ▾';
-
-  toggle.setAttribute(
-    'aria-expanded',
-    String(!collapsed)
-  );
-}
-
-$('toggle-panel').addEventListener('click', () => {
-  const collapse =
-    !$('info-panel').classList.contains('collapsed');
-
-  setPanelCollapsed(collapse);
-
-  if (collapse && routes.length) {
-    renderRoutes();
-  }
+$('toggle-panel').addEventListener('click',()=>{
+ const collapse=!$('info-panel').classList.contains('collapsed');
+ setPanelCollapsed(collapse);
+ if(collapse && routes.length)renderRoutes();
 });
