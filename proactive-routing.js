@@ -44,19 +44,19 @@
    pending={route:best,sourceRoute:state.route,created:Date.now()};
    el('proactive-offer-title').textContent='Potentially save '+Math.round(saving/60)+' minutes';
    el('proactive-offer-detail').textContent='Current estimated remaining: '+Math.round(oldSeconds/60)+' min · New TomTom route: '+Math.round(best.duration/60)+' min. Confirm route before switching.';
-   offer.classList.remove('hidden');status('Faster route suggested');
+   offer.classList.remove('hidden');window.dispatchEvent(new CustomEvent('jalan:route-offer',{detail:{estimatedSavingSeconds:saving,currentSeconds:oldSeconds,newSeconds:best.duration}}));status('Faster route suggested');
   }catch(e){if(e.name!=='AbortError')status('Traffic check failed: '+e.message);}
   finally{busy=false;controller=null;}
  }
  el('proactive-toggle').onclick=()=>setEnabled(!enabled);
  el('proactive-check').onclick=()=>check(true);
- el('proactive-decline').onclick=()=>{declinedUntil=Date.now()+DECLINE_MS;hideOffer();status('Current route kept (10-min pause)');};
+ el('proactive-decline').onclick=()=>{declinedUntil=Date.now()+DECLINE_MS;hideOffer();window.dispatchEvent(new CustomEvent('jalan:route-decline'));status('Current route kept (10-min pause)');};
  el('proactive-accept').onclick=()=>{
   if(!pending||Date.now()-pending.created>120000){hideOffer();status('Offer expired; check again');return;}
   const current=window.JalanGPS?.getState?.();
   if(!current?.active||current.route!==pending.sourceRoute){hideOffer();status('Route changed; check again');return;}
   const r=pending.route;hideOffer();
-  if(window.JalanGPS.applyTrafficRoute(r)){status('New TomTom route selected');window.JalanTomTom?.refreshRouteIncidents?.(true);}
+  if(window.JalanGPS.applyTrafficRoute(r)){window.dispatchEvent(new CustomEvent('jalan:route-change',{detail:{reason:'faster-route',provider:'tomtom'}}));status('New TomTom route selected');window.JalanTomTom?.refreshRouteIncidents?.(true);}
   else status('Could not switch route');
  };
  setInterval(()=>{if(enabled&&!document.hidden)check(false);},15000);

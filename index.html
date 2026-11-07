@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#ffffff" />
   <title>Jalan — Navigation Prototype V3.9 Turn Guidance Test</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
-  <link rel="stylesheet" href="style.css?v=4-0" />
+  <link rel="stylesheet" href="style.css?v=4-1" />
 </head>
 <body>
   <div id="map" aria-label="Interactive map"></div>
@@ -78,6 +78,14 @@
       <p id="tt-eta" class="compare-difference" aria-live="polite">TomTom routes will appear here after searching a destination.</p>
       <p class="compare-hint">Traffic colors are live TomTom tiles. Incidents are from TomTom, when available. TomTom route geometry and traffic-aware ETA replace the blue route when enabled. Switch off primary routing to compare with OSRM. Incidents refresh at most every 5 minutes and on route changes. Public demo only; do not use while driving.</p>
     </section>
+    <section class="traffic-card" aria-labelledby="journey-title" id="journey-log-card">
+      <div class="compare-title"><strong id="journey-title">V4.1 — Journey Reliability Log</strong><span class="demo-tag">LOCAL ONLY</span></div>
+      <p class="compare-hint">Records journey timing, GPS accuracy summaries, route changes and traffic offers for testing. No GPS coordinates or API keys are stored in the log. Data stays in this browser unless exported.</p>
+      <p id="journey-status" class="compare-difference" role="status">No journey recorded yet.</p>
+      <div class="compare-actions"><button id="journey-export" type="button">Export journey CSV</button><button id="journey-events-export" type="button">Export events CSV</button><button id="journey-clear" type="button">Clear logs</button></div>
+      <div id="journey-history" class="compare-history"></div>
+      <p class="compare-hint">Arrival is only marked automatically after accurate GPS readings near the destination. Stopping GPS early records an incomplete journey. Actual driving duration must be validated separately.</p>
+    </section>
     <section class="traffic-card" aria-labelledby="traffic-title">
       <div class="compare-title"><strong id="traffic-title">V3.4 — External traffic overlay test</strong><span class="demo-tag">NO LIVE WAZE FEED</span></div>
       <p class="compare-hint">Test whether Jalan can display a permitted traffic GeoJSON file on OpenStreetMap. This tool does not access Waze, scrape its website, or retrieve live traffic.</p>
@@ -97,17 +105,18 @@
       <button id="report-hazard">⚠️ <span>Hazard</span></button>
       <button id="report-rain">🌧️ <span>Heavy rain</span></button>
     </div>
-    <p class="disclaimer">V3.9 GPS guidance and simulation are for stationary/passenger testing only. Turn prompts and rerouting are experimental; not safe for driving. </p>
+    <p class="disclaimer">V4.1 GPS guidance and simulation are for stationary/passenger testing only. Turn prompts and rerouting are experimental; not safe for driving. </p>
     <p class="disclaimer">Community reports are stored only in this browser. TomTom incidents and traffic depend on API availability. Routes are estimates; follow-location mode is not voice-guided navigation.</p>
     </div>
   </section>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
-  <script src="app.js?v=4-0"></script>
-  <script src="comparison.js?v=4-0"></script>
-  <script src="traffic-test.js?v=4-0"></script>
-  <script src="tomtom-live.js?v=4-0"></script>
-  <script src="navigation-sim.js?v=4-0"></script>
-  <script src="gps-navigation.js?v=4-0"></script>
-  <script src="proactive-routing.js?v=4-0"></script>
+  <script src="app.js?v=4-1"></script>
+  <script src="comparison.js?v=4-1"></script>
+  <script src="traffic-test.js?v=4-1"></script>
+  <script src="tomtom-live.js?v=4-1"></script>
+  <script src="navigation-sim.js?v=4-1"></script>
+  <script src="gps-navigation.js?v=4-1"></script>
+  <script src="proactive-routing.js?v=4-1"></script>
+  <script src="journey-log.js?v=4-1"></script>
 </body>
 </html>

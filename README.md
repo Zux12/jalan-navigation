@@ -1,14 +1,23 @@
-# Jalan Navigation V4.0 — Proactive Traffic Route Suggestions
+# Jalan Navigation V4.1 — Journey Reliability Log
 
-Upload all project files to the root of the existing GitHub Pages repository. This version preserves V3.9 and adds `proactive-routing.js`.
+Upload all web files in this folder to the root of your existing GitHub Pages repository, replacing matching files. The new file is `journey-log.js`.
 
-## How to test
-1. Enter your TomTom API key in Jalan settings, enable TomTom primary routing, and calculate a route.
-2. On iPhone, while stationary or as a passenger, start **Test real GPS**.
-3. Select **Enable 5-min checks**, or press **Check now**.
-4. If a candidate route is estimated to save at least five minutes, Jalan offers **Switch route** or **Keep current**.
-5. Declining pauses suggestions for ten minutes. The browser only checks while visible.
+## New functions
+- GPS test journeys are logged locally (start/end time, predicted ETA, elapsed time, route switches, offers, GPS accuracy median).
+- Arrived status requires 3 accurate GPS fixes within approximately 110 m of destination; stopping early is marked incomplete.
+- Export separate journey and event CSV files. Clear locally stored logs.
+- Precise GPS coordinates and TomTom API keys are not written into logs.
 
-**Important:** This is an experimental suggestion system. The current route remaining ETA is a distance-scaled estimate, whereas the new TomTom route ETA is traffic-aware. Their comparison is indicative, not a guarantee of savings. A better production comparison requires refreshing the current-route ETA using the same provider and road constraints. No automatic route switching occurs.
+## Limitations
+- Browser-based test only, not road-ready navigation. Background Safari can pause tracking.
+- ETA error is computed only for automatically detected arrivals.
+- Recalculation may restart the GPS session; the logger marks interrupted segments separately.
+- Logged data is browser-local and can be lost if website storage is cleared.
+- Do not use while driving; test stationary or as a passenger.
 
-API requests may incur costs. The TomTom key is entered in the browser and is not embedded in source. Safari may suspend tracking/timers when backgrounded. Do not use while driving.
+## Test
+1. Verify normal routing and simulation.
+2. Start a real GPS test while stationary, confirm the log status changes to recording.
+3. Exit GPS, confirm an incomplete journey appears.
+4. Export both CSV files and inspect rows.
+5. Test clear logs only after exporting.
