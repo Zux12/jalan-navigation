@@ -1,18 +1,24 @@
-# Jalan V3.7 — Stationary Navigation Simulation
+# Jalan Navigation V3.8 — Experimental GPS Mode
 
-Based on working V3.6, with the new `navigation-sim.js` file and updated HTML, CSS and app.js.
+Based on V3.7. Upload all root files to the existing GitHub Pages repository.
 
-## Deploy
-Upload all root-level files to the existing GitHub Pages repository. Keep filenames unchanged. Hard refresh.
+## New
+- **Test real GPS** button appears after calculating a route.
+- Foreground `watchPosition` GPS tracking, accuracy display, approximate remaining ETA/distance, off-route warnings.
+- Manual **Recalculate route** and optional auto rerouting after four consecutive accurate fixes outside the route (85 m or twice accuracy, whichever is larger), with 90-second cooldown.
+- Simulation mode remains separate.
 
-## Test
-1. Search a destination and select a TomTom or OSRM route.
-2. Expand route details and click **Simulate navigation**.
-3. Confirm the simulated position advances along the blue route, and remaining ETA, distance and arrival time change.
-4. Pause, resume, restart, recenter, exit. Try iPhone portrait and landscape.
-5. Test route changes, clear route and traffic layer after exiting.
+## Important limitations
+- This is a prototype, **not safe driving navigation**. Do not operate while driving. Test stationary or as a passenger.
+- No validated turn-by-turn guidance, road-level map matching, voice guidance, guaranteed background GPS, or safety-critical rerouting.
+- ETA uses proportional route progress, not continuously refreshed traffic estimates. Recalculate requests new TomTom traffic-aware routes when TomTom is enabled.
+- iOS Safari may suspend location tracking in the background. GPS requires HTTPS and permission.
+- Browser-exposed TomTom keys are visible in network requests; retain domain restrictions and monitor quotas.
 
-## Limitations
-This is a **stationary-only route playback**. It does not use live GPS for turn guidance, does not automatically reroute, and must not be used while driving. ETA decreases proportionally with simulated route progress; it is not a live recalculated traffic ETA. TomTom's existing normalized instruction data lacks maneuver coordinates, so the simulator intentionally shows general route guidance rather than invented turn distances. Browser tab backgrounding pauses playback. Existing 'Follow my location' is not turn-by-turn guidance.
-
-Use only with appropriate map and traffic provider licenses, and protect your TomTom API key. If your previous key appeared in a screenshot, rotate it.
+## Suggested tests
+1. Existing TomTom routes, live traffic, incidents and simulation still work.
+2. After calculating a route, click Test real GPS; allow location.
+3. GPS accuracy and remaining distance appear, and Exit restores normal map.
+4. While stationary, check that inaccurate GPS readings do not cause automatic rerouting.
+5. Manual Recalculate route works, and TomTom remains the primary provider when enabled.
+6. Verify mobile layout in portrait and landscape.
