@@ -1,0 +1,1 @@
+document.getElementById('gps-predict-test').addEventListener('click',()=>{const results=window.JalanPredictiveGPS.runTests();document.getElementById('gps-predict-results').replaceChildren(...results.map(([name,pass])=>{const p=document.createElement('p');p.textContent=(pass?'PASS · ':'FAIL · ')+name;return p;}));});

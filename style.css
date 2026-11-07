@@ -119,3 +119,6 @@ body.nav-active #info-panel{display:none}body.nav-active .topbar{display:none}bo
 #si-results{max-height:230px;overflow:auto}
 .si-result{padding:9px;border-bottom:1px solid #e2e8f0;font-size:12px;line-height:1.6}
 @media(max-width:440px){.speed-grid{grid-template-columns:1fr}}
+
+/* V4.3 predictive GPS status */
+.gps-match-status{padding:7px 10px;border-radius:8px;background:#e0f2fe;color:#075985;font-size:12px;font-weight:600;margin:5px 0;}

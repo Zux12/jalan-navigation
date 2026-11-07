@@ -27,7 +27,7 @@
   <div class="nav-hud-top"><span class="nav-sim-badge">GPS TEST — NOT FOR DRIVING</span><button id="gps-exit" type="button">Exit GPS</button></div>
   <div class="nav-turn"><span id="gps-arrow">↑</span><div><strong id="gps-instruction">Acquiring GPS…</strong><small id="gps-detail">Keep screen on; test while stationary or as passenger</small></div></div>
   <div class="nav-stats"><span><b id="gps-eta">—</b><small>Estimated remaining</small></span><span><b id="gps-distance">—</b><small>Remaining distance</small></span><span><b id="gps-accuracy">—</b><small>GPS accuracy</small></span></div>
-  <div id="gps-warning" class="nav-warning hidden"></div>
+  <div id="gps-match-status" class="gps-match-status">Waiting for GPS</div><div id="gps-warning" class="nav-warning hidden"></div>
   <div class="proactive-box" id="proactive-box"><div class="proactive-heading"><strong>Traffic route checks</strong><span id="proactive-status">Off</span></div><div class="proactive-actions"><button id="proactive-toggle" type="button" aria-pressed="false">Enable 5-min checks</button><button id="proactive-check" type="button">Check now</button></div><div id="proactive-offer" class="proactive-offer hidden" role="status"><strong id="proactive-offer-title"></strong><p id="proactive-offer-detail"></p><div class="proactive-actions"><button id="proactive-accept" type="button">Switch route</button><button id="proactive-decline" type="button">Keep current</button></div></div><small>Compares TomTom's new fastest route with the current route's estimated remaining time. Estimates may differ; testing only.</small></div>
   <div class="nav-actions"><button id="gps-recenter" type="button">Center GPS</button><button id="gps-reroute" type="button">Recalculate route</button><button id="gps-auto" type="button" aria-pressed="false">Auto reroute: Off</button><button id="gps-voice" type="button" aria-pressed="false">Voice: Off</button></div>
 </section>
@@ -78,8 +78,9 @@
       <p id="tt-eta" class="compare-difference" aria-live="polite">TomTom routes will appear here after searching a destination.</p>
       <p class="compare-hint">Traffic colors are live TomTom tiles. Incidents are from TomTom, when available. TomTom route geometry and traffic-aware ETA replace the blue route when enabled. Switch off primary routing to compare with OSRM. Incidents refresh at most every 5 minutes and on route changes. Public demo only; do not use while driving.</p>
     </section>
+    <section class="traffic-card" aria-labelledby="predictive-title"><div class="compare-title"><strong id="predictive-title">V4.3 — Predictive GPS / Route Lock</strong><span class="demo-tag">LOCAL SIMULATION</span></div><p class="compare-hint">Selected route is the reference. GPS jumps are held on-route; repeated plausible off-route fixes are required before deviation is confirmed. No GPS data is uploaded.</p><div class="compare-actions"><button id="gps-predict-test" type="button">Run GPS jump tests</button></div><div id="gps-predict-results" class="compare-hint" role="status">Run four local tests: single jump, recovery, poor accuracy and sustained deviation.</div></section>
     <section class="traffic-card" id="speed-intel-card" aria-labelledby="speed-intel-title">
-      <div class="compare-title"><strong id="speed-intel-title">V4.2.1 — Road Speed Intelligence</strong><span class="demo-tag">LOCAL TEST · NOT SHARED</span></div>
+      <div class="compare-title"><strong id="speed-intel-title">V4.3 — Road Speed Intelligence</strong><span class="demo-tag">LOCAL TEST · NOT SHARED</span></div>
       <p class="compare-hint">Analyze speeds by route segment and travel direction. The speed limit is a reference, not the congestion baseline. No other Jalan users are tracked in this version.</p>
       <div class="speed-grid">
         <label>Road speed limit (km/h)<input id="si-limit" type="number" min="10" max="130" value="110"></label>
@@ -130,14 +131,16 @@
     </div>
   </section>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
-  <script src="app.js?v=4-2"></script>
+  <script src="app.js?v=4-3"></script>
   <script src="comparison.js?v=4-2"></script>
   <script src="traffic-test.js?v=4-2"></script>
   <script src="tomtom-live.js?v=4-2"></script>
   <script src="navigation-sim.js?v=4-2"></script>
-  <script src="gps-navigation.js?v=4-2"></script>
+  <script src="predictive-gps.js?v=4-3"></script>
+  <script src="gps-navigation.js?v=4-3"></script>
   <script src="proactive-routing.js?v=4-2"></script>
   <script src="journey-log.js?v=4-2"></script>
-  <script src="speed-intelligence.js?v=4-2-1"></script>
+  <script src="speed-intelligence.js?v=4-3"></script>
+  <script src="predictive-tests.js?v=4-3"></script>
 </body>
 </html>

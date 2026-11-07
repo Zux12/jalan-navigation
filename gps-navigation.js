@@ -4,7 +4,7 @@
  const el=id=>document.getElementById(id), rad=x=>x*Math.PI/180, R=6371000;
  const meters=(a,b)=>{const x=rad(b[0]-a[0]),y=rad(b[1]-a[1]);return 2*R*Math.asin(Math.min(1,Math.sqrt(Math.sin(x/2)**2+Math.cos(rad(a[0]))*Math.cos(rad(b[0]))*Math.sin(y/2)**2)));};
  let active=false,watch=null,marker=null,current=null,route=null,points=[],cum=[],total=0,maneuvers=[];
- let offCount=0,lastReroute=0,rerouting=false,auto=false,voice=false,lastSpeech='',lastSpeechAt=0,lastFixAt=0,progress=0;
+ let predictor=null,offCount=0,lastReroute=0,rerouting=false,auto=false,voice=false,lastSpeech='',lastSpeechAt=0,lastFixAt=0,progress=0;
  const warn=t=>{el('gps-warning').textContent=t;el('gps-warning').classList.toggle('hidden',!t);};
  function project(p){const sx=111320*Math.cos(rad(p[0])),sy=111320;let best={distance:Infinity,along:0};for(let i=1;i<points.length;i++){const a=points[i-1],b=points[i],ax=(a[1]-p[1])*sx,ay=(a[0]-p[0])*sy,dx=(b[1]-a[1])*sx,dy=(b[0]-a[0])*sy,t=Math.max(0,Math.min(1,-(ax*dx+ay*dy)/(dx*dx+dy*dy||1))),d=Math.hypot(ax+t*dx,ay+t*dy);if(d<best.distance)best={distance:d,along:cum[i-1]+t*(cum[i]-cum[i-1])};}return best;}
  function build(){route=routes[selectedRoute];if(!route?.geometry?.coordinates?.length)return false;points=route.geometry.coordinates.map(p=>[p[1],p[0]]);cum=[0];for(let i=1;i<points.length;i++)cum.push(cum[i-1]+meters(points[i-1],points[i]));total=cum.at(-1);if(total<10)return false;
@@ -16,20 +16,32 @@
    maneuvers.push({along,action});}
   maneuvers.sort((a,b)=>a.along-b.along);return true;}
  function speak(t){if(!voice||!('speechSynthesis'in window)||document.hidden||!active)return;const now=Date.now();if(t===lastSpeech&&now-lastSpeechAt<45000)return;lastSpeech=t;lastSpeechAt=now;try{speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(t);u.lang='en-GB';u.rate=0.95;speechSynthesis.speak(u);}catch(e){console.warn('Voice unavailable',e);}}
- function update(fix){if(!active)return;const p=[fix.coords.latitude,fix.coords.longitude],accuracy=fix.coords.accuracy;current=p;lastFixAt=Date.now();window.dispatchEvent(new CustomEvent('jalan:gps-fix',{detail:{accuracy,remainingSeconds:active&&route?route.duration*Math.max(0,total-progress)/total:null,remainingMeters:active&&route?route.distance*Math.max(0,total-progress)/total:null,nearDestination:!!(destination&&meters(p,destination)<110)}}));updateLocation(p);marker?.setLatLng(p);el('gps-accuracy').textContent=Math.round(accuracy)+' m';
-  if(!Number.isFinite(accuracy)||accuracy>75){warn('GPS accuracy too low. Guidance paused.');el('gps-instruction').textContent='Waiting for accurate GPS';offCount=0;return;}
-  const m=project(p);if(m.distance<Math.max(50,accuracy*1.5))progress=Math.max(progress,m.along);const left=Math.max(0,total-progress),distance=route.distance*left/total,seconds=route.duration*left/total;
+ function update(fix){
+  if(!active)return;
+  const raw=[fix.coords.latitude,fix.coords.longitude],accuracy=fix.coords.accuracy;
+  const result=predictor.feed({position:raw,accuracy,time:fix.timestamp||Date.now(),speed:fix.coords.speed});
+  const p=result.position;lastFixAt=Date.now();
+  // Publish filtered position only; raw GPS jumps must not pollute journey analytics.
+  current=result.mode==='deviation'?raw:p;
+  const trustworthy=result.mode==='matched';
+  window.dispatchEvent(new CustomEvent('jalan:gps-fix',{detail:{accuracy:trustworthy?accuracy:Infinity,remainingSeconds:route?route.duration*Math.max(0,total-progress)/total:null,remainingMeters:route?route.distance*Math.max(0,total-progress)/total:null,nearDestination:trustworthy&&!!(destination&&meters(p,destination)<110)}}));
+  updateLocation(p);marker?.setLatLng(p);
+  el('gps-accuracy').textContent=Number.isFinite(accuracy)?Math.round(accuracy)+' m':'Unknown';
+  el('gps-match-status').textContent={matched:'On route · GPS matched',predicted:'Route prediction · checking GPS',uncertain:'GPS uncertain · estimated position',deviation:'Deviation confirmed',waiting:'Waiting for reliable GPS',stale:'Old GPS reading ignored',invalid:'Invalid GPS reading'}[result.mode]||'Route prediction';
+  if(trustworthy)progress=Math.max(progress,result.along);
+  const left=Math.max(0,total-progress),distance=route.distance*left/total,seconds=route.duration*left/total;
   el('gps-distance').textContent=fmtDist(distance);el('gps-eta').textContent=fmtTime(seconds);
   const next=maneuvers.find(x=>x.along>progress+12);
-  if(next){const d=next.along-progress;el('gps-instruction').textContent=`${fmtDist(d)}: ${next.action}`;if(d<120&&d>25)speak('In '+Math.round(d/10)*10+' meters, '+next.action);else if(d<450&&d>120)speak('In '+Math.round(d/50)*50+' meters, '+next.action);}
+  if(next){const d=next.along-progress;el('gps-instruction').textContent=`${fmtDist(d)}: ${next.action}`;if(trustworthy&&d<120&&d>25)speak('In '+Math.round(d/10)*10+' meters, '+next.action);else if(trustworthy&&d<450&&d>120)speak('In '+Math.round(d/50)*50+' meters, '+next.action);}
   else el('gps-instruction').textContent=maneuvers.length?'Continue toward destination':'Follow selected route — detailed maneuvers unavailable';
-  el('gps-detail').textContent=`Arrival approx. ${new Date(Date.now()+seconds*1000).toLocaleTimeString('en-MY',{hour:'numeric',minute:'2-digit'})} · ${Math.round(m.distance)} m from route`;
-  if(m.distance>Math.max(100,accuracy*2.5)){offCount++;warn(`Off-route suspected (${Math.round(m.distance)} m). ${offCount}/4 accurate GPS readings.`);if(offCount>=4&&auto&&Date.now()-lastReroute>120000)reroute();}
-  else{offCount=0;warn('');if(left<55&&meters(p,destination)<110){el('gps-instruction').textContent='Near destination';speak('You are near your destination.');}}
+  el('gps-detail').textContent=`Arrival approx. ${new Date(Date.now()+seconds*1000).toLocaleTimeString('en-MY',{hour:'numeric',minute:'2-digit'})} · ${result.mode==='matched'?'GPS matched to selected route':'Position estimated; verify GPS'}`;
+  if(result.mode==='deviation'){warn('Sustained off-route readings confirmed. Recalculating if enabled.');if(auto&&Date.now()-lastReroute>120000)reroute();}
+  else if(result.mode==='matched'){warn('');if(left<55&&meters(p,destination)<110){el('gps-instruction').textContent='Near destination';speak('You are near your destination.');}}
+  else warn('GPS jump or uncertainty detected. Holding predicted route position; guidance may be inaccurate.');
   if(!document.hidden)map.panTo(p,{animate:false});
  }
  function start(){if(active)return;if(!build()){statusEl.textContent='Calculate a route before starting GPS test.';return;}if(!navigator.geolocation){statusEl.textContent='Geolocation unavailable';return;}
-  window.JalanNavigation?.stop();active=true;window.dispatchEvent(new CustomEvent('jalan:journey-start',{detail:{provider:route?.provider||'osrm',predictedSeconds:route?.duration||null,distanceMeters:route?.distance||null}}));progress=0;offCount=0;lastSpeech='';document.body.classList.add('nav-active');el('gps-hud').classList.remove('hidden');el('gps-instruction').textContent='Acquiring GPS…';warn('Experimental guidance only. Test stationary or as a passenger.');marker=L.circleMarker(points[0],{radius:10,color:'#fff',weight:3,fillColor:'#0e9f6e',fillOpacity:1}).addTo(map);
+  window.JalanNavigation?.stop();predictor=window.JalanPredictiveGPS.create(route.geometry.coordinates);active=true;window.dispatchEvent(new CustomEvent('jalan:journey-start',{detail:{provider:route?.provider||'osrm',predictedSeconds:route?.duration||null,distanceMeters:route?.distance||null}}));progress=0;offCount=0;lastSpeech='';document.body.classList.add('nav-active');el('gps-hud').classList.remove('hidden');el('gps-instruction').textContent='Acquiring GPS…';warn('Experimental guidance only. Test stationary or as a passenger.');marker=L.circleMarker(points[0],{radius:10,color:'#fff',weight:3,fillColor:'#0e9f6e',fillOpacity:1}).addTo(map);
   watch=navigator.geolocation.watchPosition(update,e=>warn('GPS unavailable: '+e.message),{enableHighAccuracy:true,maximumAge:1500,timeout:20000});
  }
  function stop(){if(active)window.dispatchEvent(new CustomEvent('jalan:journey-stop'));active=false;if(watch!==null){navigator.geolocation.clearWatch(watch);watch=null;}if(marker){map.removeLayer(marker);marker=null;}if('speechSynthesis'in window)speechSynthesis.cancel();el('gps-hud').classList.add('hidden');document.body.classList.remove('nav-active');setTimeout(()=>map.invalidateSize(),70);}

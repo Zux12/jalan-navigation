@@ -1,18 +1,20 @@
-# Jalan V4.2.1 — Road Speed Intelligence fixes
+# Jalan Navigation V4.3 — Predictive GPS & Route Lock
 
-Upload the contents of this directory to the root of the existing `zux12/jalan-navigation` GitHub Pages repository. Replace the old files; keep your TomTom key out of GitHub.
+Upload all website files into the root of your existing GitHub Pages repository, replacing older versions. New files: `predictive-gps.js` and `predictive-tests.js`.
 
-## Fixes
-- Tests 4 and 5: explicit `CONFIRMED` versus `INSUFFICIENT EVIDENCE` verdict in the status and segment result. The test uses the entered number of independent drivers and duration. An added observation **replaces** the prior synthetic test for the selected segment, avoiding ambiguous accumulated values.
-- The multi-driver demo uses preset speeds and driver counts; to test manual inputs, click **Clear observations** first.
-- Each colored road segment now follows the complete routed polyline instead of a straight chord between two endpoints.
-- A white outline improves overlay visibility over the thick blue route.
-- Existing traffic, routing, GPS, voice, Waze comparison and local journey logging files are retained unchanged.
+## Changes
+- Uses the selected route as the primary position reference while GPS is uncertain.
+- A single implausible GPS jump does not relocate the navigation marker or trigger rerouting.
+- Prediction uses elapsed time and speed, capped to 12 seconds per GPS gap.
+- Sustained, plausible off-route readings (at least four spanning eight seconds) can confirm a deviation.
+- Low-confidence fixes do not count toward arrival detection or journey GPS quality.
+- Includes four synthetic tests in a new Predictive GPS panel.
 
-## Test 4
-Calculate a route. Clear observations. Enter normal speed 90, observed speed 18, drivers 1, duration 3, segment 1. Click **Add / Replace segment test**. Expect `INSUFFICIENT EVIDENCE`. Repeat with drivers 2: same verdict.
+## Testing
+1. Calculate a route, open Predictive GPS panel and run GPS jump tests.
+2. Confirm all four show PASS.
+3. Start GPS test while stationary or as passenger; check route-matching status.
+4. Verify simulation, TomTom routing, reports, Waze comparison and iPhone layout remain working.
 
-## Test 5
-Change drivers to 3, leave speed 18 and duration 3, click **Add / Replace segment test**. Expect `CONFIRMED — Severe congestion`. Change duration to 1: expect `INSUFFICIENT EVIDENCE`.
-
-These are illustrative thresholds, not production-ready confidence estimates. No data from other users is collected, shared or stored.
+## Limits
+This is a heuristic prototype, not validated sensor fusion or inertial dead reckoning. It does not know road elevation or reliably distinguish every parallel road. Do not rely on it while driving. Background Safari GPS may pause. No live multi-user data is collected.
