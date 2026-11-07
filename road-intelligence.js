@@ -51,50 +51,98 @@
     if(typeof routes==='undefined'||typeof selectedRoute==='undefined')return null;
     return routes[selectedRoute]||null;
   }
-  function clear() {
+  const servers = [
+    'https://overpass-api.de/api/interpreter',
+    'https://overpass.kumi.systems/api/interpreter',
+    'https://overpass.nchc.org.tw/api/interpreter'
+  ];
+  const CACHE_PREFIX='jalan-ri-v441:';
+  const CACHE_TTL=24*60*60*1000;
+  let running=false, generation=0;
+  function cacheKey(point) { return CACHE_PREFIX+point.map(n=>n.toFixed(4)).join(','); }
+  function readCache(point) {
+    try {const v=JSON.parse(localStorage.getItem(cacheKey(point))||'null');return v&&Date.now()-v.saved<CACHE_TTL?v.ways:null;} catch{return null;}
+  }
+  function saveCache(point,ways) {
+    try {localStorage.setItem(cacheKey(point),JSON.stringify({saved:Date.now(),ways}));}catch{}
+  }
+  function showMatch(point,i,ways,source) {
+    const div=document.createElement('div');div.className='ri-item';
+    const match=nearestWay(point,ways);
+    if(!match||match.meters>65){div.textContent=`Sample ${i+1}: No reliable nearby mapped road (Unknown) · ${source}`;results.appendChild(div);return;}
+    const tags=match.way.tags||{};
+    const name=tags.name||tags.ref||'Unnamed road';
+    const limit=tags.maxspeed||'Unknown (not tagged)';
+    const type=tags.highway||'Unknown';
+    const oneway=tags.oneway==='yes'?'One-way':tags.oneway==='-1'?'Reverse one-way':tags.oneway==='no'?'Two-way':'Not specified';
+    const heading=document.createElement('strong');heading.textContent=`Sample ${i+1}: ${name}`;div.appendChild(heading);
+    const detail=document.createElement('div');detail.textContent=`Road type: ${type} · Mapped speed limit: ${limit} · Direction tag: ${oneway}`;div.appendChild(detail);
+    const note=document.createElement('div');note.className='ri-meta';note.textContent=`OSM way ${match.way.id} · ${Math.round(match.meters)} m from sample · ${source} · Approximate match`;div.appendChild(note);
+    results.appendChild(div);
+    L.circleMarker(match.point,{radius:6,color:'#0f766e',fillColor:'#14b8a6',fillOpacity:1,weight:2}).bindPopup(`${name} — mapped maxspeed: ${limit}`).addTo(layer);
+  }
+  function cancel() {
+    generation++;
     if(abort){abort.abort();abort=null;}
-    layer.clearLayers();results.replaceChildren();button.disabled=false;
+    running=false;button.disabled=false;
+    $('ri-cancel').disabled=true;
+  }
+  function clear() {
+    cancel();layer.clearLayers();results.replaceChildren();
     status.textContent='Road inspection cleared.';
   }
   $('ri-clear').addEventListener('click',clear);
+  $('ri-cancel').addEventListener('click',()=>{cancel();status.textContent='Road inspection cancelled. Existing results retained.';});
+  async function queryServer(server,query,gen) {
+    const controller=new AbortController();abort=controller;
+    const timer=setTimeout(()=>controller.abort(),12000);
+    try {
+      const response=await fetch(server,{
+        method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded;charset=UTF-8'},
+        body:new URLSearchParams({data:query}),signal:controller.signal
+      });
+      if(gen!==generation)throw Error('Cancelled');
+      if(!response.ok)throw Error(`HTTP ${response.status}`);
+      const json=await response.json();
+      if(!Array.isArray(json.elements))throw Error('Unexpected response');
+      return json.elements.filter(e=>e.type==='way'&&Array.isArray(e.geometry));
+    } finally {clearTimeout(timer);if(abort===controller)abort=null;}
+  }
   button.addEventListener('click',async()=>{
-    const route=getRoute();
-    if(!route){status.textContent='Calculate a driving route first.';return;}
+    const route=getRoute();if(!route){status.textContent='Calculate a driving route first.';return;}
     clear();const points=samplesForRoute(route);
     if(!points.length){status.textContent='Selected route has no usable geometry.';return;}
-    button.disabled=true;abort=new AbortController();const signal=abort.signal;
-    status.textContent='Checking mapped OSM roads near three route samples…';
-    // Small on-demand query only; Overpass may be unavailable or rate-limited.
-    const queries=points.map(([lat,lon])=>`way(around:65,${lat.toFixed(6)},${lon.toFixed(6)})["highway"];`).join('');
-    const query=`[out:json][timeout:20];(${queries});out tags geom;`;
-    try {
-      const response=await fetch('https://overpass.kumi.systems/api/interpreter',{
-        method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded;charset=UTF-8'},
-        body:new URLSearchParams({data:query}),signal
-      });
-      if(!response.ok)throw Error(`OSM service returned HTTP ${response.status}`);
-      const json=await response.json();
-      if(!Array.isArray(json.elements))throw Error('Unexpected road data format');
-      const ways=json.elements.filter(e=>e.type==='way'&&Array.isArray(e.geometry));
-      if(!ways.length)throw Error('No mapped roads found near route samples');
-      points.forEach((point,i)=>{
-        const match=nearestWay(point,ways);
-        const div=document.createElement('div');div.className='ri-item';
-        if(!match||match.meters>65){div.textContent=`Sample ${i+1}: No reliable nearby mapped road (unknown).`;results.appendChild(div);return;}
-        const tags=match.way.tags||{};
-        const name=tags.name||tags.ref||'Unnamed road';
-        const limit=tags.maxspeed||'Unknown (not tagged)';
-        const type=tags.highway||'Unknown';
-        const oneway=tags.oneway==='yes'?'One-way':tags.oneway==='-1'?'Reverse one-way':tags.oneway==='no'?'Two-way':'Not specified';
-        const heading=document.createElement('strong');heading.textContent=`Sample ${i+1}: ${name}`;div.appendChild(heading);
-        const detail=document.createElement('div');detail.textContent=`Road type: ${type} · Mapped speed limit: ${limit} · Direction tag: ${oneway}`;div.appendChild(detail);
-        const note=document.createElement('div');note.className='ri-meta';note.textContent=`OSM way ${match.way.id} · ${Math.round(match.meters)} m from sample · Approximate match, not confirmed carriageway`;div.appendChild(note);
-        results.appendChild(div);
-        L.circleMarker(match.point,{radius:6,color:'#0f766e',fillColor:'#14b8a6',fillOpacity:1,weight:2}).bindPopup(`${name} — mapped maxspeed: ${limit}`).addTo(layer);
-      });
-      status.textContent=`Inspected ${points.length} points against ${ways.length} mapped OSM ways. Tags may be incomplete or outdated.`;
-    } catch(err) {
-      if(err.name!=='AbortError')status.textContent=`Road lookup unavailable: ${err.message}. Try again later; existing navigation is unaffected.`;
-    } finally {button.disabled=false;abort=null;}
+    running=true;const gen=++generation;button.disabled=true;$('ri-cancel').disabled=false;
+    const cached=points.map(readCache);
+    const missing=points.map((_,i)=>i).filter(i=>!cached[i]);
+    const waysBySample=[...cached];
+    let error='';
+    if(missing.length){
+      const queryParts=missing.map(i=>{const [lat,lon]=points[i];return `way(around:65,${lat.toFixed(6)},${lon.toFixed(6)})["highway"];`;}).join('');
+      const query=`[out:json][timeout:10];(${queryParts});out tags geom;`;
+      for(let i=0;i<servers.length;i++){
+        if(gen!==generation)return;
+        status.textContent=`Checking mapped roads… server ${i+1}/${servers.length} (12-second timeout).`;
+        try {
+          const ways=await queryServer(servers[i],query,gen);
+          if(gen!==generation)return;
+          for(const idx of missing){waysBySample[idx]=ways;saveCache(points[idx],ways);}
+          error='';break;
+        } catch(e) {
+          if(gen!==generation)return;
+          error=e.name==='AbortError'?'Timed out after 12 seconds':e.message;
+        }
+      }
+    }
+    if(gen!==generation)return;
+    layer.clearLayers();results.replaceChildren();
+    let success=0;
+    points.forEach((point,i)=>{
+      if(waysBySample[i]){showMatch(point,i,waysBySample[i],cached[i]?'Cached':'Live Overpass');success++;}
+      else {const div=document.createElement('div');div.className='ri-item';div.textContent=`Sample ${i+1}: Unavailable — road data not retrieved.`;results.appendChild(div);}
+    });
+    status.textContent=success===3?`Road inspection completed: ${success}/3 samples (${cached.filter(Boolean).length} cached).`:
+      `Partial inspection: ${success}/3 samples. ${error||'No road data returned'}. Navigation is unaffected.`;
+    running=false;button.disabled=false;$('ri-cancel').disabled=true;
   });
 })();

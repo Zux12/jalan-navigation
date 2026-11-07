@@ -79,9 +79,9 @@
       <p class="compare-hint">Traffic colors are live TomTom tiles. Incidents are from TomTom, when available. TomTom route geometry and traffic-aware ETA replace the blue route when enabled. Switch off primary routing to compare with OSRM. Incidents refresh at most every 5 minutes and on route changes. Public demo only; do not use while driving.</p>
     </section>
     <section class="traffic-card" id="road-intel-card" aria-labelledby="road-intel-title">
-      <div class="compare-title"><strong id="road-intel-title">V4.4 — Automatic Road Intelligence</strong><span class="demo-tag">OSM DATA · EXPERIMENTAL</span></div>
+      <div class="compare-title"><strong id="road-intel-title">V4.4.1 — Automatic Road Intelligence</strong><span class="demo-tag">OSM DATA · EXPERIMENTAL</span></div>
       <p class="compare-hint">Choose a route first, then look up mapped road tags near three sampled points along that route. Uses the public OpenStreetMap Overpass service on demand; no GPS observations are uploaded. Speed limits are shown only if explicitly tagged.</p>
-      <div class="compare-actions"><button id="ri-scan" type="button">Inspect selected route</button><button id="ri-clear" type="button">Clear road inspection</button></div>
+      <div class="compare-actions"><button id="ri-scan" type="button">Inspect selected route</button><button id="ri-clear" type="button">Clear road inspection</button><button id="ri-cancel" type="button" disabled>Cancel lookup</button></div>
       <p id="ri-status" class="compare-hint" role="status">Calculate a route to begin.</p>
       <div id="ri-results" class="compare-history" aria-live="polite"></div>
       <p class="compare-hint">Road matching is approximate and does not establish the correct carriageway at flyovers or complex junctions. Missing speed limits remain unknown. This lookup does not learn historical normal speeds; the V4.2 speed baseline remains a manual test input.</p>
@@ -150,6 +150,6 @@
   <script src="journey-log.js?v=4-2"></script>
   <script src="speed-intelligence.js?v=4-3"></script>
   <script src="predictive-tests.js?v=4-3"></script>
-  <script src="road-intelligence.js?v=4-4"></script>
+  <script src="road-intelligence.js?v=4-4-1"></script>
 </body>
 </html>

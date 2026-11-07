@@ -1,27 +1,21 @@
-# Jalan Navigation V4.4 — Automatic Road Intelligence
+# Jalan Navigation V4.4.1 — Overpass reliability fix
 
-Built from the tested V4.3 prototype. Upload all HTML/CSS/JS files to the **root** of the existing GitHub Pages repository.
+Upload all project files to the root of the existing Jalan GitHub Pages repository. Existing navigation, TomTom, Waze comparison and GPS features are retained.
 
-## New capability
+## Improvements
+- Each Overpass request has a 12-second browser timeout; after failure, tries two alternate public Overpass instances sequentially.
+- Cancel lookup stops the active request and prevents late responses from changing the interface.
+- Cached successful road lookups remain available for 24 hours in the current browser.
+- If fresh retrieval fails but some samples are cached, partial results are shown.
+- Failures display a message rather than waiting forever.
 
-**Inspect selected route** samples three positions (20%, 50%, 80%) along the current route and requests nearby road tags from OpenStreetMap via a public Overpass API endpoint. It displays the mapped road name, highway class, explicit `maxspeed` tag (or **Unknown**), `oneway` tag, and approximate map-match distance. Small teal dots identify the matched positions. **Clear road inspection** removes these dots.
-
-This is an **on-demand experiment**; do not repeatedly click it or use it at scale against the public Overpass server. Public endpoint availability, browser CORS, and rate limits may prevent some requests. No automatic retries are performed. Production deployment needs an appropriately hosted/contracted road-data service or a self-hosted extract.
-
-## Important limits
-
-- OSM `maxspeed` may be missing, stale, conditional, or in non-km/h units. This prototype displays the raw tag; it does not interpret complex legal speed rules.
-- Nearest mapped way is not necessarily the road actually driven, particularly at flyovers, parallel roads and junctions. A match is **not** a verified speed limit or route assignment.
-- Historical normal speed cannot be inferred from speed limits; the existing speed intelligence panel remains a manual/synthetic baseline.
-- No location histories or user GPS observations are uploaded by this feature. The **route sample coordinates** are sent to the OSM Overpass service when you click Inspect, so avoid using it if that disclosure is undesirable.
-- No Heroku or MongoDB required.
+Public Overpass services can still be down, rate limited, or reject cross-origin requests. The cache is a convenience, not authoritative road data. Three fallback attempts may take up to 36 seconds. Avoid repeated scanning. Route sample coordinates are sent to public Overpass servers when uncached. No GPS history is uploaded.
 
 ## Test
+1. Search for a route and click Inspect selected route. Observe status changing and either results or an error within about 36 seconds.
+2. Click Cancel lookup during a pending request. Confirm the button re-enables and status says cancelled.
+3. When a lookup succeeds, repeat it and confirm cached results appear promptly.
+4. Clear road inspection and confirm markers disappear.
+5. Verify TomTom routing, GPS, and iPhone layout still work.
 
-1. Calculate a route in Jalan, e.g. Putrajaya to KLCC.
-2. Click **Inspect selected route**. Confirm three road samples and teal markers appear, or observe a clear service error.
-3. Confirm road names/classes, and `Unknown` for untagged speed limits.
-4. Click **Clear road inspection**; teal markers disappear.
-5. Confirm GPS route lock, TomTom traffic, simulation, Waze comparison and iPhone layout still work.
-
-This is not road-ready navigation; test while stationary.
+Note: successful static syntax checks do not prove remote Overpass availability. This is not a production road-matching service.
