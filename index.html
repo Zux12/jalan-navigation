@@ -78,6 +78,25 @@
       <p id="tt-eta" class="compare-difference" aria-live="polite">TomTom routes will appear here after searching a destination.</p>
       <p class="compare-hint">Traffic colors are live TomTom tiles. Incidents are from TomTom, when available. TomTom route geometry and traffic-aware ETA replace the blue route when enabled. Switch off primary routing to compare with OSRM. Incidents refresh at most every 5 minutes and on route changes. Public demo only; do not use while driving.</p>
     </section>
+    <section class="traffic-card" id="speed-intel-card" aria-labelledby="speed-intel-title">
+      <div class="compare-title"><strong id="speed-intel-title">V4.2 — Road Speed Intelligence</strong><span class="demo-tag">LOCAL TEST · NOT SHARED</span></div>
+      <p class="compare-hint">Analyze speeds by route segment and travel direction. The speed limit is a reference, not the congestion baseline. No other Jalan users are tracked in this version.</p>
+      <div class="speed-grid">
+        <label>Road speed limit (km/h)<input id="si-limit" type="number" min="10" max="130" value="110"></label>
+        <label>Normal speed for this road/time (km/h)<input id="si-normal" type="number" min="5" max="130" value="90"></label>
+        <label>Current observed speed (km/h)<input id="si-speed" type="number" min="0" max="150" value="18"></label>
+        <label>Independent drivers observed<input id="si-drivers" type="number" min="1" max="100" value="5"></label>
+        <label>Slowdown sustained (minutes)<input id="si-minutes" type="number" min="0" max="60" value="3"></label>
+        <label>Route segment<input id="si-segment" type="number" min="1" value="1"></label>
+      </div>
+      <div class="compare-actions"><button id="si-add" type="button">Add observation</button><button id="si-demo" type="button">Run multi-driver demo</button><button id="si-clear" type="button">Clear observations</button></div>
+      <p id="si-status" class="compare-difference" role="status">Calculate a route, then add observations or run the demo.</p>
+      <div id="si-results" class="compare-history" aria-live="polite"></div>
+      <label class="traffic-consent"><input id="si-gps-consent" type="checkbox"> Opt in to local GPS speed sampling while this page stays open (no upload or storage)</label>
+      <div class="compare-actions"><button id="si-gps-start" type="button">Start local GPS sampling</button><button id="si-gps-stop" type="button">Stop sampling</button></div>
+      <p id="si-gps-status" class="compare-hint">GPS sampling is off. GPS observations alone never confirm public congestion.</p>
+      <p class="compare-hint">The demo uses synthetic vehicle speeds. No crowdsourced backend exists yet. A real deployment will need explicit consent, secure aggregation, road matching, direction checks, anti-spoofing and privacy controls.</p>
+    </section>
     <section class="traffic-card" aria-labelledby="journey-title" id="journey-log-card">
       <div class="compare-title"><strong id="journey-title">V4.1 — Journey Reliability Log</strong><span class="demo-tag">LOCAL ONLY</span></div>
       <p class="compare-hint">Records journey timing, GPS accuracy summaries, route changes and traffic offers for testing. No GPS coordinates or API keys are stored in the log. Data stays in this browser unless exported.</p>
@@ -105,18 +124,19 @@
       <button id="report-hazard">⚠️ <span>Hazard</span></button>
       <button id="report-rain">🌧️ <span>Heavy rain</span></button>
     </div>
-    <p class="disclaimer">V4.1 GPS guidance and simulation are for stationary/passenger testing only. Turn prompts and rerouting are experimental; not safe for driving. </p>
+    <p class="disclaimer">V4.2 GPS guidance and simulation are for stationary/passenger testing only. Turn prompts and rerouting are experimental; not safe for driving. </p>
     <p class="disclaimer">Community reports are stored only in this browser. TomTom incidents and traffic depend on API availability. Routes are estimates; follow-location mode is not voice-guided navigation.</p>
     </div>
   </section>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
-  <script src="app.js?v=4-1"></script>
-  <script src="comparison.js?v=4-1"></script>
-  <script src="traffic-test.js?v=4-1"></script>
-  <script src="tomtom-live.js?v=4-1"></script>
-  <script src="navigation-sim.js?v=4-1"></script>
-  <script src="gps-navigation.js?v=4-1"></script>
-  <script src="proactive-routing.js?v=4-1"></script>
-  <script src="journey-log.js?v=4-1"></script>
+  <script src="app.js?v=4-2"></script>
+  <script src="comparison.js?v=4-2"></script>
+  <script src="traffic-test.js?v=4-2"></script>
+  <script src="tomtom-live.js?v=4-2"></script>
+  <script src="navigation-sim.js?v=4-2"></script>
+  <script src="gps-navigation.js?v=4-2"></script>
+  <script src="proactive-routing.js?v=4-2"></script>
+  <script src="journey-log.js?v=4-2"></script>
+  <script src="speed-intelligence.js?v=4-2"></script>
 </body>
 </html>

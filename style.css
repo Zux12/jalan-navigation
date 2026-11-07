@@ -111,3 +111,11 @@ body.nav-active #info-panel{display:none}body.nav-active .topbar{display:none}bo
 /* V4.1 journey log */
 #journey-log-card .journey-row{padding:9px 0;border-bottom:1px solid rgba(128,128,128,.25);font-size:13px;overflow-wrap:anywhere}
 #journey-log-card button{min-height:40px}
+
+/* V4.2 speed intelligence: local-only experimental classification */
+.speed-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin:12px 0}
+.speed-grid label{font-size:12px;color:#475569;font-weight:650;display:grid;gap:5px}
+.speed-grid input{width:100%;min-width:0;box-sizing:border-box;border:1px solid #cbd5e1;border-radius:8px;padding:10px;font-size:16px}
+#si-results{max-height:230px;overflow:auto}
+.si-result{padding:9px;border-bottom:1px solid #e2e8f0;font-size:12px;line-height:1.6}
+@media(max-width:440px){.speed-grid{grid-template-columns:1fr}}

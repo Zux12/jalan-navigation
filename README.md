@@ -1,23 +1,17 @@
-# Jalan Navigation V4.1 — Journey Reliability Log
+# Jalan Navigation V4.2 — Road Speed Intelligence (local test)
 
-Upload all web files in this folder to the root of your existing GitHub Pages repository, replacing matching files. The new file is `journey-log.js`.
-
-## New functions
-- GPS test journeys are logged locally (start/end time, predicted ETA, elapsed time, route switches, offers, GPS accuracy median).
-- Arrived status requires 3 accurate GPS fixes within approximately 110 m of destination; stopping early is marked incomplete.
-- Export separate journey and event CSV files. Clear locally stored logs.
-- Precise GPS coordinates and TomTom API keys are not written into logs.
-
-## Limitations
-- Browser-based test only, not road-ready navigation. Background Safari can pause tracking.
-- ETA error is computed only for automatically detected arrivals.
-- Recalculation may restart the GPS session; the logger marks interrupted segments separately.
-- Logged data is browser-local and can be lost if website storage is cleared.
-- Do not use while driving; test stationary or as a passenger.
+Upload all `.html`, `.css`, and `.js` files to the root of your existing GitHub Pages repository. Keep `example-traffic.geojson` if desired.
 
 ## Test
-1. Verify normal routing and simulation.
-2. Start a real GPS test while stationary, confirm the log status changes to recording.
-3. Exit GPS, confirm an incomplete journey appears.
-4. Export both CSV files and inspect rows.
-5. Test clear logs only after exporting.
+1. Search for a destination and calculate a TomTom or OSRM route.
+2. Open **V4.2 — Road Speed Intelligence** and click **Run multi-driver demo**. The route's first short segments show synthetic green/orange/red/gray classifications.
+3. Change speed limit, normal speed, observed speed, driver count and slowdown duration; choose a route segment and click **Add observation**.
+4. Test the 1–2 driver case (insufficient evidence), then 3+ drivers for 2+ minutes.
+5. Optionally opt in to local GPS speed sampling while stationary or as a passenger. Stop sampling afterward.
+
+## Scope and privacy
+- No shared backend; no actual crowdsourcing between users.
+- GPS speed samples are displayed locally and are not saved or transmitted by this new module. Existing TomTom and other features retain their own network behavior.
+- The demo uses synthetic observations. No actual speed limits are automatically sourced yet; input manually for testing.
+- Colored overlay is experimental and not suitable for navigation decisions.
+- A future shared system needs consent, road/direction map matching, aggregation, anti-spoofing, retention controls, and real-world validation.
