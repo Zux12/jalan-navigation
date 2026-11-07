@@ -1,21 +1,22 @@
-# Jalan V4.4.3 — Road Inspection Fallback
+# Jalan Navigation V4.5 — Congestion Boundary Detection
 
-This release retains all files from V4.4.2. Upload the entire project to the GitHub repository root, replacing existing files.
+Upload all web files to the root of your existing GitHub Pages repository, replacing previous versions. Do not upload API keys.
 
-## Changes
-- One small Overpass GET query for three route samples, with a 10-second timeout.
-- If Overpass fails or does not match a sample, use TomTom Reverse Geocoding (requires your existing key in the Jalan TomTom settings).
-- Distinguish **OSM mapped road tags** from **TomTom nearby-address approximations**.
-- Unknown speed limits, direction and road types remain explicitly unknown for TomTom fallback.
-- Cancellation, cache, and final status preserved.
-- Heading and JavaScript cache version updated to V4.4.3.
+## New feature
 
-## Test
-1. Set your TomTom API key in Jalan's TomTom panel.
-2. Calculate a Putrajaya–KLCC route.
-3. Click Inspect selected route and wait for a final result.
-4. Check the source label for each sample: OSM or TomTom fallback.
-5. If the result is TomTom fallback, road names are approximate; speed limits must remain Unknown.
-6. Check cancellation, clearing, routing, and iPhone layout.
+The **V4.5 — Congestion Boundary Detection** panel uses synthetic observations along the currently selected route. Choose a route longer than 2 km, select a scenario, and click **Run scenario**. Click **Next time step** to see the queue grow, shrink or clear. The colored geometry follows route coordinates and the queue tail/head are marked on the map.
 
-This is a development test, not an authoritative speed-limit source. TomTom reverse geocoding returns nearby addresses, not guaranteed carriageway-level matches. Public Overpass servers have usage limits. The API key stays in the browser; do not commit it to GitHub.
+The scenario sequence is *forming → growing → recovering → cleared*. **Insufficient driver evidence** is a separate test and must not confirm a queue. A minimum of three independent synthetic drivers and two minutes of slowdown is required for confirmation. Thresholds and 200-meter segments are illustrative, not validated for production.
+
+## Test checklist
+
+1. Existing TomTom routing, GPS and voice remain functional.
+2. Forming scenario shows queue tail, queue head and approximate length.
+3. Next time step grows the queue and labels the trend Growing.
+4. Subsequent steps shrink and clear the queue.
+5. Insufficient-driver scenario does not confirm congestion.
+6. Colored segments follow road bends (selected route geometry).
+7. Clear boundary overlay removes colored lines and markers.
+8. iPhone portrait layout remains usable.
+
+This feature does not collect, share, store or upload real user GPS data. It does not calculate actual traffic conditions. A backend, consent, independent-device validation and real-world calibration are required before crowdsourced traffic deployment.

@@ -87,6 +87,18 @@
       <p class="compare-hint">Road matching is approximate and does not establish the correct carriageway at flyovers or complex junctions. Missing speed limits remain unknown. This lookup does not learn historical normal speeds; the V4.2 speed baseline remains a manual test input.</p>
     </section>
     <section class="traffic-card" aria-labelledby="predictive-title"><div class="compare-title"><strong id="predictive-title">V4.3 — Predictive GPS / Route Lock</strong><span class="demo-tag">LOCAL SIMULATION</span></div><p class="compare-hint">Selected route is the reference. GPS jumps are held on-route; repeated plausible off-route fixes are required before deviation is confirmed. No GPS data is uploaded.</p><div class="compare-actions"><button id="gps-predict-test" type="button">Run GPS jump tests</button></div><div id="gps-predict-results" class="compare-hint" role="status">Run four local tests: single jump, recovery, poor accuracy and sustained deviation.</div></section>
+    <section class="traffic-card" id="boundary-card" aria-labelledby="boundary-title">
+      <div class="compare-title"><strong id="boundary-title">V4.5 — Congestion Boundary Detection</strong><span class="demo-tag">SYNTHETIC · LOCAL ONLY</span></div>
+      <p class="compare-hint">Model where a queue begins and ends along the selected route. The queue tail is the first congested segment in travel direction; the queue head is the last. Simulated traffic only — not real crowdsourced readings.</p>
+      <label class="boundary-label" for="boundary-scenario">Traffic scenario
+        <select id="boundary-scenario"><option value="forming">Queue forming</option><option value="growing">Queue growing backward</option><option value="recovering">Queue recovering</option><option value="cleared">Traffic cleared</option><option value="sparse">Insufficient driver evidence</option></select>
+      </label>
+      <div class="compare-actions"><button id="boundary-run" type="button">Run scenario</button><button id="boundary-next" type="button">Next time step</button><button id="boundary-clear" type="button">Clear boundary overlay</button></div>
+      <p id="boundary-status" class="compare-difference" role="status">Calculate a route, then run a scenario.</p>
+      <div id="boundary-metrics" class="boundary-metrics" aria-live="polite"></div>
+      <div id="boundary-segments" class="compare-history" aria-live="polite"></div>
+      <p class="compare-hint">Rules for this test: each route segment is approximately 200 m; congestion is counted only with at least 3 independent simulated drivers and 2 minutes of sustained slowdown. Unconfirmed segments are not used to establish queue boundaries. Recovery requires repeated evidence; missing data is not proof that a queue cleared. Boundaries are approximate and may shift with the selected route.</p>
+    </section>
     <section class="traffic-card" id="speed-intel-card" aria-labelledby="speed-intel-title">
       <div class="compare-title"><strong id="speed-intel-title">V4.3 — Road Speed Intelligence</strong><span class="demo-tag">LOCAL TEST · NOT SHARED</span></div>
       <p class="compare-hint">Analyze speeds by route segment and travel direction. The speed limit is a reference, not the congestion baseline. No other Jalan users are tracked in this version.</p>
@@ -151,5 +163,6 @@
   <script src="speed-intelligence.js?v=4-3"></script>
   <script src="predictive-tests.js?v=4-3"></script>
   <script src="road-intelligence.js?v=4-4-3"></script>
+  <script src="congestion-boundary.js?v=4-5"></script>
 </body>
 </html>
