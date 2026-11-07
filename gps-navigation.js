@@ -41,5 +41,8 @@
  el('gps-start').onclick=start;el('gps-exit').onclick=()=>{stop();if(routes.length)renderRoutes();};el('gps-recenter').onclick=()=>{if(current)map.setView(current,16);};el('gps-reroute').onclick=reroute;
  el('gps-auto').onclick=()=>{auto=!auto;updateButtons();};el('gps-voice').onclick=()=>{voice=!voice;updateButtons();if(voice&&active)speak('Voice guidance enabled');else if('speechSynthesis'in window)speechSynthesis.cancel();};
  document.addEventListener('visibilitychange',()=>{if(active&&document.hidden){warn('Safari backgrounded. GPS and speech may pause; do not rely on navigation.');if('speechSynthesis'in window)speechSynthesis.cancel();}});
- window.JalanGPS={stop,routeReady(){el('gps-start').classList.remove('hidden');}};
+ window.JalanGPS={
+  getState(){return {active,position:current?[...current]:null,accuracy:lastFixAt?Number(el('gps-accuracy').textContent.replace(/[^0-9.]/g,'')):Infinity,fixAgeMs:lastFixAt?Date.now()-lastFixAt:Infinity,remainingSeconds:active&&route?route.duration*Math.max(0,total-progress)/total:null,remainingMeters:active&&route?route.distance*Math.max(0,total-progress)/total:null,route};},
+  applyTrafficRoute(newRoute){if(!active||!newRoute)return false;stop();routes=[newRoute];selectedRoute=0;renderRoutes();start();return true;},
+  stop,routeReady(){el('gps-start').classList.remove('hidden');}};
 })();

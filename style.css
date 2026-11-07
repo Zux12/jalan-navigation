@@ -104,3 +104,6 @@ body.nav-active #info-panel{display:none}body.nav-active .topbar{display:none}bo
 #gps-hud.hidden{display:none!important}#gps-hud{z-index:1400}#gps-hud .nav-sim-badge{color:#7a280d;background:#fff1df}#gps-auto[aria-pressed="true"]{background:#dcfce7;color:#166534;border-color:#86efac}
 #gps-start{background:#e7f5ee;color:#14613d;border-color:#a7dbc2}
 @media(max-width:600px){#gps-hud{max-height:calc(100dvh - 24px - env(safe-area-inset-top,0px));overflow:auto}#gps-hud .nav-actions button{min-width:28%}}
+
+/* V4.0 proactive route suggestion */
+.proactive-box{border:1px solid #cbdaf3;border-radius:12px;padding:10px;background:#f7faff;display:grid;gap:7px;font-size:12px}.proactive-heading,.proactive-actions{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}.proactive-heading span{color:#52657f}.proactive-actions button{flex:1 1 120px;min-height:38px}.proactive-box small{line-height:1.4;color:#64748b}.proactive-offer{padding:9px;border-radius:10px;border:1px solid #b5d9c3;background:#ecfdf5}.proactive-offer.hidden{display:none}.proactive-offer p{margin:5px 0 10px}.proactive-offer #proactive-accept{background:#166534;color:#fff}.proactive-offer #proactive-decline{background:#fff;color:#334155}@media(max-width:600px){.proactive-box{padding:8px}.proactive-actions button{font-size:12px}}

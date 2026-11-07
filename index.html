@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#ffffff" />
   <title>Jalan — Navigation Prototype V3.9 Turn Guidance Test</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
-  <link rel="stylesheet" href="style.css?v=3-9" />
+  <link rel="stylesheet" href="style.css?v=4-0" />
 </head>
 <body>
   <div id="map" aria-label="Interactive map"></div>
@@ -28,6 +28,7 @@
   <div class="nav-turn"><span id="gps-arrow">↑</span><div><strong id="gps-instruction">Acquiring GPS…</strong><small id="gps-detail">Keep screen on; test while stationary or as passenger</small></div></div>
   <div class="nav-stats"><span><b id="gps-eta">—</b><small>Estimated remaining</small></span><span><b id="gps-distance">—</b><small>Remaining distance</small></span><span><b id="gps-accuracy">—</b><small>GPS accuracy</small></span></div>
   <div id="gps-warning" class="nav-warning hidden"></div>
+  <div class="proactive-box" id="proactive-box"><div class="proactive-heading"><strong>Traffic route checks</strong><span id="proactive-status">Off</span></div><div class="proactive-actions"><button id="proactive-toggle" type="button" aria-pressed="false">Enable 5-min checks</button><button id="proactive-check" type="button">Check now</button></div><div id="proactive-offer" class="proactive-offer hidden" role="status"><strong id="proactive-offer-title"></strong><p id="proactive-offer-detail"></p><div class="proactive-actions"><button id="proactive-accept" type="button">Switch route</button><button id="proactive-decline" type="button">Keep current</button></div></div><small>Compares TomTom's new fastest route with the current route's estimated remaining time. Estimates may differ; testing only.</small></div>
   <div class="nav-actions"><button id="gps-recenter" type="button">Center GPS</button><button id="gps-reroute" type="button">Recalculate route</button><button id="gps-auto" type="button" aria-pressed="false">Auto reroute: Off</button><button id="gps-voice" type="button" aria-pressed="false">Voice: Off</button></div>
 </section>
 <section id="nav-hud" class="nav-hud hidden" aria-live="polite">
@@ -101,11 +102,12 @@
     </div>
   </section>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
-  <script src="app.js?v=3-9"></script>
-  <script src="comparison.js?v=3-9"></script>
-  <script src="traffic-test.js?v=3-9"></script>
-  <script src="tomtom-live.js?v=3-9"></script>
-  <script src="navigation-sim.js?v=3-9"></script>
-  <script src="gps-navigation.js?v=3-9"></script>
+  <script src="app.js?v=4-0"></script>
+  <script src="comparison.js?v=4-0"></script>
+  <script src="traffic-test.js?v=4-0"></script>
+  <script src="tomtom-live.js?v=4-0"></script>
+  <script src="navigation-sim.js?v=4-0"></script>
+  <script src="gps-navigation.js?v=4-0"></script>
+  <script src="proactive-routing.js?v=4-0"></script>
 </body>
 </html>
