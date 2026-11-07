@@ -1,17 +1,18 @@
-# Jalan Navigation V3.5 — TomTom Live Traffic
+# Jalan Navigation V3.6 — TomTom traffic-aware routing
 
-Upload `index.html`, `style.css`, `app.js`, `comparison.js`, `traffic-test.js`, `tomtom-live.js` and optionally `example-traffic.geojson` to the root of `zux12/jalan-navigation`. Do not upload your API key.
+Upload `index.html`, `style.css`, `app.js`, `comparison.js`, `traffic-test.js`, and `tomtom-live.js` to the root of your existing GitHub Pages repository. Do not upload an API key. Optional example-traffic.geojson is synthetic.
 
 ## Test
-1. Open Jalan on GitHub Pages, expand the panel and paste your TomTom key in V3.5 settings.
-2. Click **Connect / Update traffic**. Road traffic tiles should appear. Zoom to Kuala Lumpur to test incidents.
-3. Search for Suria KLCC and calculate Jalan route, then click **Get TomTom traffic-aware ETA**. Compare with Waze in separate tab.
-4. Try **Hide live traffic** and **Forget key**.
+1. Refresh GitHub Pages (hard refresh if needed), open route details, enter your new domain-restricted TomTom key, and press **Connect / Update traffic**.
+2. Leave **Use TomTom as primary routing engine** checked. Search for Suria KLCC and select a destination result. The blue route should be TomTom's route with a traffic-aware ETA.
+3. If TomTom returns alternatives, select a different route button. Not all journeys have alternatives.
+4. Toggle incident display; incidents within approximately 1 km of the selected route should appear, if TomTom reports any.
+5. Uncheck TomTom primary routing and search again to compare OSRM. The original navigation, Waze comparison and manual reports remain.
+6. Check the iPhone layout and route visibility.
 
-## Important
-- The key is kept in `sessionStorage` by default; optional Remember stores it in `localStorage` on that device. It is never written to the GitHub files. However it is still exposed in browser requests to TomTom and browser developer tools. Domain restrictions are necessary, but do not make it secret.
-- Domain whitelisting may affect browser calls; if the service returns 403/401 or blocked tiles, review TomTom key permissions, allowed origins, CORS and quotas.
-- Map tiles and incident requests use API quota. Live tiles refresh every five minutes; incidents reload after map moves.
-- This demo uses OpenStreetMap tiles plus TomTom overlays. Confirm TomTom's current licensing and attribution requirements for this combination before public distribution.
-- TomTom ETA is calculated independently; it does not replace Jalan's blue OSRM route. This is a prototype, not driving guidance.
-- Public OSM/Nominatim/OSRM endpoints are for low-volume testing only.
+## Notes
+- TomTom routes use live traffic and are fetched on demand; traffic tiles refresh every five minutes while the page is visible. Incident API is throttled to five minutes except after route changes. This is **not** continuous GPS-triggered rerouting.
+- Public demo only, not a driving safety system. Real-time traffic and route alternatives depend on API access and data availability.
+- TomTom key is stored in sessionStorage, or localStorage only when Remember is checked. Browser API requests reveal the key to TomTom; domain whitelisting and quotas are important.
+- The previously shared key appeared in a screenshot. Rotate it in TomTom before continuing.
+- Review TomTom traffic data licensing and OSM tile usage requirements before broad public use.

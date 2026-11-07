@@ -4,9 +4,9 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="theme-color" content="#ffffff" />
-  <title>Jalan — Navigation Prototype V3.5 TomTom Live Traffic</title>
+  <title>Jalan — Navigation Prototype V3.6 TomTom Routing</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
-  <link rel="stylesheet" href="style.css?v=3-5" />
+  <link rel="stylesheet" href="style.css?v=3-6" />
 </head>
 <body>
   <div id="map" aria-label="Interactive map"></div>
@@ -51,17 +51,17 @@
       <p class="compare-hint">Saved comparisons stay in this browser only. For a fair comparison, use the same start, destination, departure time and route preferences. Do not use this prototype for driving decisions.</p>
     </section>
     <section class="traffic-card" aria-labelledby="tomtom-title">
-      <div class="compare-title"><strong id="tomtom-title">V3.5 — TomTom Live Traffic</strong><span class="demo-tag">LIVE API</span></div>
+      <div class="compare-title"><strong id="tomtom-title">V3.6 — TomTom Live Navigation</strong><span class="demo-tag">LIVE API</span></div>
       <p class="compare-hint">Your TomTom API key stays in this browser, not in GitHub. Browser requests send it directly to TomTom. Check TomTom's data-display terms before public use.</p>
       <label class="traffic-file-label" for="tt-key">TomTom API key</label>
       <div class="tt-key-row"><input id="tt-key" type="password" autocomplete="off" spellcheck="false" placeholder="Paste your TomTom key here"><button id="tt-toggle-key" type="button">Show</button></div>
       <label class="traffic-consent"><input id="tt-remember" type="checkbox"> Remember this key in this browser (less secure on shared devices)</label>
       <div class="compare-actions"><button id="tt-connect" type="button">Connect / Update traffic</button><button id="tt-hide" type="button">Hide live traffic</button></div>
-      <label class="traffic-consent"><input id="tt-incident-toggle" type="checkbox" checked> Show live incidents in visible map area</label>
-      <div class="compare-actions"><button id="tt-route" type="button">Get TomTom traffic-aware ETA</button><button id="tt-remove-key" type="button">Forget key</button></div>
+      <label class="traffic-consent"><input id="tt-incident-toggle" type="checkbox" checked> Show TomTom incidents near selected route (within 1 km)</label><label class="traffic-consent"><input id="tt-primary" type="checkbox" checked> Use TomTom as primary routing engine (when key is configured)</label>
+      <div class="compare-actions"><button id="tt-route" type="button">Calculate TomTom routes now</button><button id="tt-remove-key" type="button">Forget key</button></div>
       <p id="tt-status" class="compare-hint" role="status">Enter your restricted TomTom key to begin.</p>
-      <p id="tt-eta" class="compare-difference" aria-live="polite">TomTom ETA will appear here after you calculate a Jalan route.</p>
-      <p class="compare-hint">Traffic colors are live TomTom tiles. Incidents are from TomTom, when available. TomTom route ETA is a separate calculation; Jalan's blue OSRM route is unchanged. Requests may use API quota.</p>
+      <p id="tt-eta" class="compare-difference" aria-live="polite">TomTom routes will appear here after searching a destination.</p>
+      <p class="compare-hint">Traffic colors are live TomTom tiles. Incidents are from TomTom, when available. TomTom route geometry and traffic-aware ETA replace the blue route when enabled. Switch off primary routing to compare with OSRM. Incidents refresh at most every 5 minutes and on route changes. Public demo only; do not use while driving.</p>
     </section>
     <section class="traffic-card" aria-labelledby="traffic-title">
       <div class="compare-title"><strong id="traffic-title">V3.4 — External traffic overlay test</strong><span class="demo-tag">NO LIVE WAZE FEED</span></div>
@@ -82,13 +82,13 @@
       <button id="report-hazard">⚠️ <span>Hazard</span></button>
       <button id="report-rain">🌧️ <span>Heavy rain</span></button>
     </div>
-    <p class="disclaimer">Community reports are stored only in this browser. No live traffic or verified incidents. Routes are estimates; follow-location mode is not voice-guided navigation.</p>
+    <p class="disclaimer">Community reports are stored only in this browser. TomTom incidents and traffic depend on API availability. Routes are estimates; follow-location mode is not voice-guided navigation.</p>
     </div>
   </section>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
-  <script src="app.js?v=3-5"></script>
-  <script src="comparison.js?v=3-5"></script>
-  <script src="traffic-test.js?v=3-5"></script>
-  <script src="tomtom-live.js?v=3-5"></script>
+  <script src="app.js?v=3-6"></script>
+  <script src="comparison.js?v=3-6"></script>
+  <script src="traffic-test.js?v=3-6"></script>
+  <script src="tomtom-live.js?v=3-6"></script>
 </body>
 </html>

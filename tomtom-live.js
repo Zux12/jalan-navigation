@@ -1,147 +1,22 @@
-/* Jalan V3.5 — TomTom live traffic, independent of existing Jalan routing. */
+/* Jalan V3.6 TomTom routes, tiles and near-route incidents. */
 (() => {
-  'use strict';
-  const $ = id => document.getElementById(id);
-  const keyInput = $('tt-key');
-  const status = message => { $('tt-status').textContent = message; };
-  const remembered = localStorage.getItem('jalan-tomtom-key');
-  if (remembered) { keyInput.value = remembered; $('tt-remember').checked = true; }
-  else keyInput.value = sessionStorage.getItem('jalan-tomtom-key') || '';
-  const validKey = () => {
-    const key = keyInput.value.trim();
-    if (!key || !/^[A-Za-z0-9_-]{8,160}$/.test(key)) throw Error('Enter a valid TomTom API key.');
-    return key;
-  };
-  function saveKey() {
-    const key = validKey();
-    sessionStorage.setItem('jalan-tomtom-key', key);
-    if ($('tt-remember').checked) localStorage.setItem('jalan-tomtom-key', key);
-    else localStorage.removeItem('jalan-tomtom-key');
-    return key;
-  }
-  let tiles = null;
-  let incidentLayer = L.layerGroup().addTo(map);
-  let refreshHandle = null;
-  let incidentsRequest = null;
-  let active = false;
-  const MAX_INCIDENTS = 80;
-  function removeTraffic() {
-    active = false;
-    if (refreshHandle) clearInterval(refreshHandle);
-    refreshHandle = null;
-    if (incidentsRequest) incidentsRequest.abort();
-    if (tiles) { map.removeLayer(tiles); tiles = null; }
-    incidentLayer.clearLayers();
-  }
-  function descriptionFor(item) {
-    const props = item.properties || {};
-    const event = Array.isArray(props.events) ? props.events[0] : null;
-    return String(event?.description || props.from || 'Traffic incident').slice(0, 140);
-  }
-  function addIncidents(data) {
-    incidentLayer.clearLayers();
-    const incidents = Array.isArray(data.incidents) ? data.incidents : [];
-    let count = 0;
-    for (const incident of incidents.slice(0, MAX_INCIDENTS)) {
-      const geom = incident.geometry;
-      const props = incident.properties || {};
-      if (!geom || !Array.isArray(geom.coordinates)) continue;
-      let latlng;
-      if (geom.type === 'Point') latlng = [geom.coordinates[1], geom.coordinates[0]];
-      else if (geom.type === 'LineString' && geom.coordinates.length) latlng = [geom.coordinates[0][1], geom.coordinates[0][0]];
-      if (!latlng || !latlng.every(Number.isFinite)) continue;
-      const category = Number(props.iconCategory);
-      const icon = [6,7].includes(category) ? '🚧' : [1,2].includes(category) ? '🚗' : '⚠️';
-      const marker = L.marker(latlng, {icon:L.divIcon({className:'report-marker',html:icon,iconSize:[28,28],iconAnchor:[14,14]})});
-      const popup = document.createElement('div');
-      const title = document.createElement('strong'); title.textContent = 'TomTom live incident';
-      const details = document.createElement('p'); details.textContent = descriptionFor(incident);
-      popup.append(title,details);
-      marker.bindPopup(popup).addTo(incidentLayer);
-      count++;
-    }
-    return count;
-  }
-  async function fetchIncidents(key) {
-    if (!active || !$('tt-incident-toggle').checked) { incidentLayer.clearLayers(); return; }
-    if (map.getZoom() < 9) { incidentLayer.clearLayers(); status('Traffic tiles active. Zoom in to level 9+ to load incidents.'); return; }
-    if (incidentsRequest) incidentsRequest.abort();
-    incidentsRequest = new AbortController();
-    const b = map.getBounds();
-    const bbox = [b.getWest(),b.getSouth(),b.getEast(),b.getNorth()].map(v=>v.toFixed(5)).join(',');
-    const fields = '{incidents{type,geometry{type,coordinates},properties{iconCategory,magnitudeOfDelay,events{description}}}}';
-    const url = new URL('https://api.tomtom.com/traffic/services/5/incidentDetails');
-    url.searchParams.set('key',key); url.searchParams.set('bbox',bbox);
-    url.searchParams.set('fields',fields); url.searchParams.set('language','en-GB');
-    try {
-      const response = await fetch(url, {signal:incidentsRequest.signal,cache:'no-store'});
-      if (!response.ok) throw Error(`Incident API HTTP ${response.status}`);
-      const count = addIncidents(await response.json());
-      status(`Live traffic overlay on. ${count} incident markers shown in current view (up to ${MAX_INCIDENTS}).`);
-    } catch (e) {
-      if (e.name !== 'AbortError') status('Traffic tiles enabled; incidents unavailable: '+e.message+'. Check API permissions, domain whitelist and quota.');
-    }
-  }
-  async function connect() {
-    try {
-      const key = saveKey();
-      removeTraffic();
-      active = true;
-      // TomTom flow tiles can be overlaid on the Leaflet/OpenStreetMap map.
-      tiles = L.tileLayer('https://api.tomtom.com/traffic/map/4/tile/flow/relative0/{z}/{x}/{y}.png?key='+encodeURIComponent(key),{
-        opacity:0.82,maxZoom:19,maxNativeZoom:18,attribution:'Traffic © TomTom',updateWhenIdle:true
-      }).addTo(map);
-      let tileErrorCount = 0;
-      tiles.on('tileerror', () => {if (++tileErrorCount === 3) status('TomTom traffic tiles failed. Check your key, domain whitelist, product access or quota.');});
-      status('Loading live TomTom traffic tiles and incidents…');
-      await fetchIncidents(key);
-      refreshHandle = setInterval(() => {
-        if (!active) return;
-        // Refresh tiles only every five minutes to limit API usage.
-        if (tiles) tiles.setUrl('https://api.tomtom.com/traffic/map/4/tile/flow/relative0/{z}/{x}/{y}.png?key='+encodeURIComponent(key)+'&v='+Math.floor(Date.now()/300000));
-        fetchIncidents(key);
-      },300000);
-    } catch(e) { status(e.message); }
-  }
-  let debounce;
-  map.on('moveend',()=>{
-    if (!active) return;
-    clearTimeout(debounce);
-    debounce=setTimeout(()=>{try{fetchIncidents(validKey())}catch(e){status(e.message)}},1100);
-  });
-  $('tt-connect').addEventListener('click',connect);
-  $('tt-hide').addEventListener('click',()=>{removeTraffic();status('Live TomTom overlay hidden.');});
-  $('tt-incident-toggle').addEventListener('change',()=>{if(active) {try{fetchIncidents(validKey())}catch(e){status(e.message)}}});
-  $('tt-toggle-key').addEventListener('click',()=>{
-    const show = keyInput.type === 'password'; keyInput.type = show ? 'text' : 'password';
-    $('tt-toggle-key').textContent = show ? 'Hide' : 'Show';
-  });
-  $('tt-remove-key').addEventListener('click',()=>{
-    removeTraffic(); keyInput.value='';
-    sessionStorage.removeItem('jalan-tomtom-key');localStorage.removeItem('jalan-tomtom-key');
-    $('tt-remember').checked=false; $('tt-eta').textContent='TomTom ETA will appear here after you calculate a Jalan route.';
-    status('TomTom key cleared from this browser.');
-  });
-  $('tt-route').addEventListener('click',async()=>{
-    try {
-      const key=saveKey();
-      if (!startPoint || !destination) throw Error('Calculate a Jalan route first.');
-      const points = [startPoint,destination].map(p=>p.join(','));
-      const url = new URL('https://api.tomtom.com/routing/1/calculateRoute/'+points.join(':')+'/json');
-      url.searchParams.set('key',key);
-      url.searchParams.set('traffic','true');
-      url.searchParams.set('travelMode','car');
-      url.searchParams.set('routeType','fastest');
-      $('tt-eta').textContent='Calculating TomTom traffic-aware ETA…';
-      const response = await fetch(url);
-      if (!response.ok) throw Error('TomTom Routing API HTTP '+response.status);
-      const data=await response.json();
-      const summary=data.routes?.[0]?.summary;
-      if (!summary) throw Error('TomTom returned no route.');
-      const seconds=summary.travelTimeInSeconds;
-      const km=(summary.lengthInMeters/1000).toFixed(1);
-      const delay=summary.trafficDelayInSeconds;
-      $('tt-eta').textContent=`TomTom: ${Math.round(seconds/60)} min · ${km} km`+(Number.isFinite(delay)?` · Traffic delay ${Math.round(delay/60)} min`:'')+'. Jalan blue route remains unchanged.';
-    } catch(e) { $('tt-eta').textContent='Could not calculate TomTom ETA: '+e.message; }
-  });
+'use strict';
+const el=id=>document.getElementById(id), input=el('tt-key');
+const status=s=>el('tt-status').textContent=s;
+input.value=localStorage.getItem('jalan-tomtom-key')||sessionStorage.getItem('jalan-tomtom-key')||'';
+el('tt-remember').checked=!!localStorage.getItem('jalan-tomtom-key');
+const enabled=()=>el('tt-primary').checked && !!input.value.trim();
+function key(){const k=input.value.trim();if(!/^[\w-]{8,160}$/.test(k))throw Error('Enter a valid TomTom key.');sessionStorage.setItem('jalan-tomtom-key',k);if(el('tt-remember').checked)localStorage.setItem('jalan-tomtom-key',k);else localStorage.removeItem('jalan-tomtom-key');return k;}
+let tiles=null,active=false,timer=null,routeAbort=null,incidentAbort=null,token=0,lastIncidents=0,debounce=null;
+const incidentLayer=L.layerGroup().addTo(map);
+function routeCleared(){token++;routeAbort?.abort();incidentAbort?.abort();incidentLayer.clearLayers();}
+function hide(){active=false;clearInterval(timer);clearTimeout(debounce);incidentAbort?.abort();if(tiles)map.removeLayer(tiles);tiles=null;incidentLayer.clearLayers();}
+function normal(r){const coords=[];for(const leg of r.legs||[])for(const p of leg.points||[]){if(Number.isFinite(p.latitude)&&Number.isFinite(p.longitude))coords.push([p.longitude,p.latitude]);}if(coords.length<2)throw Error('TomTom returned no usable route geometry.');const steps=(r.guidance?.instructions||[]).slice(0,80).map(x=>({name:x.street||x.roadNumber||x.message||'road',distance:0,maneuver:{type:x.maneuver||'continue',modifier:x.message||''}}));return {provider:'tomtom',geometry:{type:'LineString',coordinates:coords},duration:r.summary.travelTimeInSeconds,distance:r.summary.lengthInMeters,delay:r.summary.trafficDelayInSeconds||0,legs:[{steps}]};}
+async function calculate(){if(!startPoint||!destination){status('Search for a destination first.');return;}let k;try{k=key();}catch(e){status(e.message);return;}clearRoute(false);const id=++token;routeAbort=new AbortController();statusEl.textContent='Calculating TomTom traffic-aware route…';routeEl.textContent='Loading TomTom routes…';routeEl.classList.remove('hidden');const path=[startPoint,destination].map(p=>p.map(x=>x.toFixed(6)).join(',')).join(':');const url=new URL('https://api.tomtom.com/routing/1/calculateRoute/'+path+'/json');for(const [a,b] of Object.entries({key:k,traffic:'true',departAt:'now',travelMode:'car',routeType:'fastest',maxAlternatives:'2',instructionsType:'text',language:'en-GB'}))url.searchParams.set(a,b);try{const response=await fetch(url,{signal:routeAbort.signal,cache:'no-store'});if(!response.ok)throw Error('TomTom routing HTTP '+response.status);const data=await response.json();if(id!==token)return;if(!data.routes?.length)throw Error('No routes returned');routes=data.routes.map(normal);selectedRoute=0;setPanelCollapsed(true);renderRoutes();const r=routes[0];el('tt-eta').textContent=`TomTom: ${Math.round(r.duration/60)} min · ${(r.distance/1000).toFixed(1)} km · Traffic delay ${Math.round(r.delay/60)} min · ${routes.length} route(s).`;statusEl.textContent='TomTom traffic-aware route active.';refreshRouteIncidents(true);}catch(e){if(e.name==='AbortError'||id!==token)return;routeEl.textContent='TomTom route unavailable: '+e.message;status('Uncheck TomTom primary routing to use OSRM. '+e.message);}}
+function distanceToRoute(p,coords){const sx=111320*Math.cos(p[0]*Math.PI/180),sy=111320;let best=Infinity;for(let i=1;i<coords.length;i++){const a=coords[i-1],b=coords[i],ax=(a[0]-p[1])*sx,ay=(a[1]-p[0])*sy,dx=(b[0]-a[0])*sx,dy=(b[1]-a[1])*sy,t=Math.max(0,Math.min(1,-(ax*dx+ay*dy)/(dx*dx+dy*dy||1)));best=Math.min(best,Math.hypot(ax+t*dx,ay+t*dy));}return best;}
+async function incidents(force=false){if(!active||!el('tt-incident-toggle').checked||routes[selectedRoute]?.provider!=='tomtom'){incidentLayer.clearLayers();return;}if(!force&&Date.now()-lastIncidents<300000)return;incidentAbort?.abort();incidentAbort=new AbortController();const r=routes[selectedRoute],b=L.latLngBounds(r.geometry.coordinates.map(p=>[p[1],p[0]])).pad(.15),bbox=[b.getWest(),b.getSouth(),b.getEast(),b.getNorth()].map(x=>x.toFixed(5)).join(',');const url=new URL('https://api.tomtom.com/traffic/services/5/incidentDetails');url.searchParams.set('key',key());url.searchParams.set('bbox',bbox);url.searchParams.set('fields','{incidents{type,geometry{type,coordinates},properties{iconCategory,events{description}}}}');url.searchParams.set('language','en-GB');try{const response=await fetch(url,{signal:incidentAbort.signal,cache:'no-store'});if(!response.ok)throw Error('Incident API HTTP '+response.status);const data=await response.json();incidentLayer.clearLayers();let n=0;for(const item of data.incidents||[]){if(n>=60)break;const g=item.geometry,p=g?.type==='Point'?g.coordinates:g?.type==='LineString'?g.coordinates?.[0]:null;if(!p)continue;const loc=[p[1],p[0]];if(!loc.every(Number.isFinite)||distanceToRoute(loc,r.geometry.coordinates)>1000)continue;const props=item.properties||{},cat=Number(props.iconCategory),emoji=[6,7].includes(cat)?'🚧':[1,2].includes(cat)?'🚗':'⚠️';const popup=document.createElement('div'),head=document.createElement('strong'),desc=document.createElement('p');head.textContent='TomTom incident near route';desc.textContent=String(props.events?.[0]?.description||'Traffic incident').slice(0,180);popup.append(head,desc);L.marker(loc,{icon:L.divIcon({className:'report-marker',html:emoji,iconSize:[28,28],iconAnchor:[14,14]})}).bindPopup(popup).addTo(incidentLayer);n++;}lastIncidents=Date.now();status(`TomTom traffic active · ${n} incident(s) within approximately 1 km of route.`);}catch(e){if(e.name!=='AbortError')status('Traffic active; incidents unavailable: '+e.message);}}
+function refreshRouteIncidents(force=false){if(!active)return;clearTimeout(debounce);debounce=setTimeout(()=>incidents(force),400);}
+function connect(){try{const k=key();hide();active=true;tiles=L.tileLayer('https://api.tomtom.com/traffic/map/4/tile/flow/relative0/{z}/{x}/{y}.png?key='+encodeURIComponent(k),{opacity:.82,maxZoom:19,maxNativeZoom:18,attribution:'Traffic © TomTom',updateWhenIdle:true}).addTo(map);let errors=0;tiles.on('tileerror',()=>{if(++errors===3)status('Traffic tiles failed. Check key, domain restriction and quota.');});status('Live traffic enabled. Incidents appear near a TomTom route.');refreshRouteIncidents(true);timer=setInterval(()=>{if(!active||document.hidden)return;tiles?.setUrl('https://api.tomtom.com/traffic/map/4/tile/flow/relative0/{z}/{x}/{y}.png?key='+encodeURIComponent(k)+'&v='+Math.floor(Date.now()/300000));incidents();},300000);}catch(e){status(e.message);}}
+el('tt-connect').onclick=connect;el('tt-hide').onclick=()=>{hide();status('Traffic overlay hidden.');};el('tt-route').onclick=calculate;el('tt-primary').onchange=()=>status(enabled()?'TomTom routing selected. Search again to apply.':'OSRM routing selected. Search again to apply.');el('tt-incident-toggle').onchange=()=>refreshRouteIncidents(true);el('tt-toggle-key').onclick=()=>{const show=input.type==='password';input.type=show?'text':'password';el('tt-toggle-key').textContent=show?'Hide':'Show';};el('tt-remove-key').onclick=()=>{hide();input.value='';localStorage.removeItem('jalan-tomtom-key');sessionStorage.removeItem('jalan-tomtom-key');el('tt-remember').checked=false;status('Key cleared from browser.');};
+window.JalanTomTom={enabled,calculate,routeCleared,refreshRouteIncidents};
 })();
