@@ -1,19 +1,17 @@
-# Jalan Navigation V3.4 — External Traffic Overlay Feasibility
+# Jalan Navigation V3.5 — TomTom Live Traffic
 
-This version preserves V3.3 features and adds a **local GeoJSON overlay experiment**. It does **not** retrieve Waze traffic data. The Waze comparison remains in a separate tab.
-
-## GitHub Pages deployment
-Upload `index.html`, `style.css`, `app.js`, `comparison.js`, and **new** `traffic-test.js` to the repository root. `example-traffic.geojson` is optional and is only a synthetic sample file. Do not upload real sensitive traffic datasets to a public repository.
+Upload `index.html`, `style.css`, `app.js`, `comparison.js`, `traffic-test.js`, `tomtom-live.js` and optionally `example-traffic.geojson` to the root of `zux12/jalan-navigation`. Do not upload your API key.
 
 ## Test
-1. Refresh Jalan and search for a destination to verify existing routing.
-2. Expand route details and click **Show synthetic demo**. A red segment and an orange marker should appear. They are fictional and do not represent actual traffic.
-3. Click **Clear overlay**.
-4. Tick the permission checkbox, then import `example-traffic.geojson`. The sample should display.
-5. Check the iPhone layout and V3.3 comparison / CSV export.
+1. Open Jalan on GitHub Pages, expand the panel and paste your TomTom key in V3.5 settings.
+2. Click **Connect / Update traffic**. Road traffic tiles should appear. Zoom to Kuala Lumpur to test incidents.
+3. Search for Suria KLCC and calculate Jalan route, then click **Get TomTom traffic-aware ETA**. Compare with Waze in separate tab.
+4. Try **Hide live traffic** and **Forget key**.
 
-## Data format
-GeoJSON FeatureCollection with up to 500 Point, LineString, or MultiLineString features, up to 1 MB. Properties may contain `label` and `severity` (`high`, `medium`, other). The file is read locally in the browser and is not sent to a server. This generic format is **not a claim of compatibility with any Waze API**.
-
-## Limitations
-Waze data access, permissions and feed format remain unresolved. This is not real-time navigation, a live traffic feed, or a commercial data integration. OSM public tiles, Nominatim and OSRM demo services have usage policies and are not production infrastructure.
+## Important
+- The key is kept in `sessionStorage` by default; optional Remember stores it in `localStorage` on that device. It is never written to the GitHub files. However it is still exposed in browser requests to TomTom and browser developer tools. Domain restrictions are necessary, but do not make it secret.
+- Domain whitelisting may affect browser calls; if the service returns 403/401 or blocked tiles, review TomTom key permissions, allowed origins, CORS and quotas.
+- Map tiles and incident requests use API quota. Live tiles refresh every five minutes; incidents reload after map moves.
+- This demo uses OpenStreetMap tiles plus TomTom overlays. Confirm TomTom's current licensing and attribution requirements for this combination before public distribution.
+- TomTom ETA is calculated independently; it does not replace Jalan's blue OSRM route. This is a prototype, not driving guidance.
+- Public OSM/Nominatim/OSRM endpoints are for low-volume testing only.
