@@ -122,3 +122,6 @@ body.nav-active #info-panel{display:none}body.nav-active .topbar{display:none}bo
 
 /* V4.3 predictive GPS status */
 .gps-match-status{padding:7px 10px;border-radius:8px;background:#e0f2fe;color:#075985;font-size:12px;font-weight:600;margin:5px 0;}
+
+/* V4.4 road intelligence */
+#ri-results{max-height:300px;overflow:auto}.ri-item{padding:10px 0;border-bottom:1px solid #e2e8f0;font-size:13px;line-height:1.55}.ri-item strong{display:block;color:#183b68}.ri-meta{color:#64748b;font-size:12px}#ri-scan:disabled{opacity:.6;cursor:wait}

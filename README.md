@@ -1,20 +1,27 @@
-# Jalan Navigation V4.3 — Predictive GPS & Route Lock
+# Jalan Navigation V4.4 — Automatic Road Intelligence
 
-Upload all website files into the root of your existing GitHub Pages repository, replacing older versions. New files: `predictive-gps.js` and `predictive-tests.js`.
+Built from the tested V4.3 prototype. Upload all HTML/CSS/JS files to the **root** of the existing GitHub Pages repository.
 
-## Changes
-- Uses the selected route as the primary position reference while GPS is uncertain.
-- A single implausible GPS jump does not relocate the navigation marker or trigger rerouting.
-- Prediction uses elapsed time and speed, capped to 12 seconds per GPS gap.
-- Sustained, plausible off-route readings (at least four spanning eight seconds) can confirm a deviation.
-- Low-confidence fixes do not count toward arrival detection or journey GPS quality.
-- Includes four synthetic tests in a new Predictive GPS panel.
+## New capability
 
-## Testing
-1. Calculate a route, open Predictive GPS panel and run GPS jump tests.
-2. Confirm all four show PASS.
-3. Start GPS test while stationary or as passenger; check route-matching status.
-4. Verify simulation, TomTom routing, reports, Waze comparison and iPhone layout remain working.
+**Inspect selected route** samples three positions (20%, 50%, 80%) along the current route and requests nearby road tags from OpenStreetMap via a public Overpass API endpoint. It displays the mapped road name, highway class, explicit `maxspeed` tag (or **Unknown**), `oneway` tag, and approximate map-match distance. Small teal dots identify the matched positions. **Clear road inspection** removes these dots.
 
-## Limits
-This is a heuristic prototype, not validated sensor fusion or inertial dead reckoning. It does not know road elevation or reliably distinguish every parallel road. Do not rely on it while driving. Background Safari GPS may pause. No live multi-user data is collected.
+This is an **on-demand experiment**; do not repeatedly click it or use it at scale against the public Overpass server. Public endpoint availability, browser CORS, and rate limits may prevent some requests. No automatic retries are performed. Production deployment needs an appropriately hosted/contracted road-data service or a self-hosted extract.
+
+## Important limits
+
+- OSM `maxspeed` may be missing, stale, conditional, or in non-km/h units. This prototype displays the raw tag; it does not interpret complex legal speed rules.
+- Nearest mapped way is not necessarily the road actually driven, particularly at flyovers, parallel roads and junctions. A match is **not** a verified speed limit or route assignment.
+- Historical normal speed cannot be inferred from speed limits; the existing speed intelligence panel remains a manual/synthetic baseline.
+- No location histories or user GPS observations are uploaded by this feature. The **route sample coordinates** are sent to the OSM Overpass service when you click Inspect, so avoid using it if that disclosure is undesirable.
+- No Heroku or MongoDB required.
+
+## Test
+
+1. Calculate a route in Jalan, e.g. Putrajaya to KLCC.
+2. Click **Inspect selected route**. Confirm three road samples and teal markers appear, or observe a clear service error.
+3. Confirm road names/classes, and `Unknown` for untagged speed limits.
+4. Click **Clear road inspection**; teal markers disappear.
+5. Confirm GPS route lock, TomTom traffic, simulation, Waze comparison and iPhone layout still work.
+
+This is not road-ready navigation; test while stationary.
