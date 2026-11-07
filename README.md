@@ -1,21 +1,20 @@
-# Jalan Navigation V4.4.1 — Overpass reliability fix
+# Jalan Navigation V4.4.2 — Overpass endpoint fix
 
-Upload all project files to the root of the existing Jalan GitHub Pages repository. Existing navigation, TomTom, Waze comparison and GPS features are retained.
+Replace the existing files in your GitHub Pages repository with this package.
 
-## Improvements
-- Each Overpass request has a 12-second browser timeout; after failure, tries two alternate public Overpass instances sequentially.
-- Cancel lookup stops the active request and prevents late responses from changing the interface.
-- Cached successful road lookups remain available for 24 hours in the current browser.
-- If fresh retrieval fails but some samples are cached, partial results are shown.
-- Failures display a message rather than waiting forever.
-
-Public Overpass services can still be down, rate limited, or reject cross-origin requests. The cache is a convenience, not authoritative road data. Three fallback attempts may take up to 36 seconds. Avoid repeated scanning. Route sample coordinates are sent to public Overpass servers when uncached. No GPS history is uploaded.
+## Changes
+- Primary road lookup: `https://overpass-api.de/api/interpreter` (the server whose status you successfully checked).
+- Fallback: `https://overpass.private.coffee/api/interpreter`.
+- Removed the unreachable `overpass.nchc.org.tw` and unresponsive `overpass.kumi.systems` endpoints.
+- Each request has a 12-second timeout. Maximum two attempts (~24 seconds plus overhead).
+- Explicit unexpected-error handling prevents a permanently disabled Inspect button.
+- Cancel, partial-result handling and 24-hour browser cache retained.
+- Cache namespace and script version updated to avoid stale browser code.
 
 ## Test
-1. Search for a route and click Inspect selected route. Observe status changing and either results or an error within about 36 seconds.
-2. Click Cancel lookup during a pending request. Confirm the button re-enables and status says cancelled.
-3. When a lookup succeeds, repeat it and confirm cached results appear promptly.
-4. Clear road inspection and confirm markers disappear.
-5. Verify TomTom routing, GPS, and iPhone layout still work.
+1. Calculate a route, click **Inspect selected route**, and wait up to ~30 seconds. It should show road data or a final error.
+2. Verify road names, types, and tagged speed limits where returned. Missing limits should read Unknown.
+3. Repeat a successful inspection and check cached results.
+4. Test Cancel and Clear, then verify navigation and iPhone layout.
 
-Note: successful static syntax checks do not prove remote Overpass availability. This is not a production road-matching service.
+**Limitations:** Server status success does not guarantee POST queries, cross-origin permissions or rate-limit availability. This is an experimental lookup using shared public Overpass capacity; avoid repeated bulk requests. No individual GPS history is uploaded, but route sample coordinates are sent to Overpass when requesting road tags.

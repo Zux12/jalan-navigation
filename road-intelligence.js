@@ -1,4 +1,4 @@
-/* Jalan V4.4: on-demand OSM road-tag inspection; no GPS upload. */
+/* Jalan V4.4.2: resilient on-demand OSM road inspection; no GPS upload. */
 (() => {
   'use strict';
   const $ = id => document.getElementById(id);
@@ -53,10 +53,9 @@
   }
   const servers = [
     'https://overpass-api.de/api/interpreter',
-    'https://overpass.kumi.systems/api/interpreter',
-    'https://overpass.nchc.org.tw/api/interpreter'
+    'https://overpass.private.coffee/api/interpreter'
   ];
-  const CACHE_PREFIX='jalan-ri-v441:';
+  const CACHE_PREFIX='jalan-ri-v442:';
   const CACHE_TTL=24*60*60*1000;
   let running=false, generation=0;
   function cacheKey(point) { return CACHE_PREFIX+point.map(n=>n.toFixed(4)).join(','); }
@@ -108,7 +107,7 @@
       return json.elements.filter(e=>e.type==='way'&&Array.isArray(e.geometry));
     } finally {clearTimeout(timer);if(abort===controller)abort=null;}
   }
-  button.addEventListener('click',async()=>{
+  async function runInspection(){
     const route=getRoute();if(!route){status.textContent='Calculate a driving route first.';return;}
     clear();const points=samplesForRoute(route);
     if(!points.length){status.textContent='Selected route has no usable geometry.';return;}
@@ -142,7 +141,14 @@
       else {const div=document.createElement('div');div.className='ri-item';div.textContent=`Sample ${i+1}: Unavailable — road data not retrieved.`;results.appendChild(div);}
     });
     status.textContent=success===3?`Road inspection completed: ${success}/3 samples (${cached.filter(Boolean).length} cached).`:
-      `Partial inspection: ${success}/3 samples. ${error||'No road data returned'}. Navigation is unaffected.`;
+      `Inspection finished: ${success}/3 samples. ${error||'No road data returned'}. Navigation is unaffected.`;
     running=false;button.disabled=false;$('ri-cancel').disabled=true;
+  }
+  button.addEventListener('click',()=>{
+    runInspection().catch(e=>{
+      console.error('Jalan road inspection failed:',e);
+      status.textContent=`Road inspection stopped: ${e.message||'Unexpected error'}. Navigation is unaffected.`;
+      cancel();
+    });
   });
 })();
