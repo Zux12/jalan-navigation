@@ -4,9 +4,9 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="theme-color" content="#ffffff" />
-  <title>Jalan — Navigation Prototype V3.8 GPS Navigation Test</title>
+  <title>Jalan — Navigation Prototype V3.9 Turn Guidance Test</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
-  <link rel="stylesheet" href="style.css?v=3-8" />
+  <link rel="stylesheet" href="style.css?v=3-9" />
 </head>
 <body>
   <div id="map" aria-label="Interactive map"></div>
@@ -28,14 +28,14 @@
   <div class="nav-turn"><span id="gps-arrow">↑</span><div><strong id="gps-instruction">Acquiring GPS…</strong><small id="gps-detail">Keep screen on; test while stationary or as passenger</small></div></div>
   <div class="nav-stats"><span><b id="gps-eta">—</b><small>Estimated remaining</small></span><span><b id="gps-distance">—</b><small>Remaining distance</small></span><span><b id="gps-accuracy">—</b><small>GPS accuracy</small></span></div>
   <div id="gps-warning" class="nav-warning hidden"></div>
-  <div class="nav-actions"><button id="gps-recenter" type="button">Center GPS</button><button id="gps-reroute" type="button">Recalculate route</button><button id="gps-auto" type="button" aria-pressed="false">Auto reroute: Off</button></div>
+  <div class="nav-actions"><button id="gps-recenter" type="button">Center GPS</button><button id="gps-reroute" type="button">Recalculate route</button><button id="gps-auto" type="button" aria-pressed="false">Auto reroute: Off</button><button id="gps-voice" type="button" aria-pressed="false">Voice: Off</button></div>
 </section>
 <section id="nav-hud" class="nav-hud hidden" aria-live="polite">
     <div class="nav-hud-top"><span class="nav-sim-badge">SIMULATION — NOT FOR DRIVING</span><button id="nav-exit" type="button">Exit</button></div>
     <div class="nav-turn"><span id="nav-arrow">↗</span><div><strong id="nav-instruction">Following selected route</strong><small id="nav-next">Route preview</small></div></div>
     <div class="nav-stats"><span><b id="nav-time">—</b><small>Remaining ETA</small></span><span><b id="nav-distance">—</b><small>Remaining distance</small></span><span><b id="nav-arrival">—</b><small>Arrival estimate</small></span></div>
     <div id="nav-warning" class="nav-warning hidden"></div>
-    <div class="nav-actions"><button id="nav-play" type="button">Pause simulation</button><button id="nav-restart" type="button">Restart</button><button id="nav-recenter" type="button">Center map</button></div>
+    <div class="nav-actions"><button id="nav-play" type="button">Pause simulation</button><button id="nav-restart" type="button">Restart</button><button id="nav-recenter" type="button">Center map</button><button id="nav-voice" type="button" aria-pressed="false">Voice: Off</button></div>
   </section>
   <section class="bottom-panel" id="info-panel">
     <button id="toggle-panel" class="panel-toggle" type="button" aria-expanded="true" aria-controls="panel-details">Hide details ▾</button>
@@ -96,16 +96,16 @@
       <button id="report-hazard">⚠️ <span>Hazard</span></button>
       <button id="report-rain">🌧️ <span>Heavy rain</span></button>
     </div>
-    <p class="disclaimer">V3.8 GPS tracking and simulation are for stationary/passenger testing only. It does not provide safe turn-by-turn driving guidance or automatic rerouting. </p>
+    <p class="disclaimer">V3.9 GPS guidance and simulation are for stationary/passenger testing only. Turn prompts and rerouting are experimental; not safe for driving. </p>
     <p class="disclaimer">Community reports are stored only in this browser. TomTom incidents and traffic depend on API availability. Routes are estimates; follow-location mode is not voice-guided navigation.</p>
     </div>
   </section>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
-  <script src="app.js?v=3-8"></script>
-  <script src="comparison.js?v=3-8"></script>
-  <script src="traffic-test.js?v=3-8"></script>
-  <script src="tomtom-live.js?v=3-8"></script>
-  <script src="navigation-sim.js?v=3-8"></script>
-  <script src="gps-navigation.js?v=3-8"></script>
+  <script src="app.js?v=3-9"></script>
+  <script src="comparison.js?v=3-9"></script>
+  <script src="traffic-test.js?v=3-9"></script>
+  <script src="tomtom-live.js?v=3-9"></script>
+  <script src="navigation-sim.js?v=3-9"></script>
+  <script src="gps-navigation.js?v=3-9"></script>
 </body>
 </html>
