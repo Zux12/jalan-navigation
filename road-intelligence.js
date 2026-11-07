@@ -1,4 +1,4 @@
-/* Jalan V4.4.2: resilient on-demand OSM road inspection; no GPS upload. */
+/* Jalan V4.4.3: OSM inspection with TomTom reverse-geocoding fallback. */
 (() => {
   'use strict';
   const $ = id => document.getElementById(id);
@@ -51,11 +51,8 @@
     if(typeof routes==='undefined'||typeof selectedRoute==='undefined')return null;
     return routes[selectedRoute]||null;
   }
-  const servers = [
-    'https://overpass-api.de/api/interpreter',
-    'https://overpass.private.coffee/api/interpreter'
-  ];
-  const CACHE_PREFIX='jalan-ri-v442:';
+  const overpassEndpoint='https://overpass-api.de/api/interpreter';
+  const CACHE_PREFIX='jalan-ri-v443:';
   const CACHE_TTL=24*60*60*1000;
   let running=false, generation=0;
   function cacheKey(point) { return CACHE_PREFIX+point.map(n=>n.toFixed(4)).join(','); }
@@ -92,57 +89,103 @@
   }
   $('ri-clear').addEventListener('click',clear);
   $('ri-cancel').addEventListener('click',()=>{cancel();status.textContent='Road inspection cancelled. Existing results retained.';});
-  async function queryServer(server,query,gen) {
+  // One small, batched Overpass query rather than three separate requests.
+  async function queryOverpass(points,gen) {
     const controller=new AbortController();abort=controller;
-    const timer=setTimeout(()=>controller.abort(),12000);
+    const timer=setTimeout(()=>controller.abort(),10000);
     try {
-      const response=await fetch(server,{
-        method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded;charset=UTF-8'},
-        body:new URLSearchParams({data:query}),signal:controller.signal
-      });
+      const around=points.map(([lat,lon])=>`way(around:45,${lat.toFixed(6)},${lon.toFixed(6)})["highway"];`).join('');
+      const query=`[out:json][timeout:8];(${around});out tags geom;`;
+      const url=overpassEndpoint+'?data='+encodeURIComponent(query);
+      const response=await fetch(url,{signal:controller.signal,cache:'no-store'});
       if(gen!==generation)throw Error('Cancelled');
-      if(!response.ok)throw Error(`HTTP ${response.status}`);
-      const json=await response.json();
-      if(!Array.isArray(json.elements))throw Error('Unexpected response');
-      return json.elements.filter(e=>e.type==='way'&&Array.isArray(e.geometry));
+      if(!response.ok)throw Error(`Overpass HTTP ${response.status}`);
+      const data=await response.json();
+      if(!Array.isArray(data.elements))throw Error('Overpass response invalid');
+      return data.elements.filter(e=>e.type==='way'&&Array.isArray(e.geometry));
     } finally {clearTimeout(timer);if(abort===controller)abort=null;}
   }
-  async function runInspection(){
+  function tomtomKey() {
+    const k=($('tt-key')?.value||sessionStorage.getItem('jalan-tomtom-key')||localStorage.getItem('jalan-tomtom-key')||'').trim();
+    return /^[\w-]{8,160}$/.test(k)?k:null;
+  }
+  async function tomtomReverse(point,gen) {
+    const k=tomtomKey();if(!k)throw Error('Enter your TomTom key in Jalan settings to enable fallback');
+    const controller=new AbortController();abort=controller;
+    const timer=setTimeout(()=>controller.abort(),8000);
+    try {
+      const url=new URL(`https://api.tomtom.com/search/2/reverseGeocode/${point[0].toFixed(6)},${point[1].toFixed(6)}.json`);
+      url.searchParams.set('key',k);url.searchParams.set('radius','100');url.searchParams.set('language','en-GB');
+      const response=await fetch(url,{signal:controller.signal,cache:'no-store'});
+      if(gen!==generation)throw Error('Cancelled');
+      if(!response.ok)throw Error(`TomTom reverse geocoding HTTP ${response.status}`);
+      const data=await response.json();
+      const address=data.addresses?.[0]?.address;
+      if(!address)throw Error('No nearby address returned');
+      return {name:address.streetName||address.streetNameAndNumber||address.freeformAddress||'Unnamed road',
+        type:'Unknown (not supplied)',limit:'Unknown (not supplied)',oneway:'Unknown (not supplied)',
+        note:'TomTom nearby address — not verified road geometry'};
+    } finally {clearTimeout(timer);if(abort===controller)abort=null;}
+  }
+  function showFallback(point,i,record,source) {
+    const div=document.createElement('div');div.className='ri-item';
+    const h=document.createElement('strong');h.textContent=`Sample ${i+1}: ${record.name}`;
+    const d=document.createElement('div');d.textContent=`Road type: ${record.type} · Speed limit: ${record.limit} · Direction: ${record.oneway}`;
+    const note=document.createElement('div');note.className='ri-meta';note.textContent=`${source} · ${record.note} · Approximate, not road-matched`;
+    div.append(h,d,note);results.appendChild(div);
+    L.circleMarker(point,{radius:6,color:'#7c3aed',fillColor:'#a78bfa',fillOpacity:.8,weight:2})
+      .bindPopup(`Nearby address: ${record.name} (unverified road match)`).addTo(layer);
+  }
+  async function runInspection() {
     const route=getRoute();if(!route){status.textContent='Calculate a driving route first.';return;}
     clear();const points=samplesForRoute(route);
-    if(!points.length){status.textContent='Selected route has no usable geometry.';return;}
+    if(points.length!==3){status.textContent='Selected route has no usable geometry.';return;}
     running=true;const gen=++generation;button.disabled=true;$('ri-cancel').disabled=false;
     const cached=points.map(readCache);
-    const missing=points.map((_,i)=>i).filter(i=>!cached[i]);
-    const waysBySample=[...cached];
-    let error='';
-    if(missing.length){
-      const queryParts=missing.map(i=>{const [lat,lon]=points[i];return `way(around:65,${lat.toFixed(6)},${lon.toFixed(6)})["highway"];`;}).join('');
-      const query=`[out:json][timeout:10];(${queryParts});out tags geom;`;
-      for(let i=0;i<servers.length;i++){
-        if(gen!==generation)return;
-        status.textContent=`Checking mapped roads… server ${i+1}/${servers.length} (12-second timeout).`;
+    const entries=cached.map(v=>v?{kind:'osm',ways:v,source:'Cached OSM'}:null);
+    const missing=points.map((_,i)=>i).filter(i=>!entries[i]);
+    const errors=[];
+    try {
+      if(missing.length) {
+        status.textContent='Checking OpenStreetMap road data (up to 10 seconds)…';
         try {
-          const ways=await queryServer(servers[i],query,gen);
+          const ways=await queryOverpass(missing.map(i=>points[i]),gen);
           if(gen!==generation)return;
-          for(const idx of missing){waysBySample[idx]=ways;saveCache(points[idx],ways);}
-          error='';break;
-        } catch(e) {
+          for(const i of missing) {
+            const match=nearestWay(points[i],ways);
+            if(match&&match.meters<=65) {
+              entries[i]={kind:'osm',ways,source:'Live OSM'};
+              saveCache(points[i],ways);
+            }
+          }
+        } catch(e) {if(gen!==generation)return;errors.push('OSM: '+(e.name==='AbortError'?'timeout':e.message));}
+      }
+      const needFallback=points.map((_,i)=>i).filter(i=>!entries[i]);
+      if(needFallback.length) {
+        if(!tomtomKey())errors.push('TomTom fallback unavailable: enter API key');
+        else for(const i of needFallback) {
           if(gen!==generation)return;
-          error=e.name==='AbortError'?'Timed out after 12 seconds':e.message;
+          status.textContent=`OSM unavailable for some samples. Trying TomTom nearby-address lookup (${i+1}/3)…`;
+          try {
+            const record=await tomtomReverse(points[i],gen);
+            if(gen!==generation)return;
+            entries[i]={kind:'tomtom',record,source:'TomTom fallback'};
+          } catch(e) {if(gen!==generation)return;errors.push(`Sample ${i+1}: ${e.name==='AbortError'?'TomTom timeout':e.message}`);}
         }
       }
+      if(gen!==generation)return;
+      layer.clearLayers();results.replaceChildren();
+      let matched=0;
+      points.forEach((point,i)=>{
+        const entry=entries[i];
+        if(entry?.kind==='osm') {showMatch(point,i,entry.ways,entry.source);matched++;}
+        else if(entry?.kind==='tomtom') {showFallback(point,i,entry.record,entry.source);matched++;}
+        else {const div=document.createElement('div');div.className='ri-item';div.textContent=`Sample ${i+1}: Unavailable — no road information retrieved.`;results.appendChild(div);}
+      });
+      status.textContent=`Inspection finished: ${matched}/3 samples (${entries.filter(e=>e?.kind==='osm').length} OSM, ${entries.filter(e=>e?.kind==='tomtom').length} TomTom approximate). ${errors.length?errors.join(' | '):'No errors.'}`;
+    } finally {
+      if(gen===generation){running=false;button.disabled=false;$('ri-cancel').disabled=true;}
     }
-    if(gen!==generation)return;
-    layer.clearLayers();results.replaceChildren();
-    let success=0;
-    points.forEach((point,i)=>{
-      if(waysBySample[i]){showMatch(point,i,waysBySample[i],cached[i]?'Cached':'Live Overpass');success++;}
-      else {const div=document.createElement('div');div.className='ri-item';div.textContent=`Sample ${i+1}: Unavailable — road data not retrieved.`;results.appendChild(div);}
-    });
-    status.textContent=success===3?`Road inspection completed: ${success}/3 samples (${cached.filter(Boolean).length} cached).`:
-      `Inspection finished: ${success}/3 samples. ${error||'No road data returned'}. Navigation is unaffected.`;
-    running=false;button.disabled=false;$('ri-cancel').disabled=true;
   }
   button.addEventListener('click',()=>{
     runInspection().catch(e=>{
