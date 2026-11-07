@@ -1,17 +1,18 @@
-# Jalan Navigation V4.2 — Road Speed Intelligence (local test)
+# Jalan V4.2.1 — Road Speed Intelligence fixes
 
-Upload all `.html`, `.css`, and `.js` files to the root of your existing GitHub Pages repository. Keep `example-traffic.geojson` if desired.
+Upload the contents of this directory to the root of the existing `zux12/jalan-navigation` GitHub Pages repository. Replace the old files; keep your TomTom key out of GitHub.
 
-## Test
-1. Search for a destination and calculate a TomTom or OSRM route.
-2. Open **V4.2 — Road Speed Intelligence** and click **Run multi-driver demo**. The route's first short segments show synthetic green/orange/red/gray classifications.
-3. Change speed limit, normal speed, observed speed, driver count and slowdown duration; choose a route segment and click **Add observation**.
-4. Test the 1–2 driver case (insufficient evidence), then 3+ drivers for 2+ minutes.
-5. Optionally opt in to local GPS speed sampling while stationary or as a passenger. Stop sampling afterward.
+## Fixes
+- Tests 4 and 5: explicit `CONFIRMED` versus `INSUFFICIENT EVIDENCE` verdict in the status and segment result. The test uses the entered number of independent drivers and duration. An added observation **replaces** the prior synthetic test for the selected segment, avoiding ambiguous accumulated values.
+- The multi-driver demo uses preset speeds and driver counts; to test manual inputs, click **Clear observations** first.
+- Each colored road segment now follows the complete routed polyline instead of a straight chord between two endpoints.
+- A white outline improves overlay visibility over the thick blue route.
+- Existing traffic, routing, GPS, voice, Waze comparison and local journey logging files are retained unchanged.
 
-## Scope and privacy
-- No shared backend; no actual crowdsourcing between users.
-- GPS speed samples are displayed locally and are not saved or transmitted by this new module. Existing TomTom and other features retain their own network behavior.
-- The demo uses synthetic observations. No actual speed limits are automatically sourced yet; input manually for testing.
-- Colored overlay is experimental and not suitable for navigation decisions.
-- A future shared system needs consent, road/direction map matching, aggregation, anti-spoofing, retention controls, and real-world validation.
+## Test 4
+Calculate a route. Clear observations. Enter normal speed 90, observed speed 18, drivers 1, duration 3, segment 1. Click **Add / Replace segment test**. Expect `INSUFFICIENT EVIDENCE`. Repeat with drivers 2: same verdict.
+
+## Test 5
+Change drivers to 3, leave speed 18 and duration 3, click **Add / Replace segment test**. Expect `CONFIRMED — Severe congestion`. Change duration to 1: expect `INSUFFICIENT EVIDENCE`.
+
+These are illustrative thresholds, not production-ready confidence estimates. No data from other users is collected, shared or stored.
