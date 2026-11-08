@@ -171,6 +171,12 @@
     <p class="disclaimer">Community reports are stored only in this browser. TomTom incidents and traffic depend on API availability. Routes are estimates; follow-location mode is not voice-guided navigation.</p>
     </div>
   </section>
+  <section class="traffic-card" aria-labelledby="shared-title" style="margin:12px 0;padding:14px">
+    <div class="compare-title"><strong id="shared-title">V4.7 — Shared Traffic Pilot</strong><span class="demo-tag">OPT-IN</span></div>
+    <p class="compare-hint">Sharing is off by default. While GPS navigation is active, consenting drivers may upload an approximate location, speed and direction. The server stores a coarse grid cell (not exact coordinates) for 15 minutes. This pilot does not identify exact roads or establish confirmed congestion.</p>
+    <div class="compare-actions"><button id="shared-start" type="button">Start sharing</button><button id="shared-stop" type="button" disabled>Stop sharing</button><button id="shared-check" type="button">Check nearby shared traffic</button></div>
+    <p id="shared-status" class="compare-hint" role="status">Sharing is off.</p>
+  </section>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
   <script src="app.js?v=4-3"></script>
   <script src="comparison.js?v=4-2"></script>
@@ -179,7 +185,7 @@
   <script src="voice-guidance.js?v=4-5-1"></script>
   <script src="navigation-sim.js?v=4-5-1"></script>
   <script src="predictive-gps.js?v=4-3"></script>
-  <script src="gps-navigation.js?v=4-5-1"></script>
+  <script src="gps-navigation.js?v=4-7"></script>
   <script src="proactive-routing.js?v=4-2"></script>
   <script src="journey-log.js?v=4-2"></script>
   <script src="speed-intelligence.js?v=4-3"></script>
@@ -188,5 +194,6 @@
   <script src="congestion-boundary.js?v=4-5"></script>
   <script src="historical-speed.js?v=4-6"></script>
   <script src="smart-confirmation.js?v=4-6"></script>
+  <script src="shared-traffic.js?v=4-7"></script>
 </body>
 </html>
