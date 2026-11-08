@@ -147,3 +147,7 @@ body.nav-active.menu-open .nav-panel-close {display:block;position:sticky;top:0;
  body.nav-active.menu-open #gps-hud {max-height:38dvh;overflow:auto;}
  body.nav-active.menu-open #nav-hud {max-height:38dvh;overflow:auto;}
 }
+
+/* V4.7.3 menu visibility: explicitly override collapsed panel dimensions. */
+body.nav-active.menu-open #info-panel.collapsed{overflow-y:auto;max-height:none;width:min(430px,calc(100vw - 24px));padding:15px 18px;}
+@media(max-width:650px){body.nav-active.menu-open #info-panel.collapsed{max-height:min(57dvh,530px);width:auto;}}
