@@ -1,6 +1,6 @@
 /* Jalan V4.7 opt-in shared speed pilot. Never sends coordinates without user action. */
 (()=>{'use strict';
-const $=id=>document.getElementById(id),base='https://mterm2026.herokuapp.com/api/jalan';
+const $=id=>document.getElementById(id),base='https://mterm2026-559f9bf571b5.herokuapp.com/api/jalan';
 let enabled=false,lastSent=0,lastPosition=null,lastAt=0,sessionId=null;
 function status(s){$('shared-status').textContent=s;}
 function randomId(){const b=new Uint8Array(24);crypto.getRandomValues(b);return Array.from(b,x=>x.toString(16).padStart(2,'0')).join('');}
