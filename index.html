@@ -29,14 +29,14 @@
   <div class="nav-stats"><span><b id="gps-eta">—</b><small>Estimated remaining</small></span><span><b id="gps-distance">—</b><small>Remaining distance</small></span><span><b id="gps-accuracy">—</b><small>GPS accuracy</small></span></div>
   <div id="gps-match-status" class="gps-match-status">Waiting for GPS</div><div id="gps-warning" class="nav-warning hidden"></div>
   <div class="proactive-box" id="proactive-box"><div class="proactive-heading"><strong>Traffic route checks</strong><span id="proactive-status">Off</span></div><div class="proactive-actions"><button id="proactive-toggle" type="button" aria-pressed="false">Enable 5-min checks</button><button id="proactive-check" type="button">Check now</button></div><div id="proactive-offer" class="proactive-offer hidden" role="status"><strong id="proactive-offer-title"></strong><p id="proactive-offer-detail"></p><div class="proactive-actions"><button id="proactive-accept" type="button">Switch route</button><button id="proactive-decline" type="button">Keep current</button></div></div><small>Compares TomTom's new fastest route with the current route's estimated remaining time. Estimates may differ; testing only.</small></div>
-  <div class="nav-actions"><button id="gps-recenter" type="button">Center GPS</button><button id="gps-reroute" type="button">Recalculate route</button><button id="gps-auto" type="button" aria-pressed="false">Auto reroute: Off</button><button id="gps-voice" type="button" aria-pressed="false">Voice: Off</button></div>
+  <div class="nav-actions"><button id="gps-recenter" type="button">Center GPS</button><button id="gps-reroute" type="button">Recalculate route</button><button id="gps-auto" type="button" aria-pressed="false">Auto reroute: Off</button><button id="gps-voice" type="button" aria-pressed="false">Voice: Mute</button></div>
 </section>
 <section id="nav-hud" class="nav-hud hidden" aria-live="polite">
     <div class="nav-hud-top"><span class="nav-sim-badge">SIMULATION — NOT FOR DRIVING</span><button id="nav-exit" type="button">Exit</button></div>
     <div class="nav-turn"><span id="nav-arrow">↗</span><div><strong id="nav-instruction">Following selected route</strong><small id="nav-next">Route preview</small></div></div>
     <div class="nav-stats"><span><b id="nav-time">—</b><small>Remaining ETA</small></span><span><b id="nav-distance">—</b><small>Remaining distance</small></span><span><b id="nav-arrival">—</b><small>Arrival estimate</small></span></div>
     <div id="nav-warning" class="nav-warning hidden"></div>
-    <div class="nav-actions"><button id="nav-play" type="button">Pause simulation</button><button id="nav-restart" type="button">Restart</button><button id="nav-recenter" type="button">Center map</button><button id="nav-voice" type="button" aria-pressed="false">Voice: Off</button></div>
+    <div class="nav-actions"><button id="nav-play" type="button">Pause simulation</button><button id="nav-restart" type="button">Restart</button><button id="nav-recenter" type="button">Center map</button><button id="nav-voice" type="button" aria-pressed="false">Voice: Mute</button></div>
   </section>
   <section class="bottom-panel" id="info-panel">
     <button id="toggle-panel" class="panel-toggle" type="button" aria-expanded="true" aria-controls="panel-details">Hide details ▾</button>
@@ -155,9 +155,10 @@
   <script src="comparison.js?v=4-2"></script>
   <script src="traffic-test.js?v=4-2"></script>
   <script src="tomtom-live.js?v=4-2"></script>
-  <script src="navigation-sim.js?v=4-2"></script>
+  <script src="voice-guidance.js?v=4-5-1"></script>
+  <script src="navigation-sim.js?v=4-5-1"></script>
   <script src="predictive-gps.js?v=4-3"></script>
-  <script src="gps-navigation.js?v=4-3"></script>
+  <script src="gps-navigation.js?v=4-5-1"></script>
   <script src="proactive-routing.js?v=4-2"></script>
   <script src="journey-log.js?v=4-2"></script>
   <script src="speed-intelligence.js?v=4-3"></script>

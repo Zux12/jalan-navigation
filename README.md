@@ -20,3 +20,6 @@ The scenario sequence is *forming → growing → recovering → cleared*. **Ins
 8. iPhone portrait layout remains usable.
 
 This feature does not collect, share, store or upload real user GPS data. It does not calculate actual traffic conditions. A backend, consent, independent-device validation and real-world calibration are required before crowdsourced traffic deployment.
+
+
+V4.5.1 voice fix: milestone prompts at 2 km, 1 km, 500 m, 200 m and 50 m, only once per maneuver; Full guidance / Alerts only / Mute toggles in GPS and simulation. Alerts only reserves speech for arrival and explicit alerts, not maneuver instructions. Browser speech requires foreground tab.
