@@ -24,7 +24,7 @@
   // Publish filtered position only; raw GPS jumps must not pollute journey analytics.
   current=result.mode==='deviation'?raw:p;
   const trustworthy=result.mode==='matched';
-  window.dispatchEvent(new CustomEvent('jalan:gps-fix',{detail:{accuracy:trustworthy?accuracy:Infinity,remainingSeconds:route?route.duration*Math.max(0,total-progress)/total:null,remainingMeters:route?route.distance*Math.max(0,total-progress)/total:null,nearDestination:trustworthy&&!!(destination&&meters(p,destination)<110)}}));
+  window.dispatchEvent(new CustomEvent('jalan:gps-fix',{detail:{accuracy:trustworthy?accuracy:Infinity,remainingSeconds:route?route.duration*Math.max(0,total-progress)/total:null,remainingMeters:route?route.distance*Math.max(0,total-progress)/total:null,speedMps:fix.coords.speed,routeSegment:route?.geometry?.coordinates?.length?'route-'+selectedRoute:null,matched:trustworthy,nearDestination:trustworthy&&!!(destination&&meters(p,destination)<110)}}));
   updateLocation(p);marker?.setLatLng(p);
   el('gps-accuracy').textContent=Number.isFinite(accuracy)?Math.round(accuracy)+' m':'Unknown';
   el('gps-match-status').textContent={matched:'On route · GPS matched',predicted:'Route prediction · checking GPS',uncertain:'GPS uncertain · estimated position',deviation:'Deviation confirmed',waiting:'Waiting for reliable GPS',stale:'Old GPS reading ignored',invalid:'Invalid GPS reading'}[result.mode]||'Route prediction';

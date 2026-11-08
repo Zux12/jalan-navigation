@@ -4,9 +4,9 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="theme-color" content="#ffffff" />
-  <title>Jalan — Navigation Prototype V4.4.3 Road Intelligence</title>
+  <title>Jalan — Navigation Prototype V4.6 Historical Speed & Smart Confirmation</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
-  <link rel="stylesheet" href="style.css?v=4-4" />
+  <link rel="stylesheet" href="style.css?v=4-6" />
 </head>
 <body>
   <div id="map" aria-label="Interactive map"></div>
@@ -77,6 +77,27 @@
       <p id="tt-status" class="compare-hint" role="status">Enter your restricted TomTom key to begin.</p>
       <p id="tt-eta" class="compare-difference" aria-live="polite">TomTom routes will appear here after searching a destination.</p>
       <p class="compare-hint">Traffic colors are live TomTom tiles. Incidents are from TomTom, when available. TomTom route geometry and traffic-aware ETA replace the blue route when enabled. Switch off primary routing to compare with OSRM. Incidents refresh at most every 5 minutes and on route changes. Public demo only; do not use while driving.</p>
+    </section>
+    <section class="traffic-card" id="history-card" aria-labelledby="history-title">
+      <div class="compare-title"><strong id="history-title">V4.6 — Historical Road Speed Intelligence</strong><span class="demo-tag">LOCAL SIMULATION</span></div>
+      <p class="compare-hint">Learn normal speeds for a route segment by weekday/weekend and time of day. Synthetic examples are clearly labeled. No observations are uploaded.</p>
+      <div class="speed-grid">
+        <label>Road segment ID<input id="hs-segment" value="demo-road-1" maxlength="80"></label>
+        <label>Day type<select id="hs-day"><option value="weekday">Weekday</option><option value="weekend">Weekend</option></select></label>
+        <label>Time period<select id="hs-period"><option value="morning">Morning (06–10)</option><option value="day">Day (10–16)</option><option value="evening">Evening (16–21)</option><option value="night">Night (21–06)</option></select></label>
+        <label>Observed speed (km/h)<input id="hs-speed" type="number" min="0" max="150" value="35"></label>
+      </div>
+      <div class="compare-actions"><button id="hs-add" type="button">Add historical observation</button><button id="hs-demo" type="button">Load synthetic week</button><button id="hs-evaluate" type="button">Evaluate current speed</button><button id="hs-export" type="button">Export CSV</button><button id="hs-clear" type="button">Clear local history</button></div>
+      <p id="hs-status" class="compare-hint" role="status">No historical samples loaded.</p><div id="hs-results" class="compare-history" aria-live="polite"></div>
+      <p class="compare-hint">Confidence requires at least 5 observations in the selected day/time group. A slowdown is unusual below 60% of the group's median; this is a prototype heuristic, not a validated traffic model.</p>
+    </section>
+    <section class="traffic-card" id="smart-card" aria-labelledby="smart-title">
+      <div class="compare-title"><strong id="smart-title">V4.6 — Smart Traffic Confirmation</strong><span class="demo-tag">OPT-IN · LOCAL ONLY</span></div>
+      <p class="compare-hint">When reliable GPS indicates a sustained slowdown relative to an available local speed baseline, Jalan can ask once: “Are you stuck in traffic?” The prompt disappears after 8 seconds. No reply means no report.</p>
+      <label class="traffic-consent"><input id="smart-enable" type="checkbox"> Enable smart confirmation during GPS navigation (local processing only)</label>
+      <div class="compare-actions"><button id="smart-demo" type="button">Preview question (simulation)</button><button id="smart-dismiss" type="button">Dismiss question</button></div>
+      <p id="smart-status" class="compare-hint" role="status">Off. No GPS data collected by this feature.</p>
+      <p class="compare-hint">Only an active GPS navigation session can trigger detection; demo is manual. Junction/parking discrimination is not yet reliable, so automatic prompts require sustained movement and high-quality GPS. Responses are local test feedback, not public traffic reports.</p>
     </section>
     <section class="traffic-card" id="road-intel-card" aria-labelledby="road-intel-title">
       <div class="compare-title"><strong id="road-intel-title">V4.4.3 — Automatic Road Intelligence</strong><span class="demo-tag">OSM DATA · EXPERIMENTAL</span></div>
@@ -165,5 +186,7 @@
   <script src="predictive-tests.js?v=4-3"></script>
   <script src="road-intelligence.js?v=4-4-3"></script>
   <script src="congestion-boundary.js?v=4-5"></script>
+  <script src="historical-speed.js?v=4-6"></script>
+  <script src="smart-confirmation.js?v=4-6"></script>
 </body>
 </html>

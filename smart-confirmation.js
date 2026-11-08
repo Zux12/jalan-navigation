@@ -1,0 +1,15 @@
+/* Jalan V4.6: opt-in, local-only smart traffic confirmation. No upload. */
+(()=>{'use strict';const $=id=>document.getElementById(id);const prompt=document.createElement('div');prompt.id='smart-prompt';prompt.className='smart-prompt hidden';prompt.setAttribute('role','status');prompt.innerHTML='<strong>Are you stuck in traffic?</strong><div class="smart-prompt-actions"><button type="button" id="smart-yes">Yes</button><button type="button" id="smart-no">No</button><button type="button" id="smart-close" aria-label="Dismiss">×</button></div>';document.body.append(prompt);
+let timer=null,shownAt=0,lastAsked=0,lastSegment='',slowSince=0,lastFix=0,lastSpeed=null;const cooldown=15*60*1000;
+function dismiss(answer){clearTimeout(timer);timer=null;prompt.classList.add('hidden');if(answer==='yes'||answer==='no')$('smart-status').textContent=`Local test response: ${answer==='yes'?'Yes, stuck in traffic':'No, not in traffic'}. Not shared.`;else $('smart-status').textContent='Question dismissed or expired. No response recorded.';}
+function show(segment='demo',demo=false){if(!demo&&!$('smart-enable').checked)return;const now=Date.now();if(!demo&&(now-lastAsked<cooldown||segment===lastSegment&&now-shownAt<cooldown))return;lastAsked=now;shownAt=now;lastSegment=segment;prompt.classList.remove('hidden');$('smart-status').textContent='Question shown. Auto-dismiss in 8 seconds.';clearTimeout(timer);timer=setTimeout(()=>dismiss(null),8000);if(!demo&&!document.hidden&&'speechSynthesis'in window){const gpsVoice=$('gps-voice')?.textContent||'';if(!gpsVoice.includes('Mute')){try{const utterance=new SpeechSynthesisUtterance('Are you stuck in traffic?');utterance.lang='en-GB';speechSynthesis.speak(utterance);}catch{}}}}
+$('smart-yes').onclick=()=>dismiss('yes');$('smart-no').onclick=()=>dismiss('no');$('smart-close').onclick=()=>dismiss(null);$('smart-demo').onclick=()=>show('demo',true);$('smart-dismiss').onclick=()=>dismiss(null);
+$('smart-enable').onchange=()=>{slowSince=0;lastFix=0;if(!$('smart-enable').checked)dismiss(null);$('smart-status').textContent=$('smart-enable').checked?'Enabled for active GPS navigation; local processing only.':'Off. No GPS data collected by this feature.';};
+window.addEventListener('jalan:journey-stop',()=>{slowSince=0;lastFix=0;dismiss(null);});
+window.addEventListener('jalan:gps-fix',e=>{if(!$('smart-enable').checked||document.hidden||!document.body.classList.contains('nav-active'))return;const d=e.detail||{},now=Date.now();if(!d.matched||!Number.isFinite(d.accuracy)||d.accuracy>25||!Number.isFinite(d.speedMps)||d.speedMps<0||d.nearDestination){slowSince=0;return;}
+const segment=$('hs-segment').value.trim(),b=window.JalanHistoricalSpeed.bucket(),p=window.JalanHistoricalSpeed.profile(segment,b.day,b.period);if(!p.confident||p.normal<25){slowSince=0;return;}
+const speed=d.speedMps*3.6; // Reject stationary periods, where parking or lights are likely.
+if(speed>=4&&speed<=Math.min(25,p.normal*.4)){if(!slowSince)slowSince=now;if(now-slowSince>=75000&&now-lastAsked>=cooldown)show(segment);}else slowSince=0;
+lastFix=now;lastSpeed=speed;
+});
+})();
