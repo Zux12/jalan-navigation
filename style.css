@@ -131,3 +131,19 @@ body.nav-active #info-panel{display:none}body.nav-active .topbar{display:none}bo
 
 /* V4.6 */
 #history-card select{width:100%;min-width:0;padding:10px;border:1px solid #cbd5e1;border-radius:8px;background:white;font-size:15px}#hs-results{max-height:240px;overflow:auto}.smart-prompt{position:fixed;z-index:2100;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);width:min(380px,calc(100% - 24px));background:#fff;color:#15243c;border:2px solid #f59e0b;border-radius:16px;padding:15px;box-shadow:0 8px 35px #0004;display:grid;gap:12px;text-align:center}.smart-prompt.hidden{display:none!important}.smart-prompt strong{font-size:18px}.smart-prompt-actions{display:flex;gap:8px}.smart-prompt button{flex:1;min-height:48px;border:1px solid #b9c9db;border-radius:10px;background:#eff6ff;color:#183b68;font-weight:750;font-size:15px}#smart-close{flex:0 0 46px;background:#f1f5f9}
+/* V4.7.2: open the main panel without ending GPS/simulation. */
+body.nav-active #info-panel {display:block; visibility:hidden; pointer-events:none; opacity:0;}
+body.nav-active.menu-open #info-panel {visibility:visible; pointer-events:auto; opacity:1; z-index:1600; position:fixed; left:12px; right:auto; top:calc(82px + env(safe-area-inset-top,0px)); bottom:calc(12px + env(safe-area-inset-bottom,0px)); width:min(430px,calc(100vw - 24px)); max-height:none; overflow-y:auto; overscroll-behavior:contain; box-shadow:0 12px 45px #0b1b3d66;}
+body.nav-active.menu-open #info-panel.collapsed {padding:15px 18px;}
+body.nav-active.menu-open #info-panel.collapsed #panel-details {display:block;}
+body.nav-active.menu-open .nav-hud {z-index:1400;}
+.nav-top-actions {display:flex;align-items:center;gap:7px;}
+.nav-hud .nav-menu-button {background:#dbeafe;border-color:#93c5fd;min-height:40px;}
+.nav-panel-close {display:none;}
+body.nav-active.menu-open .nav-panel-close {display:block;position:sticky;top:0;z-index:3;width:100%;padding:11px 14px;border:1px solid #93c5fd;border-radius:10px;background:#dbeafe;color:#1e40af;font-weight:750;margin-bottom:9px;cursor:pointer;}
+@media(max-width:650px){
+ body.nav-active.menu-open #info-panel {left:8px;right:8px;top:auto;bottom:calc(8px + env(safe-area-inset-bottom,0px));width:auto;max-height:min(57dvh, 530px);border-radius:18px;}
+ body.nav-active.menu-open .nav-hud {top:calc(6px + env(safe-area-inset-top,0px));}
+ body.nav-active.menu-open #gps-hud {max-height:38dvh;overflow:auto;}
+ body.nav-active.menu-open #nav-hud {max-height:38dvh;overflow:auto;}
+}

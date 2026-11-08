@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="theme-color" content="#ffffff" />
-  <title>Jalan — Navigation Prototype V4.7.1 Shared Traffic Pilot</title>
+  <title>Jalan — Navigation Prototype V4.7.2 Shared Traffic Pilot</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
   <link rel="stylesheet" href="style.css?v=4-7-1" />
 </head>
@@ -24,7 +24,7 @@
     <button id="reset" title="Reset map" aria-label="Reset map">⌂</button>
   </aside>
   <section id="gps-hud" class="nav-hud hidden" aria-live="polite">
-  <div class="nav-hud-top"><span class="nav-sim-badge">GPS TEST — NOT FOR DRIVING</span><button id="gps-exit" type="button">Exit GPS</button></div>
+  <div class="nav-hud-top"><span class="nav-sim-badge">GPS TEST — NOT FOR DRIVING</span><div class="nav-top-actions"><button class="nav-menu-button" type="button" aria-controls="info-panel" aria-expanded="false">☰ Menu</button><button id="gps-exit" type="button">Exit GPS</button></div></div>
   <div class="nav-turn"><span id="gps-arrow">↑</span><div><strong id="gps-instruction">Acquiring GPS…</strong><small id="gps-detail">Keep screen on; test while stationary or as passenger</small></div></div>
   <div class="nav-stats"><span><b id="gps-eta">—</b><small>Estimated remaining</small></span><span><b id="gps-distance">—</b><small>Remaining distance</small></span><span><b id="gps-accuracy">—</b><small>GPS accuracy</small></span></div>
   <div id="gps-match-status" class="gps-match-status">Waiting for GPS</div><div id="gps-warning" class="nav-warning hidden"></div>
@@ -32,13 +32,14 @@
   <div class="nav-actions"><button id="gps-recenter" type="button">Center GPS</button><button id="gps-reroute" type="button">Recalculate route</button><button id="gps-auto" type="button" aria-pressed="false">Auto reroute: Off</button><button id="gps-voice" type="button" aria-pressed="false">Voice: Mute</button></div>
 </section>
 <section id="nav-hud" class="nav-hud hidden" aria-live="polite">
-    <div class="nav-hud-top"><span class="nav-sim-badge">SIMULATION — NOT FOR DRIVING</span><button id="nav-exit" type="button">Exit</button></div>
+    <div class="nav-hud-top"><span class="nav-sim-badge">SIMULATION — NOT FOR DRIVING</span><div class="nav-top-actions"><button class="nav-menu-button" type="button" aria-controls="info-panel" aria-expanded="false">☰ Menu</button><button id="nav-exit" type="button">Exit</button></div></div>
     <div class="nav-turn"><span id="nav-arrow">↗</span><div><strong id="nav-instruction">Following selected route</strong><small id="nav-next">Route preview</small></div></div>
     <div class="nav-stats"><span><b id="nav-time">—</b><small>Remaining ETA</small></span><span><b id="nav-distance">—</b><small>Remaining distance</small></span><span><b id="nav-arrival">—</b><small>Arrival estimate</small></span></div>
     <div id="nav-warning" class="nav-warning hidden"></div>
     <div class="nav-actions"><button id="nav-play" type="button">Pause simulation</button><button id="nav-restart" type="button">Restart</button><button id="nav-recenter" type="button">Center map</button><button id="nav-voice" type="button" aria-pressed="false">Voice: Mute</button></div>
   </section>
   <section class="bottom-panel" id="info-panel">
+    <button id="nav-panel-close" type="button" class="nav-panel-close" aria-label="Close menu and return to navigation">✕ Close menu</button>
     <button id="toggle-panel" class="panel-toggle" type="button" aria-expanded="true" aria-controls="panel-details">Hide details ▾</button>
     <div id="panel-details">
     <div class="panel-head"><div><b>Explore Malaysia</b><p id="status">Search for a destination or add a report.</p></div><span class="demo-tag">DEMO</span></div>
