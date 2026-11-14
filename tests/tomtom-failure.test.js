@@ -6,7 +6,9 @@ function scene({defer=false,response=null}={}){
  const nodes={},store=new Map(),sessions=new Map();
  for(const id of ['tt-key','tt-remember','tt-primary','tt-status','tt-route','tt-connect','tt-hide',
   'tt-incident-toggle','tt-eta','tt-toggle-key','tt-remove-key']){
-  nodes[id]={value:'',checked:false,textContent:'',onclick:null,onchange:null,classList:{add(){},remove(){}}};
+  nodes[id]={value:'',checked:false,textContent:'',onclick:null,onchange:null,
+   listeners:{},addEventListener(type,handler){this.listeners[type]=handler;},
+   classList:{add(){},remove(){}}};
  }
  nodes['tt-primary'].checked=true;
  nodes['tt-incident-toggle'].checked=false;
@@ -89,4 +91,30 @@ test('missing or invalid key fails before any outbound TomTom request',async()=>
  await n['tt-route'].onclick();await s.tick();
  assert.equal(s.calls.length,0);
  assert.match(n['tt-status'].textContent,/valid TomTom key/);
+});
+
+test('unchecking Remember revokes persisted TomTom key immediately without ending session',async()=>{
+ const s=scene(),n=s.nodes;
+ n['tt-remember'].checked=true;
+ await n['tt-route'].onclick();await s.tick();
+ assert.equal(s.store.get('jalan-tomtom-key'),'testKey12345');
+ n['tt-remember'].checked=false;
+ n['tt-remember'].listeners.change();
+ assert.equal(s.store.has('jalan-tomtom-key'),false);
+ assert.equal(s.sessions.get('jalan-tomtom-key'),'testKey12345');
+});
+test('editing an active TomTom key revokes storage and prevents stale request render',async()=>{
+ const s=scene({defer:true}),n=s.nodes;
+ n['tt-remember'].checked=true;
+ n['tt-route'].onclick();await s.tick();
+ assert.equal(s.calls.length,1);
+ assert.equal(s.store.get('jalan-tomtom-key'),'testKey12345');
+ n['tt-key'].value='ReplacementFakeKey123';
+ n['tt-key'].listeners.input();
+ assert.ok(s.aborted>=1,'prior route request must be aborted');
+ assert.equal(s.store.has('jalan-tomtom-key'),false);
+ assert.equal(s.sessions.has('jalan-tomtom-key'),false);
+ s.resolve();await s.tick();
+ assert.equal(s.renders,0,'replaced key must never revive old route');
+ assert.match(n['tt-status'].textContent,/Old stored key removed/);
 });
