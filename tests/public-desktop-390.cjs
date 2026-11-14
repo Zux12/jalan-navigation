@@ -211,6 +211,44 @@ async function main(){
   assert.equal(await page.locator('#tt-key').inputValue(),'');
   assert.equal(await page.evaluate(()=>localStorage.getItem('jalan-tomtom-key')),null);
   assert.equal(await page.evaluate(()=>sessionStorage.getItem('jalan-tomtom-key')),null);
+  // N11 privacy migration: real Chromium exercises the public KL3C panel.
+  // Never send GPS to a live server, and never fall back to coordinate-URL GET.
+  let kl3cPostCalls=0,kl3cGetCalls=0;
+  await page.route('https://mterm2026-559f9bf571b5.herokuapp.com/api/jalan/kl-segment-v4102/**',route=>{
+    const req=route.request();
+    if(req.method()==='OPTIONS')return route.fulfill({status:204,headers:{
+      'access-control-allow-origin':'*','access-control-allow-methods':'POST',
+      'access-control-allow-headers':'content-type'}});
+    if(req.method()==='GET')kl3cGetCalls++;
+    else {
+      assert.equal(req.method(),'POST','KL3C must submit a JSON-body POST');
+      assert.equal(new URL(req.url()).search,'','Coordinates must not appear in request URL');
+      assert.deepEqual(req.postDataJSON(),{startLat:3.139,startLng:101.6869,
+        endLat:3.1478,endLng:101.6953});
+      kl3cPostCalls++;
+    }
+    return route.fulfill({status:200,headers:cors,body:JSON.stringify({
+      ok:true,geometry:{type:'LineString',coordinates:[
+        [101.6869,3.139],[101.6953,3.1478]]},
+      distanceMeters:3200,edgeCount:8,startSnapMeters:3,endSnapMeters:4,
+      illustrativeEtaMinutes:6.4
+    })});
+  });
+  await page.evaluate(()=>{
+    setStart([3.139,101.6869],'Public dummy KL3C start');
+    destination=[3.1478,101.6953];
+    document.getElementById('kl3c-run').click();
+  });
+  assert.equal(kl3cPostCalls,0,'KL3C consent defaults off');
+  await page.locator('#kl3c-consent').check({force:true});
+  await page.evaluate(()=>document.getElementById('kl3c-run').click());
+  await page.waitForFunction(()=>document.getElementById('kl3c-status').textContent.includes('Segment preview'));
+  assert.equal(kl3cPostCalls,1);
+  assert.equal(kl3cGetCalls,0,'KL3C cannot use legacy coordinate-URL GET');
+  await page.locator('#kl3c-consent').uncheck({force:true});
+  await page.evaluate(()=>document.getElementById('kl3c-run').click());
+  assert.equal(kl3cPostCalls,1,'Consent revocation must stop later requests');
+  assert.equal(kl3cGetCalls,0);
   assert.equal(errors.length,0,'No runtime page exceptions: '+errors.join('; '));
   console.log('PASS public V4.7.4 Chromium 390px: initialization/layout, location denied, TomTom primary, explicit OSRM switch, 401 failure, key removal; external network blocked.');
   await context.close();
