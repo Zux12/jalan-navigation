@@ -1,0 +1,26 @@
+name: JALAN public KL experimental privacy guard
+on:
+  pull_request:
+    paths:
+      - 'jalan-kl-3c.js'
+      - 'tests/kl3c-privacy.test.js'
+      - '.github/workflows/kl3c-privacy.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'jalan-kl-3c.js'
+      - 'tests/kl3c-privacy.test.js'
+      - '.github/workflows/kl3c-privacy.yml'
+permissions:
+  contents: read
+jobs:
+  client-privacy:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: node --check jalan-kl-3c.js
+      - run: node --test tests/kl3c-privacy.test.js
