@@ -47,8 +47,8 @@
     <button id="nav-panel-close" type="button" class="nav-panel-close" aria-label="Close menu and return to navigation">✕ Close menu</button>
     <button id="toggle-panel" class="panel-toggle" type="button" aria-expanded="true" aria-controls="panel-details">Hide details ▾</button>
     <div id="panel-details">
-    <div class="panel-head"><div><b>Explore Malaysia</b><p id="status">Search for a destination or add a report.</p></div><span class="demo-tag">DEMO</span></div>
-    <div id="route-summary" class="route-summary hidden"></div>
+    <div class="panel-head"><div><b>Explore Malaysia</b><p id="status" role="status" aria-live="polite" aria-atomic="true">Search for a destination or add a report.</p></div><span class="demo-tag">DEMO</span></div>
+    <div id="route-summary" class="route-summary hidden" role="status" aria-live="polite" aria-atomic="true"></div>
     <div class="waze-test-tools">
       <button id="open-waze" type="button">↗ Test both points in Waze</button>
       <button id="open-waze-official" type="button">Open destination only (official)</button>
