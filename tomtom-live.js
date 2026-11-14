@@ -11,7 +11,7 @@ input.value=rememberedKey;
 el('tt-remember').checked=!!rememberedKey;
 const enabled=()=>el('tt-primary').checked && !!input.value.trim();
 let keyEdited=false;
-function key(){const k=input.value.trim();if(!/^[\w-]{8,160}$/.test(k))throw Error('Enter a valid TomTom key.');if(el('tt-remember').checked)localStorage.setItem('jalan-tomtom-key',k);else localStorage.removeItem('jalan-tomtom-key');keyEdited=false;return k;
+function key(){const k=input.value.trim();if(!/^[\w-]{8,160}$/.test(k))throw Error('Enter a valid TomTom key.');if(el('tt-remember').checked)localStorage.setItem('jalan-tomtom-key',k);else localStorage.removeItem('jalan-tomtom-key');keyEdited=false;return k;}
 let tiles=null,active=false,timer=null,routeAbort=null,incidentAbort=null,token=0,lastIncidents=0,debounce=null;
 const incidentLayer=L.layerGroup().addTo(map);
 function routeCleared(){token++;routeAbort?.abort();routeAbort=null;incidentAbort?.abort();incidentAbort=null;incidentLayer.clearLayers();}
