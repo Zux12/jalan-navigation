@@ -211,6 +211,34 @@ async function main(){
   assert.equal(await page.locator('#tt-key').inputValue(),'');
   assert.equal(await page.evaluate(()=>localStorage.getItem('jalan-tomtom-key')),null);
   assert.equal(await page.evaluate(()=>sessionStorage.getItem('jalan-tomtom-key')),null);
+  // Public opt-in traffic sharing must cancel an already pending upload on Stop.
+  // The fetch is intercepted before networking, so no Heroku request is sent.
+  const optInStop=await page.evaluate(()=>{
+    const originalFetch=window.fetch;
+    let started=0,signal=null;
+    window.fetch=(url,options)=>{
+      if(String(url).endsWith('/observations')){
+        started++;signal=options?.signal;
+        return new Promise(()=>{}); // deliberately remains pending, no network
+      }
+      return originalFetch(url,options);
+    };
+    document.getElementById('shared-start').click();
+    window.dispatchEvent(new CustomEvent('jalan:gps-fix',{detail:{
+      matched:true,matchedPosition:[3.139,101.6869],
+      accuracy:4,speedMps:3,heading:90
+    }}));
+    const beforeStop=signal?.aborted??null;
+    document.getElementById('shared-stop').click();
+    return {started,beforeStop,afterStop:signal?.aborted??null,
+      status:document.getElementById('shared-status').textContent,
+      nearbyHeld:document.getElementById('shared-check').disabled};
+  });
+  assert.equal(optInStop.started,1,'Opted-in observation intercepted in browser');
+  assert.equal(optInStop.beforeStop,false);
+  assert.equal(optInStop.afterStop,true,'Stop must abort browser fetch signal');
+  assert.ok(optInStop.nearbyHeld,'Legacy nearby-coordinate GET must remain disabled');
+  assert.match(optInStop.status,/already accepted observation is not recalled/);
   assert.equal(errors.length,0,'No runtime page exceptions: '+errors.join('; '));
   console.log('PASS public V4.7.4 Chromium 390px: initialization/layout, location denied, TomTom primary, explicit OSRM switch, 401 failure, key removal; external network blocked.');
   await context.close();
