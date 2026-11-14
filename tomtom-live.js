@@ -3,10 +3,14 @@
 'use strict';
 const el=id=>document.getElementById(id), input=el('tt-key');
 const status=s=>el('tt-status').textContent=s;
-input.value=localStorage.getItem('jalan-tomtom-key')||sessionStorage.getItem('jalan-tomtom-key')||'';
-el('tt-remember').checked=!!localStorage.getItem('jalan-tomtom-key');
+// Default is page-memory only: do not silently keep an unchecked key across
+// reloads in sessionStorage. Clear previously persisted legacy session values.
+const rememberedKey=localStorage.getItem('jalan-tomtom-key')||'';
+sessionStorage.removeItem('jalan-tomtom-key');
+input.value=rememberedKey;
+el('tt-remember').checked=!!rememberedKey;
 const enabled=()=>el('tt-primary').checked && !!input.value.trim();
-function key(){const k=input.value.trim();if(!/^[\w-]{8,160}$/.test(k))throw Error('Enter a valid TomTom key.');sessionStorage.setItem('jalan-tomtom-key',k);if(el('tt-remember').checked)localStorage.setItem('jalan-tomtom-key',k);else localStorage.removeItem('jalan-tomtom-key');return k;}
+function key(){const k=input.value.trim();if(!/^[\w-]{8,160}$/.test(k))throw Error('Enter a valid TomTom key.');if(el('tt-remember').checked)localStorage.setItem('jalan-tomtom-key',k);else localStorage.removeItem('jalan-tomtom-key');return k;}
 let tiles=null,active=false,timer=null,routeAbort=null,incidentAbort=null,token=0,lastIncidents=0,debounce=null;
 const incidentLayer=L.layerGroup().addTo(map);
 function routeCleared(){token++;routeAbort?.abort();routeAbort=null;incidentAbort?.abort();incidentAbort=null;incidentLayer.clearLayers();}
