@@ -9,7 +9,7 @@
  const card=document.createElement('section');card.className='traffic-card jalan-kl-3c';
  card.innerHTML='<div class="compare-title"><strong>Jalan KL — Segment Route Preview</strong><span class="demo-tag">TEST ONLY</span></div>'+
   '<p class="compare-hint">Experimental only — no traffic, verified turn rules or legal driving approval. This public prototype is separate from the private JALAN pilot.</p>'+
-  '<label class="traffic-consent"><input type="checkbox" id="kl3c-consent"> I allow this preview to send the selected start and destination coordinates to the original Mterms experimental Heroku service for this page session. The destination and any one-time GPS coordinates are sent in the request URL; server-side access logs may retain the request. No location is sent by this panel until I opt in.</label>'+
+  '<label class="traffic-consent"><input type="checkbox" id="kl3c-consent"> I allow this preview to send the selected start and destination coordinates to the original Mterms experimental Heroku service for this page session. Coordinates are sent only in the JSON request body (not URL query parameters). The original Mterms server still requires an independent privacy and log-retention review. No location is sent by this panel until I opt in.</label>'+
   '<div class="compare-actions"><button type="button" id="kl3c-run">Test segment route</button><button type="button" id="kl3c-gps">Recalculate from GPS (one-time opt-in)</button><button type="button" id="kl3c-clear">Clear preview and consent</button></div>'+
   '<p id="kl3c-status" class="compare-hint" role="status" aria-live="polite">Consent is off. Choose start and destination, then opt in before requesting this experimental route.</p>';
  const old=document.querySelector('.jalan-kl-preview');if(old)old.insertAdjacentElement('afterend',card);else panel.prepend(card);
@@ -47,10 +47,14 @@
   pending=controller;
   status.textContent='Calculating experimental segment route…';
   try{
-   const u=new URL(API+'/route');
-   [['startLat',start[0]],['startLng',start[1]],['endLat',end[0]],['endLng',end[1]]]
-    .forEach(([k,v])=>u.searchParams.set(k,v));
-   const response=await fetch(u,{signal:controller.signal,cache:'no-store',referrerPolicy:'no-referrer'});
+   // Privacy migration: fail closed if the original service does not support
+   // JSON-body POST. NEVER retry a coordinate-bearing GET on HTTP/network failure.
+   const response=await fetch(API+'/route',{
+    method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({startLat:start[0],startLng:start[1],endLat:end[0],endLng:end[1]}),
+    credentials:'omit',signal:controller.signal,cache:'no-store',
+    referrerPolicy:'no-referrer'
+   });
    const d=await response.json();
    if(!consent.checked||controller.signal.aborted||id!==sequence)return;
    if(!response.ok||!d.ok)throw Error(d.error||'Route unavailable');
