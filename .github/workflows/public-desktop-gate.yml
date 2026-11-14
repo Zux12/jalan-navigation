@@ -1,0 +1,36 @@
+name: JALAN public non-phone Chromium 390px integration gate
+on:
+  pull_request:
+    paths:
+      - 'app.js'
+      - 'tomtom-live.js'
+      - 'index.html'
+      - 'style.css'
+      - 'tests/public-desktop-390.cjs'
+      - '.github/workflows/public-desktop-gate.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'app.js'
+      - 'tomtom-live.js'
+      - 'index.html'
+      - 'style.css'
+      - 'tests/public-desktop-390.cjs'
+      - '.github/workflows/public-desktop-gate.yml'
+permissions:
+  contents: read
+jobs:
+  chromium-public-390:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Install pinned browser and Leaflet dependencies in disposable runner
+        run: |
+          npm install --no-save --ignore-scripts --no-audit --no-fund playwright@1.58.2 leaflet@1.9.4
+          npx playwright install --with-deps chromium
+      - name: Run deterministic local Chromium 390px, no outbound network
+        run: node tests/public-desktop-390.cjs
