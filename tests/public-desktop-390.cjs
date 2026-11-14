@@ -99,6 +99,23 @@ async function main(){
     'Search controls must remain inside 390px screen');
   assert.ok(geom.panel.x>=-1&&geom.panel.right<=391,'Panel must remain inside 390px screen');
   assert.ok(geom.docWidth<=391,'No horizontal overflow');
+  // Key public status changes must be announced to assistive technologies.
+  const accessibility=await page.evaluate(()=>({
+    statusRole:document.getElementById('status').getAttribute('role'),
+    statusLive:document.getElementById('status').getAttribute('aria-live'),
+    summaryRole:document.getElementById('route-summary').getAttribute('role'),
+    summaryLive:document.getElementById('route-summary').getAttribute('aria-live'),
+    summaryAtomic:document.getElementById('route-summary').getAttribute('aria-atomic')
+  }));
+  assert.equal(accessibility.statusRole,'status');
+  assert.equal(accessibility.statusLive,'polite');
+  assert.equal(accessibility.summaryRole,'status');
+  assert.equal(accessibility.summaryLive,'polite');
+  assert.equal(accessibility.summaryAtomic,'true');
+  await page.locator('#destination').focus();
+  await page.keyboard.press('Tab');
+  assert.equal(await page.evaluate(()=>document.activeElement?.textContent?.trim()),'Search',
+    'Keyboard Tab from destination must reach Search submit');
   await page.locator('#locate').click();
   await page.waitForFunction(()=>document.getElementById('status').textContent.includes('Location unavailable'));
   await page.evaluate(()=>{setStart([3.139,101.6869],'Public test origin');destination=[3.1478,101.6953]});
