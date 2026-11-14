@@ -5,111 +5,45 @@ const fs=require('node:fs');
 const path=require('node:path');
 const vm=require('node:vm');
 const src=fs.readFileSync(path.join(__dirname,'..','jalan-kl-3c.js'),'utf8');
-function scene({defer=false}={}){
+function scene(){
  const elements={};
  for(const id of ['kl3c-status','kl3c-consent','kl3c-run','kl3c-gps','kl3c-clear'])
-  elements[id]={checked:false,textContent:'',onclick:null,onchange:null};
- let fetches=[],gpsCalls=0,gpsCallback=null,drawn=0,cleared=0,aborts=0,pendingResolve;
- const layer={addTo(){return this},clearLayers(){cleared++}};
+  elements[id]={checked:false,disabled:false,textContent:'',onclick:null,onchange:null};
+ let fetches=0,gpsCalls=0;
  const card={className:'',innerHTML:'',querySelector(selector){
   return elements[selector.replace('#','')];
  }};
  const document={
   getElementById(id){return id==='panel-details'?{prepend(){}}:null},
-  createElement(tag){assert.equal(tag,'section');return card},
+  createElement(){return card},
   querySelector(){return null}
  };
- const L={layerGroup:()=>layer,polyline(){
-  drawn++;
-  return {addTo(){return {getBounds(){return {}}}}};
- }};
- const map={fitBounds(){}};
- const navigator={geolocation:{getCurrentPosition(fn){gpsCalls++;gpsCallback=fn}}};
- const fakeResponse=()=>({
-  ok:true,json:async()=>({
-   ok:true,distanceMeters:1200,edgeCount:3,startSnapMeters:0,
-   endSnapMeters:18,illustrativeEtaMinutes:2.4,
-   geometry:{type:'LineString',coordinates:[[101.686,3.139],[101.695,3.148]]}
-  })
- });
- const fetch=(url,opts)=>{
-  fetches.push({url:String(url),opts});
-  if(opts.signal)opts.signal.addEventListener('abort',()=>aborts++);
-  if(defer)return new Promise(resolve=>{pendingResolve=resolve});
-  return Promise.resolve(fakeResponse());
- };
- const context={window:{L},document,L,map,navigator,fetch,URL,Error,
+ const L={layerGroup(){throw Error('Paused KL3C must not instantiate map layers')}};
+ const navigator={geolocation:{getCurrentPosition(){gpsCalls++}}};
+ const fetch=()=>{fetches++;throw Error('Paused KL3C must not call original Heroku')};
+ const context={window:{L},document,L,map:{},navigator,fetch,URL,Error,
   AbortController,console,startPoint:[3.139,101.686],destination:[3.148,101.695]};
  vm.runInNewContext(src,context,{filename:'jalan-kl-3c.js'});
- const tick=async()=>{await new Promise(resolve=>setImmediate(resolve));await new Promise(resolve=>setImmediate(resolve))};
- return {elements,fetches,tick,setStart(p){context.startPoint=p},get gpsCalls(){return gpsCalls},
-  gps:(p)=>gpsCallback?.(p),resolve:()=>pendingResolve?.(fakeResponse()),
-  get drawn(){return drawn},get cleared(){return cleared},get aborts(){return aborts}};
+ return {elements,card,get fetches(){return fetches},get gpsCalls(){return gpsCalls}};
 }
-test('no consent means no coordinates transmitted and no GPS permission prompt',async()=>{
+test('public KL3C controls are disabled and explain the privacy hold',()=>{
  const s=scene();
- s.elements['kl3c-run'].onclick();
- s.elements['kl3c-gps'].onclick();
- await s.tick();
- assert.equal(s.fetches.length,0);
- assert.equal(s.gpsCalls,0);
- assert.match(s.elements['kl3c-status'].textContent,/No coordinates sent/);
-});
-test('explicit consent permits one bounded read-only experimental request',async()=>{
- const s=scene();
- s.elements['kl3c-consent'].checked=true;
- s.elements['kl3c-consent'].onchange();
- s.elements['kl3c-run'].onclick();
- await s.tick();
- assert.equal(s.fetches.length,1);
- assert.match(s.fetches[0].url,/mterm2026-559f9bf571b5\.herokuapp\.com/);
- assert.match(s.fetches[0].url,/startLat=3.139/);
- assert.equal(s.fetches[0].opts.cache,'no-store');
- assert.equal(s.fetches[0].opts.referrerPolicy,'no-referrer');
- assert.equal(s.drawn,1);
+ for(const id of ['kl3c-consent','kl3c-run','kl3c-gps','kl3c-clear'])
+  assert.equal(s.elements[id].disabled,true);
+ assert.match(s.elements['kl3c-status'].textContent,/temporarily paused for location privacy/);
+ assert.match(s.elements['kl3c-status'].textContent,/TomTom and OSRM/);
  assert.match(s.elements['kl3c-status'].textContent,/NOT FOR DRIVING/);
 });
-test('revocation aborts pending request and prevents drawing a late response',async()=>{
- const s=scene({defer:true});
- const consent=s.elements['kl3c-consent'];
- consent.checked=true;consent.onchange();
- s.elements['kl3c-run'].onclick();
- assert.equal(s.fetches.length,1);
- consent.checked=false;consent.onchange();
- assert.equal(s.aborts,1);
- s.resolve();await s.tick();
- assert.equal(s.drawn,0);
- s.elements['kl3c-run'].onclick();
- assert.equal(s.fetches.length,1);
-});
-test('clear preview also clears consent and blocks further route calls',async()=>{
+test('no coordinate submission or GPS permission action is wired while paused',()=>{
  const s=scene();
- const consent=s.elements['kl3c-consent'];
- consent.checked=true;consent.onchange();
- s.elements['kl3c-clear'].onclick();
- assert.equal(consent.checked,false);
- s.elements['kl3c-run'].onclick();await s.tick();
- assert.equal(s.fetches.length,0);
- assert.ok(s.cleared>=1);
+ assert.equal(s.elements['kl3c-run'].onclick,null);
+ assert.equal(s.elements['kl3c-gps'].onclick,null);
+ assert.equal(s.elements['kl3c-consent'].onchange,null);
+ assert.equal(s.fetches,0);
+ assert.equal(s.gpsCalls,0);
 });
-test('GPS permission callback after consent revocation never transmits coordinates',async()=>{
- const s=scene(),c=s.elements['kl3c-consent'];
- c.checked=true;c.onchange();
- s.elements['kl3c-gps'].onclick();
- assert.equal(s.gpsCalls,1);
- c.checked=false;c.onchange();
- s.gps({coords:{accuracy:9,latitude:3.14,longitude:101.69}});
- await s.tick();assert.equal(s.fetches.length,0);
-});
-test('rejects coordinates outside bounded KL experimental pilot despite consent',async()=>{
- const s=scene(),c=s.elements['kl3c-consent'];
- c.checked=true;c.onchange();
- s.setStart([35.1,-120.3]);
- s.elements['kl3c-run'].onclick();await s.tick();
- assert.equal(s.fetches.length,0);
-});
-test('client-side consent is not persisted to localStorage or sessionStorage',()=>{
+test('privacy hold does not persist consent or browser storage',()=>{
  assert.doesNotMatch(src,/localStorage|sessionStorage|document\.cookie/);
- assert.match(src,/id="kl3c-consent"/);
+ assert.match(src,/const privacyHold=true/);
  assert.match(src,/server-side access logs may retain the request/);
 });
