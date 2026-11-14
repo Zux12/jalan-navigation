@@ -10,11 +10,11 @@ let server,browser,origin;
 test.before(async()=>{
  server=http.createServer((req,res)=>{
   const p=decodeURIComponent(new URL(req.url,'http://localhost').pathname);
-  const target=path.resolve(ROOT,'.'+p);
-  if(!target.startsWith(ROOT+path.sep)&&target!==path.resolve(ROOT,'index.html')){
+  const target=p==='/'?path.join(ROOT,'index.html'):path.resolve(ROOT,'.'+p);
+  if(!target.startsWith(ROOT+path.sep)){
    res.writeHead(403);res.end();return;
   }
-  const file=p==='/'?path.join(ROOT,'index.html'):target;
+  const file=target;
   fs.readFile(file,(err,data)=>{
    if(err){res.writeHead(404);res.end();return;}
    res.writeHead(200,{'content-type':MIME[path.extname(file)]||'text/plain','cache-control':'no-store'});res.end(data);
