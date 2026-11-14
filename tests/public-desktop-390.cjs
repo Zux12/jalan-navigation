@@ -119,18 +119,21 @@ async function main(){
   // Axe checks the actual rendered public page, not HTML regex/fixtures.
   // No real API key, GPS or external browser request is needed for this audit.
   await page.addScriptTag({url:base+'/node_modules/axe-core/axe.min.js'});
-  const axeViolations=await page.evaluate(async()=>{
-    const scan=await window.axe.run(document,{
-      runOnly:{type:'tag',values:['wcag2a','wcag2aa','wcag21a','wcag21aa']}
+  async function auditCurrentVisibleState(label){
+    const violations=await page.evaluate(async()=>{
+      const scan=await window.axe.run(document,{
+        runOnly:{type:'tag',values:['wcag2a','wcag2aa','wcag21a','wcag21aa']}
+      });
+      return scan.violations.map(v=>({id:v.id,impact:v.impact,
+        help:v.help,targets:v.nodes.slice(0,5).map(n=>n.target.join(' ')),
+        affected:v.nodes.length}));
     });
-    return scan.violations.map(v=>({id:v.id,impact:v.impact,
-      help:v.help,targets:v.nodes.slice(0,5).map(n=>n.target.join(' ')),
-      affected:v.nodes.length}));
-  });
-  for(const v of axeViolations)
-    console.log('PUBLIC ACCESSIBILITY:',JSON.stringify(v));
-  assert.deepEqual(axeViolations.filter(v=>v.impact==='critical'||v.impact==='serious'),[],
-    'Rendered public page must not have critical/serious automated WCAG violations');
+    for(const v of violations)
+      console.log('PUBLIC ACCESSIBILITY '+label+':',JSON.stringify(v));
+    assert.deepEqual(violations.filter(v=>v.impact==='critical'||v.impact==='serious'),[],
+      'Rendered public '+label+' state must not have serious/critical automated WCAG violations');
+  }
+  await auditCurrentVisibleState('initial');
   await page.locator('#locate').click();
   await page.waitForFunction(()=>document.getElementById('status').textContent.includes('Location unavailable'));
   await page.evaluate(()=>{setStart([3.139,101.6869],'Public test origin');destination=[3.1478,101.6953]});
@@ -159,6 +162,7 @@ async function main(){
   await page.waitForFunction(()=>document.getElementById('route-summary').textContent.includes('OSRM estimate only'));
   assert.equal(osrmCalls,1);
   assert.equal(await page.evaluate(()=>routes[0].provider||'osrm'),'osrm');
+  await auditCurrentVisibleState('OSRM route visible');
   await page.locator('#toggle-panel').click(); // OSRM route fit collapses details again
   await page.locator('#tt-primary').check();
   await page.route('https://api.tomtom.com/routing/**',route=>{
@@ -170,6 +174,7 @@ async function main(){
   await page.waitForFunction(()=>document.getElementById('tt-status').textContent.includes('Uncheck TomTom primary routing to use OSRM'));
   assert.equal(osrmCalls,osrmBefore,'TomTom error must not silently fall back to OSRM');
   assert.equal(await page.evaluate(()=>routes.length),0,'Failed request must not leave stale OSRM geometry');
+  await auditCurrentVisibleState('TomTom authentication error');
   // Previously saved key must be revoked on edit even before reconnecting.
   await page.locator('#tt-remember').check();
   await page.locator('#tt-route').click(); // fake 401, intentional local save
