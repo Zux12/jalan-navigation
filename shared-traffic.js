@@ -41,5 +41,15 @@ window.addEventListener('jalan:gps-fix',async e=>{
   if(enabled&&sessionId===token){lastSent=Date.now();status('Sharing active. Last observation accepted at '+new Date().toLocaleTimeString()+'. Speed '+speed.toFixed(1)+' km/h.',true);}
  }catch(err){if(enabled&&sessionId===token)status('Upload failed: '+err.message,true);}finally{pending=false;}
 });
-$('shared-check').onclick=async()=>{const s=window.JalanGPS?.getState?.(),p=s?.position;if(!p){status('Start GPS navigation to check traffic near your location.',true);return;}try{const r=await fetch(base+'/traffic?lat='+encodeURIComponent(p[0])+'&lon='+encodeURIComponent(p[1]),{signal:AbortSignal.timeout(8000)});if(!r.ok)throw Error('HTTP '+r.status);const data=await r.json();status('Nearby pilot grid groups with 3+ contributors: '+(Array.isArray(data.segments)?data.segments.length:0)+'. These are not road-matched traffic jams.',true);}catch(e){status('Traffic lookup failed: '+e.message,true);}};
+// The opt-in shared observation POST is a separate, existing feature.
+// Nearby GET lookup exposes the live GPS fix in Heroku router URL logs while
+// shared-Mterms query redaction is disabled. Hold only the GET lookup pending
+// operator-verified redaction or a reviewed body-only replacement.
+const nearbyLookupPrivacyHold=true;
+if(nearbyLookupPrivacyHold){
+ $('shared-check').disabled=true;
+ $('shared-check').textContent='Nearby lookup paused';
+}else{
+ $('shared-check').onclick=async()=>{const s=window.JalanGPS?.getState?.(),p=s?.position;if(!p){status('Start GPS navigation to check traffic near your location.',true);return;}try{const r=await fetch(base+'/traffic?lat='+encodeURIComponent(p[0])+'&lon='+encodeURIComponent(p[1]),{signal:AbortSignal.timeout(8000)});if(!r.ok)throw Error('HTTP '+r.status);const data=await r.json();status('Nearby pilot grid groups with 3+ contributors: '+(Array.isArray(data.segments)?data.segments.length:0)+'. These are not road-matched traffic jams.',true);}catch(e){status('Traffic lookup failed: '+e.message,true);}};
+}
 })();

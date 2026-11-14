@@ -8,6 +8,15 @@
  box.innerHTML='<div class="compare-title"><strong>KL Preview — Snap & ETA Diagnostics</strong><span class="demo-tag">EXPERIMENTAL</span></div><p id="kl3b-status" class="compare-hint">Select both points, then run the diagnostic.</p><div class="compare-actions"><button type="button" id="kl3b-check">Check road snapping</button><button type="button" id="kl3b-gps">GPS reroute test: Off</button><button type="button" id="kl3b-stop">Stop test</button></div><p class="compare-hint">ETA uses an illustrative fixed 30 km/h, NOT traffic. GPS reroute test requires explicit permission, two consecutive off-route fixes, and does not replace the selected OSRM/TomTom route. Stationary/passenger testing only.</p>';
  card.appendChild(box);
  const status=box.querySelector('#kl3b-status'),gps=box.querySelector('#kl3b-gps');
+ // 3B snap/GPS diagnostics send precise coordinates in GET query strings to
+ // the same shared-Mterms router without verified query-log suppression.
+ // Disable all panel actions before wiring handlers or geolocation watches.
+ const privacyHold=true;
+ if(privacyHold){
+  for(const selector of ['#kl3b-check','#kl3b-gps','#kl3b-stop'])box.querySelector(selector).disabled=true;
+  status.textContent='KL snap and GPS diagnostics paused for location privacy. No coordinate request or GPS watch will start from this panel. TomTom and OSRM remain separate. NOT FOR DRIVING.';
+  return;
+ }
  let watch=null,off=0,last=null,active=false;
  function coords(){if(!Array.isArray(startPoint)||!Array.isArray(destination))throw Error('Choose a start and destination first');return [startPoint,destination];}
  async function snap(p){const u=new URL(API+'/snap');u.searchParams.set('lat',p[0]);u.searchParams.set('lng',p[1]);const r=await fetch(u);const d=await r.json();if(!r.ok||!d.ok)throw Error(d.error||'Snap failed');return d;}

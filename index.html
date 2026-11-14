@@ -110,6 +110,7 @@
     <p class="compare-hint">Sharing is off by default. While GPS navigation is active, consenting drivers may upload an approximate location, speed and direction. The server stores a coarse grid cell (not exact coordinates) for 15 minutes. This pilot does not identify exact roads or establish confirmed congestion.</p>
     <div class="compare-actions"><button id="shared-start" type="button">Start sharing</button><button id="shared-stop" type="button" disabled>Stop sharing</button><button id="shared-check" type="button">Check nearby shared traffic</button></div>
     <p id="shared-status" class="compare-hint" role="status">Sharing is off.</p>
+    <p class="compare-hint">Nearby traffic lookup is paused for location privacy because the original Heroku service has not verified URL-query log redaction. The separate opt-in observation POST feature remains available; sharing is off by default and is not a substitute for a reviewed server-retention policy.</p>
   </section>
 
     <section class="traffic-card" id="road-intel-card" aria-labelledby="road-intel-title">

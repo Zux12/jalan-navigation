@@ -3,13 +3,23 @@ on:
   pull_request:
     paths:
       - 'jalan-kl-3c.js'
+      - 'jalan-kl-preview.js'
+      - 'jalan-kl-3b.js'
+      - 'shared-traffic.js'
+      - 'index.html'
       - 'tests/kl3c-privacy.test.js'
+      - 'tests/legacy-get-privacy.test.js'
       - '.github/workflows/kl3c-privacy.yml'
   push:
     branches: [main]
     paths:
       - 'jalan-kl-3c.js'
+      - 'jalan-kl-preview.js'
+      - 'jalan-kl-3b.js'
+      - 'shared-traffic.js'
+      - 'index.html'
       - 'tests/kl3c-privacy.test.js'
+      - 'tests/legacy-get-privacy.test.js'
       - '.github/workflows/kl3c-privacy.yml'
 permissions:
   contents: read
@@ -22,5 +32,5 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
-      - run: node --check jalan-kl-3c.js
-      - run: node --test tests/kl3c-privacy.test.js
+      - run: node --check jalan-kl-3c.js && node --check jalan-kl-preview.js && node --check jalan-kl-3b.js && node --check shared-traffic.js
+      - run: node --test tests/kl3c-privacy.test.js tests/legacy-get-privacy.test.js
