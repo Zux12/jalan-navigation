@@ -1,0 +1,26 @@
+name: JALAN TomTom route revocation and fallback safety
+on:
+  pull_request:
+    paths:
+      - 'tomtom-live.js'
+      - 'tests/tomtom-failure.test.js'
+      - '.github/workflows/tomtom-failure.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'tomtom-live.js'
+      - 'tests/tomtom-failure.test.js'
+      - '.github/workflows/tomtom-failure.yml'
+permissions:
+  contents: read
+jobs:
+  route-failure:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: node --check tomtom-live.js
+      - run: node --test tests/tomtom-failure.test.js
