@@ -34,6 +34,9 @@ function scene({defer=false,response=null}={}){
   clearRoute(){clearCount++;ctx.window.JalanTomTom?.routeCleared();ctx.routes=[]},
   fetch,URL,AbortController,setTimeout(){return 1},clearTimeout(){},setInterval(){return 1},clearInterval(){},console};
  vm.runInNewContext(code,ctx,{filename:'tomtom-live.js'});
+ // The actual UI is populated after module initialization or from storage.
+ // Set our user-entered key AFTER initialization, which itself loads storage.
+ nodes['tt-key'].value='testKey12345';
  const tick=async()=>{await new Promise(r=>setImmediate(r));await new Promise(r=>setImmediate(r))};
  return {nodes,ctx,store,sessions,calls,tick,get renders(){return renders},get aborted(){return aborted},
   get clears(){return clearCount},resolve:()=>pendingResolve?.()};
