@@ -13,6 +13,22 @@
   '<div class="compare-actions"><button type="button" id="kl3c-run">Test segment route</button><button type="button" id="kl3c-gps">Recalculate from GPS (one-time opt-in)</button><button type="button" id="kl3c-clear">Clear preview and consent</button></div>'+
   '<p id="kl3c-status" class="compare-hint" role="status" aria-live="polite">Consent is off. Choose start and destination, then opt in before requesting this experimental route.</p>';
  const old=document.querySelector('.jalan-kl-preview');if(old)old.insertAdjacentElement('afterend',card);else panel.prepend(card);
+ // Original Mterms Heroku router query redaction is operator-confirmed OFF.
+ // Until that shared-service privacy control is verified, refuse every
+ // public KL3C coordinate/GPS action (even with consent). Keep the UI visible
+ // to explain why this experimental option is temporarily unavailable.
+ const privacyHold=true;
+ if(privacyHold){
+  for(const selector of ['#kl3c-consent','#kl3c-run','#kl3c-gps','#kl3c-clear']){
+   const control=card.querySelector(selector);
+   if(control)control.disabled=true;
+  }
+  card.querySelector('#kl3c-status').textContent=
+   'KL segment route preview temporarily paused for location privacy. '+
+   'No coordinates or GPS permission will be requested by this panel. '+
+   'TomTom and OSRM routes remain separate. NOT FOR DRIVING.';
+  return;
+ }
  const status=card.querySelector('#kl3c-status');
  const consent=card.querySelector('#kl3c-consent');
  const layer=L.layerGroup().addTo(map);
