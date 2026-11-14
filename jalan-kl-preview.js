@@ -7,6 +7,17 @@
  card.innerHTML='<div class="compare-title"><strong>Jalan KL — Own Routing Engine</strong><span class="demo-tag">TEST ONLY</span></div><p class="compare-hint">Choose a starting point and destination using Jalan search, then test our own KL graph. No legal turn restrictions, live traffic or reliable ETA. NOT FOR DRIVING.</p><div class="compare-actions"><button type="button" id="kl-preview-run">Test Jalan KL route</button><button type="button" id="kl-preview-clear">Clear preview</button></div><p id="kl-preview-status" class="compare-hint" role="status">Select start and destination first.</p>';
  const summary=document.getElementById('route-summary');if(summary)summary.insertAdjacentElement('afterend',card);else panel.prepend(card);
  const status=card.querySelector('#kl-preview-status'),button=card.querySelector('#kl-preview-run');
+ // Original shared-Mterms Heroku currently logs URL query strings. The old
+ // 3A GET preview has no reviewed location-log retention or POST migration.
+ // Fail closed before creating map layers or wiring coordinate requests.
+ const privacyHold=true;
+ if(privacyHold){
+  button.disabled=true;
+  card.querySelector('#kl-preview-clear').disabled=true;
+  status.textContent='KL route preview paused for location privacy. No start or destination coordinates will be sent from this panel. TomTom and OSRM remain available. NOT FOR DRIVING.';
+  window.JalanKLPreview={clear:()=>{}};
+  return;
+ }
  const layer=L.layerGroup().addTo(map);let busy=false;
  function clear(){layer.clearLayers();status.textContent='Preview cleared. Existing routes remain unchanged.';}
  card.querySelector('#kl-preview-clear').addEventListener('click',clear);
