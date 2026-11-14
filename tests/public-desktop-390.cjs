@@ -115,6 +115,10 @@ async function main(){
   assert.ok((await page.locator('#tt-eta').textContent()).includes('Traffic delay'));
   assert.equal(tomtomCalls,1);
   assert.equal(osrmCalls,0,'TomTom primary should not silently call OSRM');
+  assert.equal(await page.evaluate(()=>localStorage.getItem('jalan-tomtom-key')),null,
+    'Unchecked Remember must never persist TomTom key locally');
+  assert.equal(await page.evaluate(()=>sessionStorage.getItem('jalan-tomtom-key')),null,
+    'Unchecked Remember must never persist TomTom key in tab storage');
   await page.locator('#toggle-panel').click(); // expand hidden details after route fit
   await page.locator('#tt-primary').uncheck();
   assert.equal(await page.evaluate(()=>routes.length),0,'Provider switch clears previous live route');
