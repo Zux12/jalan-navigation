@@ -5,7 +5,7 @@ const fs=require('node:fs');
 const path=require('node:path');
 const vm=require('node:vm');
 const src=fs.readFileSync(path.join(__dirname,'..','jalan-kl-3c.js'),'utf8');
-function scene({defer=false}={}){
+function scene({defer=false,postUnavailable=false}={}){
  const elements={};
  for(const id of ['kl3c-status','kl3c-consent','kl3c-run','kl3c-gps','kl3c-clear'])
   elements[id]={checked:false,textContent:'',onclick:null,onchange:null};
@@ -25,7 +25,9 @@ function scene({defer=false}={}){
  }};
  const map={fitBounds(){}};
  const navigator={geolocation:{getCurrentPosition(fn){gpsCalls++;gpsCallback=fn}}};
- const fakeResponse=()=>({
+ const fakeResponse=()=>postUnavailable?({
+  ok:false,json:async()=>({ok:false,error:'POST endpoint not deployed'})
+ }):({
   ok:true,json:async()=>({
    ok:true,distanceMeters:1200,edgeCount:3,startSnapMeters:0,
    endSnapMeters:18,illustrativeEtaMinutes:2.4,
@@ -63,11 +65,27 @@ test('explicit consent permits one bounded read-only experimental request',async
  await s.tick();
  assert.equal(s.fetches.length,1);
  assert.match(s.fetches[0].url,/mterm2026-559f9bf571b5\.herokuapp\.com/);
- assert.match(s.fetches[0].url,/startLat=3.139/);
+ assert.equal(new URL(s.fetches[0].url).search,'','Coordinates must not enter router URL logs');
+ assert.equal(s.fetches[0].opts.method,'POST');
+ assert.equal(s.fetches[0].opts.credentials,'omit');
+ assert.equal(s.fetches[0].opts.headers['Content-Type'],'application/json');
+ assert.deepEqual(JSON.parse(s.fetches[0].opts.body),{
+   startLat:3.139,startLng:101.686,endLat:3.148,endLng:101.695
+ });
  assert.equal(s.fetches[0].opts.cache,'no-store');
  assert.equal(s.fetches[0].opts.referrerPolicy,'no-referrer');
  assert.equal(s.drawn,1);
  assert.match(s.elements['kl3c-status'].textContent,/NOT FOR DRIVING/);
+});
+test('unavailable POST fails closed; no legacy GET with location query fallback',async()=>{
+ const s=scene({postUnavailable:true}),c=s.elements['kl3c-consent'];
+ c.checked=true;c.onchange();
+ s.elements['kl3c-run'].onclick();await s.tick();
+ assert.equal(s.fetches.length,1);
+ assert.equal(s.fetches[0].opts.method,'POST');
+ assert.equal(new URL(s.fetches[0].url).search,'');
+ assert.match(s.elements['kl3c-status'].textContent,/POST endpoint not deployed/);
+ assert.equal(s.drawn,0);
 });
 test('revocation aborts pending request and prevents drawing a late response',async()=>{
  const s=scene({defer:true});
