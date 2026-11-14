@@ -105,6 +105,8 @@ test('unchecking Remember at next request removes previously remembered key',asy
  await n['tt-route'].onclick();await s.tick();
  assert.equal(s.store.get('jalan-tomtom-key'),'testKey12345');
  n['tt-remember'].checked=false;
+ n['tt-remember'].onchange();
+ assert.equal(s.store.has('jalan-tomtom-key'),false,'uncheck must immediately revoke persistent storage');
  await n['tt-route'].onclick();await s.tick();
  assert.equal(s.store.has('jalan-tomtom-key'),false);
  assert.equal(s.sessions.has('jalan-tomtom-key'),false);
