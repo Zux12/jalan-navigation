@@ -116,6 +116,30 @@ async function main(){
   await page.keyboard.press('Tab');
   assert.equal(await page.evaluate(()=>document.activeElement?.textContent?.trim()),'Search',
     'Keyboard Tab from destination must reach Search submit');
+  // Navigation menu keyboard contract: focus enters the opened panel and
+  // returns to its launcher when closed (including Escape). No GPS session.
+  await page.evaluate(()=>{
+    document.body.classList.add('nav-active');
+    document.getElementById('nav-hud').classList.remove('hidden');
+  });
+  const navMenu=page.locator('#nav-hud .nav-menu-button');
+  await navMenu.focus();
+  await page.keyboard.press('Enter');
+  assert.equal(await navMenu.getAttribute('aria-expanded'),'true');
+  assert.equal(await page.evaluate(()=>document.activeElement?.id),'nav-panel-close',
+    'Opening the navigation menu must move focus into visible menu controls');
+  await page.keyboard.press('Escape');
+  assert.equal(await navMenu.getAttribute('aria-expanded'),'false');
+  assert.equal(await navMenu.evaluate(e=>document.activeElement===e),true,
+    'Escape must restore focus to the navigation Menu button');
+  await navMenu.click();
+  await page.locator('#nav-panel-close').click();
+  assert.equal(await navMenu.evaluate(e=>document.activeElement===e),true,
+    'Close menu button must restore focus to the launcher');
+  await page.evaluate(()=>{
+    document.getElementById('nav-hud').classList.add('hidden');
+    document.body.classList.remove('nav-active','menu-open');
+  });
   // Axe checks the actual rendered public page, not HTML regex/fixtures.
   // No real API key, GPS or external browser request is needed for this audit.
   await page.addScriptTag({url:base+'/node_modules/axe-core/axe.min.js'});
