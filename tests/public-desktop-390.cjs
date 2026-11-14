@@ -56,6 +56,14 @@ async function main(){
     }});
   });
   await page.goto(base+'/index.html',{waitUntil:'load'});
+  // These are the v1.9.4 published integrity values in Leaflet's own quick start.
+  // Loading local bytes under the original CDN URL also tests browser SRI enforcement.
+  const sri=await page.evaluate(()=>({
+    css:document.querySelector('link[href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"]')?.integrity,
+    js:document.querySelector('script[src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"]')?.integrity
+  }));
+  assert.equal(sri.css,'sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=');
+  assert.equal(sri.js,'sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=');
   await page.waitForFunction(()=>window.JalanTomTom&&window.L&&typeof window.L.map==='function');
   assert.equal(errors.length,0,'Public bundle must initialize without page JavaScript exceptions: '+errors.join('; '));
   const geom=await page.evaluate(()=>{
