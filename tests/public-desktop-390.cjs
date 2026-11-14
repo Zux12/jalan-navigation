@@ -138,6 +138,14 @@ async function main(){
   await page.waitForFunction(()=>document.getElementById('tt-status').textContent.includes('Uncheck TomTom primary routing to use OSRM'));
   assert.equal(osrmCalls,osrmBefore,'TomTom error must not silently fall back to OSRM');
   assert.equal(await page.evaluate(()=>routes.length),0,'Failed request must not leave stale OSRM geometry');
+  // Previously saved key must be revoked on edit even before reconnecting.
+  await page.locator('#tt-remember').check();
+  await page.locator('#tt-route').click(); // fake 401, intentional local save
+  assert.equal(await page.evaluate(()=>localStorage.getItem('jalan-tomtom-key')),'PublicTestKey123');
+  await page.locator('#tt-key').fill('ReplacementFakeKey123');
+  assert.equal(await page.evaluate(()=>localStorage.getItem('jalan-tomtom-key')),null);
+  assert.equal(await page.evaluate(()=>sessionStorage.getItem('jalan-tomtom-key')),null);
+  assert.ok((await page.locator('#tt-status').textContent()).includes('Old stored key removed'));
   await page.locator('#tt-remove-key').click();
   assert.equal(await page.locator('#tt-key').inputValue(),'');
   assert.equal(await page.evaluate(()=>localStorage.getItem('jalan-tomtom-key')),null);
