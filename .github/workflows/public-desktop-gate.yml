@@ -30,7 +30,7 @@ jobs:
           node-version: '24'
       - name: Install pinned browser and Leaflet dependencies in disposable runner
         run: |
-          npm install --no-save --ignore-scripts --no-audit --no-fund playwright@1.58.2 leaflet@1.9.4
+          npm install --no-save --ignore-scripts --no-audit --no-fund playwright@1.58.2 leaflet@1.9.4 axe-core@4.10.3
           npx playwright install --with-deps chromium
       - name: Run deterministic local Chromium 390px, no outbound network
         run: node tests/public-desktop-390.cjs

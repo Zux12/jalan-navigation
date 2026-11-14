@@ -116,6 +116,21 @@ async function main(){
   await page.keyboard.press('Tab');
   assert.equal(await page.evaluate(()=>document.activeElement?.textContent?.trim()),'Search',
     'Keyboard Tab from destination must reach Search submit');
+  // Axe checks the actual rendered public page, not HTML regex/fixtures.
+  // No real API key, GPS or external browser request is needed for this audit.
+  await page.addScriptTag({url:base+'/node_modules/axe-core/axe.min.js'});
+  const axeViolations=await page.evaluate(async()=>{
+    const scan=await window.axe.run(document,{
+      runOnly:{type:'tag',values:['wcag2a','wcag2aa','wcag21a','wcag21aa']}
+    });
+    return scan.violations.map(v=>({id:v.id,impact:v.impact,
+      help:v.help,targets:v.nodes.slice(0,5).map(n=>n.target.join(' ')),
+      affected:v.nodes.length}));
+  });
+  for(const v of axeViolations)
+    console.log('PUBLIC ACCESSIBILITY:',JSON.stringify(v));
+  assert.deepEqual(axeViolations.filter(v=>v.impact==='critical'||v.impact==='serious'),[],
+    'Rendered public page must not have critical/serious automated WCAG violations');
   await page.locator('#locate').click();
   await page.waitForFunction(()=>document.getElementById('status').textContent.includes('Location unavailable'));
   await page.evaluate(()=>{setStart([3.139,101.6869],'Public test origin');destination=[3.1478,101.6953]});
