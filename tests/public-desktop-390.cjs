@@ -56,6 +56,27 @@ async function main(){
     }});
   });
   await page.goto(base+'/index.html',{waitUntil:'load'});
+  // The public Pages site is static, so verify the actual browser enforces
+  // its meta CSP; an aborted fetch alone is not enough evidence.
+  const csp=await page.evaluate(async()=>{
+    const policy=document.querySelector('meta[http-equiv="Content-Security-Policy"]');
+    if(!policy)return {present:false};
+    const violation=new Promise(resolve=>{
+      document.addEventListener('securitypolicyviolation',e=>
+        resolve({directive:e.effectiveDirective,blockedURI:e.blockedURI}),{once:true});
+    });
+    try{await fetch('https://untrusted.example.invalid/jalan-location-exfil-test');}catch{}
+    const result=await Promise.race([violation,
+      new Promise(resolve=>setTimeout(()=>resolve(null),1000))]);
+    return {present:true,policy:policy.content,result};
+  });
+  assert.equal(csp.present,true,'Public GitHub Pages must declare an explicit CSP');
+  assert.ok(csp.policy.includes("connect-src 'self' https://api.tomtom.com"),
+    'Only the documented routing providers may receive browser requests');
+  assert.equal(csp.result?.directive,'connect-src',
+    'Browser must block unexpected cross-origin network calls via CSP');
+  assert.ok(csp.result?.blockedURI.startsWith('https://untrusted.example.invalid'));
+
   // These are the v1.9.4 published integrity values in Leaflet's own quick start.
   // Loading local bytes under the original CDN URL also tests browser SRI enforcement.
   const sri=await page.evaluate(()=>({
