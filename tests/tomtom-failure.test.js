@@ -46,7 +46,8 @@ test('clear TomTom key immediately invalidates pending route and both browser st
  n['tt-key'].value='testKey12345';
  n['tt-route'].onclick();await s.tick();
  assert.equal(s.calls.length,1);
- assert.equal(s.sessions.get('jalan-tomtom-key'),'testKey12345');
+ assert.equal(s.sessions.has('jalan-tomtom-key'),false,'unchecked key must not enter sessionStorage');
+ assert.equal(s.store.has('jalan-tomtom-key'),false,'unchecked key must not persist in localStorage');
  n['tt-remove-key'].onclick();assert.equal(s.aborted,1);
  assert.equal(n['tt-key'].value,'');
  assert.equal(s.store.has('jalan-tomtom-key'),false);
@@ -89,4 +90,22 @@ test('missing or invalid key fails before any outbound TomTom request',async()=>
  await n['tt-route'].onclick();await s.tick();
  assert.equal(s.calls.length,0);
  assert.match(n['tt-status'].textContent,/valid TomTom key/);
+});
+
+test('Remember explicitly persists only localStorage and clears old session key on reload',async()=>{
+ const s=scene(),n=s.nodes;
+ n['tt-remember'].checked=true;
+ await n['tt-route'].onclick();await s.tick();
+ assert.equal(s.store.get('jalan-tomtom-key'),'testKey12345');
+ assert.equal(s.sessions.has('jalan-tomtom-key'),false);
+});
+test('unchecking Remember at next request removes previously remembered key',async()=>{
+ const s=scene(),n=s.nodes;
+ n['tt-remember'].checked=true;
+ await n['tt-route'].onclick();await s.tick();
+ assert.equal(s.store.get('jalan-tomtom-key'),'testKey12345');
+ n['tt-remember'].checked=false;
+ await n['tt-route'].onclick();await s.tick();
+ assert.equal(s.store.has('jalan-tomtom-key'),false);
+ assert.equal(s.sessions.has('jalan-tomtom-key'),false);
 });
