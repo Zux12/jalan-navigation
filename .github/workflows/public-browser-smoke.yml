@@ -1,0 +1,33 @@
+name: JALAN public real Chromium 390px provider smoke
+on:
+  pull_request:
+    paths:
+      - 'tests/public-browser-smoke.test.js'
+      - '.github/workflows/public-browser-smoke.yml'
+      - 'index.html'
+      - 'app.js'
+      - 'tomtom-live.js'
+      - 'jalan-kl-3c.js'
+  push:
+    branches: [main]
+    paths:
+      - 'tests/public-browser-smoke.test.js'
+      - '.github/workflows/public-browser-smoke.yml'
+      - 'index.html'
+      - 'app.js'
+      - 'tomtom-live.js'
+      - 'jalan-kl-3c.js'
+permissions:
+  contents: read
+jobs:
+  desktop-public:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: npm install --no-save --ignore-scripts --no-audit --no-fund playwright@1.58.2 leaflet@1.9.4
+      - run: npx playwright install --with-deps chromium
+      - run: node --test tests/public-browser-smoke.test.js
