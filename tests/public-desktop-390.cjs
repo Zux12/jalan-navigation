@@ -99,8 +99,7 @@ async function main(){
     'Search controls must remain inside 390px screen');
   assert.ok(geom.panel.x>=-1&&geom.panel.right<=391,'Panel must remain inside 390px screen');
   assert.ok(geom.docWidth<=391,'No horizontal overflow');
-  // Actual keyboard and accessibility semantics on the 390px viewport.
-  // The search form must be navigable without pointer or GPS access.
+  // Key public status changes must be announced to assistive technologies.
   const accessibility=await page.evaluate(()=>({
     statusRole:document.getElementById('status').getAttribute('role'),
     statusLive:document.getElementById('status').getAttribute('aria-live'),
@@ -116,7 +115,7 @@ async function main(){
   await page.locator('#destination').focus();
   await page.keyboard.press('Tab');
   assert.equal(await page.evaluate(()=>document.activeElement?.textContent?.trim()),'Search',
-    'Keyboard Tab from destination must reach the Search submit control');
+    'Keyboard Tab from destination must reach Search submit');
   await page.locator('#locate').click();
   await page.waitForFunction(()=>document.getElementById('status').textContent.includes('Location unavailable'));
   await page.evaluate(()=>{setStart([3.139,101.6869],'Public test origin');destination=[3.1478,101.6953]});
@@ -156,6 +155,14 @@ async function main(){
   await page.waitForFunction(()=>document.getElementById('tt-status').textContent.includes('Uncheck TomTom primary routing to use OSRM'));
   assert.equal(osrmCalls,osrmBefore,'TomTom error must not silently fall back to OSRM');
   assert.equal(await page.evaluate(()=>routes.length),0,'Failed request must not leave stale OSRM geometry');
+  // Previously saved key must be revoked on edit even before reconnecting.
+  await page.locator('#tt-remember').check();
+  await page.locator('#tt-route').click(); // fake 401, intentional local save
+  assert.equal(await page.evaluate(()=>localStorage.getItem('jalan-tomtom-key')),'PublicTestKey123');
+  await page.locator('#tt-key').fill('ReplacementFakeKey123');
+  assert.equal(await page.evaluate(()=>localStorage.getItem('jalan-tomtom-key')),null);
+  assert.equal(await page.evaluate(()=>sessionStorage.getItem('jalan-tomtom-key')),null);
+  assert.ok((await page.locator('#tt-status').textContent()).includes('Old stored key removed'));
   await page.locator('#tt-remove-key').click();
   assert.equal(await page.locator('#tt-key').inputValue(),'');
   assert.equal(await page.evaluate(()=>localStorage.getItem('jalan-tomtom-key')),null);
