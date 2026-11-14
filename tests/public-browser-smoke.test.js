@@ -98,6 +98,9 @@ test('TomTom primary stays traffic-aware and key removal clears selected route',
  });
  await page.waitForFunction(()=>document.getElementById('route-summary').textContent.includes('TomTom traffic-aware'),{timeout:12000});
  assert.ok(calls.includes('tomtom'));assert.ok(!calls.includes('osrm'));
+ // Successful routes collapse the details panel by design; reopen it before
+ // clicking the actual user-facing Forget key button.
+ await page.locator('#toggle-panel').click();
  await page.locator('#tt-remove-key').click();
  await page.waitForFunction(()=>document.getElementById('route-summary').classList.contains('hidden'));
  assert.equal(await page.locator('#tt-key').inputValue(),'');
