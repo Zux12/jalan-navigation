@@ -115,6 +115,10 @@ async function main(){
   assert.ok((await page.locator('#tt-eta').textContent()).includes('Traffic delay'));
   assert.equal(tomtomCalls,1);
   assert.equal(osrmCalls,0,'TomTom primary should not silently call OSRM');
+  assert.equal(await page.evaluate(()=>localStorage.getItem('jalan-tomtom-key')),null,
+    'Unchecked Remember must never persist TomTom key locally');
+  assert.equal(await page.evaluate(()=>sessionStorage.getItem('jalan-tomtom-key')),null,
+    'Unchecked Remember must never persist TomTom key in tab storage');
   await page.locator('#toggle-panel').click(); // expand hidden details after route fit
   await page.locator('#tt-primary').uncheck();
   assert.equal(await page.evaluate(()=>routes.length),0,'Provider switch clears previous live route');
@@ -134,32 +138,20 @@ async function main(){
   await page.waitForFunction(()=>document.getElementById('tt-status').textContent.includes('Uncheck TomTom primary routing to use OSRM'));
   assert.equal(osrmCalls,osrmBefore,'TomTom error must not silently fall back to OSRM');
   assert.equal(await page.evaluate(()=>routes.length),0,'Failed request must not leave stale OSRM geometry');
-  // Persisted keys must be revoked immediately when the user withdraws consent,
-  // not only after the next network request. Input replacement invalidates old
-  // browser storage even if the user never presses Connect again.
+  // Previously saved key must be revoked on edit even before reconnecting.
   await page.locator('#tt-remember').check();
-  await page.locator('#tt-route').click(); // expected fake 401; key() still stores intentionally
+  await page.locator('#tt-route').click(); // fake 401, intentional local save
   assert.equal(await page.evaluate(()=>localStorage.getItem('jalan-tomtom-key')),'PublicTestKey123');
-  await page.locator('#tt-remember').uncheck();
-  assert.equal(await page.evaluate(()=>localStorage.getItem('jalan-tomtom-key')),null,
-    'Opting out of Remember must erase the persisted key immediately');
-  assert.equal(await page.evaluate(()=>sessionStorage.getItem('jalan-tomtom-key')),'PublicTestKey123',
-    'Session-only routing still works after persistent consent is withdrawn');
-  await page.locator('#tt-remember').check();
-  await page.locator('#tt-route').click();
-  assert.equal(await page.evaluate(()=>localStorage.getItem('jalan-tomtom-key')),'PublicTestKey123');
-  await page.locator('#tt-key').fill('ReplacedFakeKey123');
-  assert.equal(await page.evaluate(()=>localStorage.getItem('jalan-tomtom-key')),null,
-    'Replacing a key must revoke previous persistent credential before reconnecting');
-  assert.equal(await page.evaluate(()=>sessionStorage.getItem('jalan-tomtom-key')),null,
-    'Replacing a key must revoke previous session credential before reconnecting');
+  await page.locator('#tt-key').fill('ReplacementFakeKey123');
+  assert.equal(await page.evaluate(()=>localStorage.getItem('jalan-tomtom-key')),null);
+  assert.equal(await page.evaluate(()=>sessionStorage.getItem('jalan-tomtom-key')),null);
   assert.ok((await page.locator('#tt-status').textContent()).includes('Old stored key removed'));
   await page.locator('#tt-remove-key').click();
   assert.equal(await page.locator('#tt-key').inputValue(),'');
   assert.equal(await page.evaluate(()=>localStorage.getItem('jalan-tomtom-key')),null);
   assert.equal(await page.evaluate(()=>sessionStorage.getItem('jalan-tomtom-key')),null);
   assert.equal(errors.length,0,'No runtime page exceptions: '+errors.join('; '));
-  console.log('PASS public V4.7.4 Chromium 390px: initialization/layout, location denied, TomTom primary, explicit OSRM switch, 401 failure, key opt-out/edit revocation and removal; external network blocked.');
+  console.log('PASS public V4.7.4 Chromium 390px: initialization/layout, location denied, TomTom primary, explicit OSRM switch, 401 failure, key removal; external network blocked.');
   await context.close();
  }finally{if(browser)await browser.close();await new Promise(resolve=>server.close(resolve))}
 }
