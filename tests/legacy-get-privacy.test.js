@@ -64,9 +64,9 @@ test('shared traffic nearby GET is paused, but default-off opt-in POST remains s
  assert.equal(parts['shared-check'].onclick,null);
  assert.match(parts['shared-check'].textContent,/Nearby lookup paused/);
  assert.equal(typeof parts['shared-start'].onclick,'function');
- assert.equal(parts['shared-stop'].disabled,false); // independent default-off action starts disabled in HTML
  assert.equal(fetches,0);
  const html=source('index.html');
  assert.match(html,/Nearby traffic lookup is paused for location privacy/);
+ assert.match(html,/id="shared-stop"[^>]*disabled/);
  assert.match(source('shared-traffic.js'),/const nearbyLookupPrivacyHold=true/);
 });
