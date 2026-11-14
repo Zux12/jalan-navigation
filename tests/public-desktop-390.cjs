@@ -56,7 +56,7 @@ async function main(){
     }});
   });
   await page.goto(base+'/index.html',{waitUntil:'load'});
-  await page.waitForFunction(()=>window.JalanTomTom&&typeof window.L==='function');
+  await page.waitForFunction(()=>window.JalanTomTom&&window.L&&typeof window.L.map==='function');
   assert.equal(errors.length,0,'Public bundle must initialize without page JavaScript exceptions: '+errors.join('; '));
   const geom=await page.evaluate(()=>{
     const rect=id=>{const r=document.getElementById(id).getBoundingClientRect();
@@ -86,6 +86,7 @@ async function main(){
   assert.ok((await page.locator('#tt-eta').textContent()).includes('Traffic delay'));
   assert.equal(tomtomCalls,1);
   assert.equal(osrmCalls,0,'TomTom primary should not silently call OSRM');
+  await page.locator('#toggle-panel').click(); // expand hidden details after route fit
   await page.locator('#tt-primary').uncheck();
   assert.equal(await page.evaluate(()=>routes.length),0,'Provider switch clears previous live route');
   assert.equal(osrmCalls,0,'Switch alone must not auto-request OSRM');
@@ -93,6 +94,7 @@ async function main(){
   await page.waitForFunction(()=>document.getElementById('route-summary').textContent.includes('OSRM estimate only'));
   assert.equal(osrmCalls,1);
   assert.equal(await page.evaluate(()=>routes[0].provider||'osrm'),'osrm');
+  await page.locator('#toggle-panel').click(); // OSRM route fit collapses details again
   await page.locator('#tt-primary').check();
   await page.route('https://api.tomtom.com/routing/**',route=>{
     tomtomCalls++;route.fulfill({status:401,headers:cors,
