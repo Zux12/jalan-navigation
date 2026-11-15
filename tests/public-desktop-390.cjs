@@ -279,6 +279,58 @@ async function main(){
     'Late incident response must not re-add old traffic hazard markers');
   await page.locator('#tt-key').fill('PublicTestKey123');
 
+  // N11 actual public-script DOM integration for the new proactive safeguards.
+  // GPS, provider and route data are fully mocked; never request phone location.
+  await page.evaluate(()=>setPanelCollapsed(false));
+  await page.locator('#tt-route').click();
+  await page.waitForFunction(()=>routes[0]?.provider==='tomtom');
+  await page.evaluate(()=>{
+    const originalFetch=window.fetch,originalState=window.JalanGPS.getState;
+    const originalApply=window.JalanGPS.applyTrafficRoute;
+    window.__proactiveApplied=0;
+    window.JalanGPS.getState=()=>({active:true,matched:true,accuracy:8,fixAgeMs:100,
+      position:[3.139,101.6869],route:routes[0],remainingSeconds:1200});
+    window.JalanGPS.applyTrafficRoute=()=>{window.__proactiveApplied++;return true};
+    window.fetch=(url,options)=>{
+      if(String(url).startsWith('https://api.tomtom.com/routing/1/calculateRoute/'))
+        return new Promise(resolve=>{window.__finishProactive=payload=>
+          resolve({ok:true,json:async()=>payload})});
+      return originalFetch(url,options);
+    };
+    window.__restoreProactive=()=>{
+      window.fetch=originalFetch;window.JalanGPS.getState=originalState;
+      window.JalanGPS.applyTrafficRoute=originalApply;
+      delete window.__finishProactive;
+    };
+  });
+  // A route with fabricated positive ETA but zero-length geometry must not be offered.
+  await page.evaluate(()=>document.getElementById('proactive-check').click());
+  await page.waitForFunction(()=>typeof window.__finishProactive==='function');
+  await page.evaluate(()=>window.__finishProactive({routes:[{
+    legs:[{points:[{latitude:3.139,longitude:101.6869},
+      {latitude:3.139,longitude:101.6869}]}],
+    summary:{travelTimeInSeconds:180,lengthInMeters:2500,trafficDelayInSeconds:30}
+  }]}));
+  await page.waitForFunction(()=>document.getElementById('proactive-status').textContent.includes('Invalid route geometry distance'));
+  assert.equal(await page.locator('#proactive-offer').evaluate(el=>el.classList.contains('hidden')),true);
+  assert.equal(await page.evaluate(()=>window.__proactiveApplied),0);
+  // A valid alternative creates an offer, but mutating the key without a DOM
+  // input event MUST still revoke the final acceptance in the real page module.
+  await page.evaluate(()=>document.getElementById('proactive-check').click());
+  await page.waitForFunction(()=>typeof window.__finishProactive==='function');
+  await page.evaluate(fixture=>window.__finishProactive(fixture),tomtomOK);
+  await page.waitForFunction(()=>document.getElementById('proactive-status').textContent.includes('Faster route suggested'));
+  assert.equal(await page.locator('#proactive-offer').evaluate(el=>el.classList.contains('hidden')),false);
+  await page.evaluate(()=>{
+    document.getElementById('tt-key').value='ChangedWithoutEventFakeKey123';
+    document.getElementById('proactive-accept').click();
+  });
+  assert.equal(await page.evaluate(()=>window.__proactiveApplied),0);
+  assert.equal(await page.locator('#proactive-offer').evaluate(el=>el.classList.contains('hidden')),true);
+  await page.evaluate(()=>{
+    window.__restoreProactive();
+    document.getElementById('tt-key').value='PublicTestKey123';
+  });
   await page.evaluate(()=>setPanelCollapsed(false)); // preserve accessible provider controls
   await page.locator('#tt-primary').check();
   await page.route('https://api.tomtom.com/routing/**',route=>{
