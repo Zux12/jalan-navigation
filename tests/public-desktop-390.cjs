@@ -187,6 +187,7 @@ async function main(){
   assert.equal(osrmCalls,1);
   assert.equal(await page.evaluate(()=>routes[0].provider||'osrm'),'osrm');
   await auditCurrentVisibleState('OSRM route visible');
+  await page.locator('#toggle-panel').click(); // reveal provider controls after route fit
   // Reproduce stale OSRM completion AFTER selecting and completing a TomTom route.
   // The intentionally noncooperative mocked transport ignores AbortSignal, so
   // cancellation alone cannot accidentally make the test pass.
@@ -220,6 +221,7 @@ async function main(){
   assert.equal(await page.evaluate(()=>routes[0]?.provider),'tomtom',
     'Late OSRM must not replace a newer TomTom route even if abort is ignored');
   assert.match(await page.locator('#route-summary').textContent(),/TomTom traffic-aware estimate/);
+  await page.evaluate(()=>setPanelCollapsed(false)); // TomTom render refits and collapses panel
   // A late OSRM response must also not redraw a deliberately cleared route.
   await page.locator('#tt-primary').uncheck();
   await armDelayedOsrm();
@@ -237,7 +239,7 @@ async function main(){
   assert.match(await page.locator('#status').textContent(),/Enter a TomTom key or uncheck/);
   await page.locator('#tt-key').fill('PublicTestKey123');
 
-  await page.locator('#toggle-panel').click(); // OSRM route fit collapses details again
+  await page.evaluate(()=>setPanelCollapsed(false)); // preserve accessible provider controls
   await page.locator('#tt-primary').check();
   await page.route('https://api.tomtom.com/routing/**',route=>{
     tomtomCalls++;route.fulfill({status:401,headers:cors,
