@@ -167,7 +167,7 @@ body.route-perspective #map{
  box-shadow:0 5px 80px #0b21353a;
 }
 .perspective-toggle{
- position:fixed;right:16px;top:calc(182px + env(safe-area-inset-top,0px));
+ position:fixed;right:16px;top:calc(244px + env(safe-area-inset-top,0px));
  z-index:1150;padding:11px 14px;border-radius:12px;border:1px solid #93c5fd;
  background:#fff;color:#174ea6;box-shadow:0 5px 25px #15243b25;
  font:700 13px system-ui,sans-serif;min-height:44px;cursor:pointer;
@@ -180,7 +180,7 @@ body.route-perspective #map{
  font:600 12px/1.4 system-ui,sans-serif;text-align:center;pointer-events:none;
 }
 @media(max-width:650px){
- .perspective-toggle{right:10px;top:calc(235px + env(safe-area-inset-top,0px));padding:9px 12px}
+ .perspective-toggle{right:10px;top:calc(300px + env(safe-area-inset-top,0px));padding:9px 12px}
  .perspective-note{top:auto;bottom:calc(84px + env(safe-area-inset-bottom,0px));left:12px;right:12px;
   max-width:none;transform:none;font-size:11px}
  body.route-perspective #map{transform:perspective(850px) rotateX(27deg) scale(1.23) translateY(3vh)}
