@@ -20,7 +20,15 @@
  const routeFromTomTom=r=>{
   const coordinates=[];
   for(const leg of r.legs||[])for(const p of leg.points||[]){if(Number.isFinite(p.latitude)&&Number.isFinite(p.longitude))coordinates.push([p.longitude,p.latitude]);}
-  if(coordinates.length<2||coordinates.some(p=>!Number.isFinite(p[0])||!Number.isFinite(p[1])||Math.abs(p[0])>180||Math.abs(p[1])>90))throw Error('Invalid route geometry');
+  if(coordinates.length<2||coordinates.length>20000||coordinates.some(p=>!Number.isFinite(p[0])||!Number.isFinite(p[1])||Math.abs(p[0])>180||Math.abs(p[1])>90))throw Error('Invalid route geometry');
+  // A nonempty array can still contain only coincident points. Reject such
+  // malformed alternatives before an offered route can replace live guidance.
+  let geometryMeters=0;
+  for(let i=1;i<coordinates.length;i++){
+   const a=coordinates[i-1],b=coordinates[i],midLat=(a[1]+b[1])*Math.PI/360;
+   geometryMeters+=Math.hypot((b[1]-a[1])*111320,(b[0]-a[0])*111320*Math.cos(midLat));
+  }
+  if(!Number.isFinite(geometryMeters)||geometryMeters<10)throw Error('Invalid route geometry distance');
   if(!Number.isFinite(r.summary?.travelTimeInSeconds)||r.summary.travelTimeInSeconds<=0||!Number.isFinite(r.summary?.lengthInMeters)||r.summary.lengthInMeters<=0||!Number.isFinite(r.summary?.trafficDelayInSeconds??0)||r.summary.trafficDelayInSeconds<0)throw Error('Invalid TomTom route measurements');
   const steps=(r.guidance?.instructions||[]).slice(0,120).map(x=>({name:x.street||x.roadNumber||x.message||'road',distance:0,location:x.point?[x.point.longitude,x.point.latitude]:null,routeOffsetInMeters:Number.isFinite(x.routeOffsetInMeters)?x.routeOffsetInMeters:null,message:x.message||'',maneuver:{type:x.maneuver||'continue',modifier:x.message||''}}));
   return {provider:'tomtom',geometry:{type:'LineString',coordinates},duration:r.summary.travelTimeInSeconds,distance:r.summary.lengthInMeters,delay:r.summary.trafficDelayInSeconds||0,legs:[{steps}]};
@@ -62,7 +70,7 @@
    const saving=oldSeconds-best.duration;
    if(saving*1000<MIN_SAVE){status('Checked: no route saves 5 min');return;}
    if(!current())return;
-   pending={route:best,sourceRoute:state.route,sourcePosition,sourceDestination:target,created:Date.now(),requestEpoch:id};
+   pending={route:best,sourceRoute:state.route,sourcePosition,sourceDestination:target,sourceKey:apiKey,created:Date.now(),requestEpoch:id};
    el('proactive-offer-title').textContent='Potentially save '+Math.round(saving/60)+' minutes';
    el('proactive-offer-detail').textContent='Current estimated remaining: '+Math.round(oldSeconds/60)+' min · New TomTom route: '+Math.round(best.duration/60)+' min. Confirm route before switching.';
    offer.classList.remove('hidden');window.dispatchEvent(new CustomEvent('jalan:route-offer',{detail:{estimatedSavingSeconds:saving,currentSeconds:oldSeconds,newSeconds:best.duration}}));status('Faster route suggested');
@@ -76,7 +84,7 @@
   if(!pending||Date.now()-pending.created>120000){hideOffer();status('Offer expired; check again');return;}
   const current=window.JalanGPS?.getState?.();
   if(!current?.active||current.route!==pending.sourceRoute||!el('tt-primary')?.checked||!sameDestination(pending.sourceDestination)||
-     !trustedGPS(current)||!closeEnough(pending.sourcePosition,current.position)||pending.requestEpoch!==requestEpoch){hideOffer();status('Position, route or provider changed; check again');return;}
+     !trustedGPS(current)||!closeEnough(pending.sourcePosition,current.position)||el('tt-key')?.value.trim()!==pending.sourceKey||pending.requestEpoch!==requestEpoch){hideOffer();status('Position, route or provider changed; check again');return;}
   const r=pending.route;hideOffer();
   if(window.JalanGPS.applyTrafficRoute(r)){window.dispatchEvent(new CustomEvent('jalan:route-change',{detail:{reason:'faster-route',provider:'tomtom'}}));status('New TomTom route selected');window.JalanTomTom?.refreshRouteIncidents?.(true);}
   else status('Could not switch route');
