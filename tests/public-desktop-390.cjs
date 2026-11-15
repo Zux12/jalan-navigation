@@ -179,6 +179,31 @@ async function main(){
   await page.waitForFunction(()=>document.getElementById('route-summary').textContent.includes('TomTom traffic-aware estimate'));
   assert.ok((await page.locator('#tt-eta').textContent()).includes('Traffic delay'));
   assert.equal(tomtomCalls,1);
+  // User-requested route perspective: auto-tilt only after a route exists,
+  // clearly distinguish 2.5-D preview from real terrain, and let the owner
+  // return to interactive 2-D. No GPS/route network calls are added.
+  const perspective=page.locator('#perspective-toggle');
+  assert.equal(await perspective.isVisible(),true,'Selected route offers perspective control');
+  assert.equal(await perspective.getAttribute('aria-pressed'),'true',
+    'Route selection automatically activates perspective preview');
+  assert.match(await page.locator('#perspective-note').textContent(),/not real 3D terrain/);
+  assert.equal(await page.evaluate(()=>getComputedStyle(document.getElementById('map')).pointerEvents),'none',
+    'Tilted Leaflet map must disable mismatched click hit-testing');
+  await perspective.click();
+  assert.equal(await perspective.getAttribute('aria-pressed'),'false',
+    'Owner can return to interactive 2D');
+  assert.equal(await page.evaluate(()=>getComputedStyle(document.getElementById('map')).pointerEvents),'auto');
+  assert.equal(await perspective.textContent(),'3D-style view');
+  assert.equal(await page.locator('#perspective-note').isVisible(),false);
+  await page.locator('#toggle-panel').click(); // route options are hidden while panel is collapsed
+  await page.locator('#route-options button').first().click();
+  await page.locator('#toggle-panel').click(); // restore collapsed state for later tests
+  assert.equal(await perspective.getAttribute('aria-pressed'),'false',
+    'Manually selected 2D view remains stable across route re-render');
+  await perspective.click();
+  assert.equal(await perspective.getAttribute('aria-pressed'),'true');
+  await perspective.click(); // leave 2D for GPS route-matching tests
+
   assert.equal(osrmCalls,0,'TomTom primary should not silently call OSRM');
   assert.equal(await page.evaluate(()=>localStorage.getItem('jalan-tomtom-key')),null,
     'Unchecked Remember must never persist TomTom key locally');
@@ -265,6 +290,9 @@ async function main(){
   await finishDelayedOsrm();
   assert.equal(await page.evaluate(()=>routes.length),0,
     'Old OSRM must not repopulate route after Reset');
+  assert.equal(await perspective.isVisible(),false,
+    'Reset must remove perspective controls and restore interactive 2D map');
+  assert.equal(await page.evaluate(()=>document.body.classList.contains('route-perspective')),false);
   await page.evaluate(()=>{setStart([3.139,101.6869],'Public test origin');destination=[3.1478,101.6953]});
   // With TomTom explicitly selected and key missing there must be NO silent OSRM.
   await page.locator('#tt-remove-key').click();

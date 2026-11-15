@@ -1,5 +1,26 @@
 /* Jalan V2: browser-only prototype. Public OSM Nominatim + OSRM demo services are for light testing only. */
 const KL=[3.139,101.6869], map=L.map('map',{zoomControl:false}).setView(KL,12);
+// Optional perspective preview: a visual tilt of the existing Leaflet map,
+// not real 3-D terrain or an authority for driving. Disable map pointer input
+// while tilted because Leaflet's 2-D hit testing does not match CSS perspective.
+const perspectiveButton=document.getElementById('perspective-toggle');
+const perspectiveNote=document.getElementById('perspective-note');
+let perspectiveActive=false,manual2D=false;
+function setPerspective(active){
+ perspectiveActive=Boolean(active&&routes.length&&!document.body.classList.contains('nav-active'));
+ document.body.classList.toggle('route-perspective',perspectiveActive);
+ perspectiveButton.classList.toggle('hidden',!routes.length);
+ perspectiveNote.classList.toggle('hidden',!perspectiveActive);
+ perspectiveButton.textContent=perspectiveActive?'2D map':'3D-style view';
+ perspectiveButton.setAttribute('aria-pressed',String(perspectiveActive));
+ perspectiveButton.setAttribute('aria-label',perspectiveActive?'Switch to interactive 2D map':'Switch to tilted route perspective preview');
+}
+perspectiveButton.addEventListener('click',()=>{
+ manual2D=perspectiveActive;
+ setPerspective(!perspectiveActive);
+});
+window.addEventListener('jalan:journey-start',()=>setPerspective(false));
+
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'&copy; OpenStreetMap contributors'}).addTo(map);
 L.control.zoom({position:'bottomright'}).addTo(map);
 const $=id=>document.getElementById(id), statusEl=$('status'), resultsEl=$('results'), routeEl=$('route-summary');
@@ -20,7 +41,7 @@ function updateLocation(point){userLocation=point;if(locationMarker)pointLayer.r
 function getGPS(center=false){return new Promise((resolve,reject)=>{if(!navigator.geolocation)return reject(new Error('Location is not supported'));navigator.geolocation.getCurrentPosition(p=>{const point=[p.coords.latitude,p.coords.longitude];updateLocation(point);if(center)map.setView(point,15);resolve(point)},()=>reject(new Error('Location unavailable. Allow location access or choose a starting point on the map.')),{enableHighAccuracy:true,timeout:14000})})}
 $('locate').addEventListener('click',async()=>{statusEl.textContent='Finding your location…';try{await getGPS(true);statusEl.textContent='Location found.'}catch(e){statusEl.textContent=e.message}});
 $('start-choice').addEventListener('change',async()=>{if($('start-choice').value==='map'){chooseStart=true;reportMode=null;statusEl.textContent='Tap the map to choose a starting point.'}else{chooseStart=false;statusEl.textContent='Using your current location as the starting point.'}});
-function clearRoute(clearDestination=false){cancelOSRMPending();window.JalanNavigation?.stop();window.JalanGPS?.stop();window.JalanTomTom?.routeCleared();routeLayer.clearLayers();routes=[];routeEl.classList.add('hidden');$('route-options').classList.add('hidden');$('route-steps').classList.add('hidden');$('start-guidance').classList.add('hidden');$('clear-route').classList.add('hidden');if(watchId!==null){navigator.geolocation.clearWatch(watchId);watchId=null;$('start-guidance').textContent='Follow my location'}if(clearDestination){destination=null;if(destinationMarker){pointLayer.removeLayer(destinationMarker);destinationMarker=null}}}
+function clearRoute(clearDestination=false){manual2D=false;cancelOSRMPending();window.JalanNavigation?.stop();window.JalanGPS?.stop();window.JalanTomTom?.routeCleared();routeLayer.clearLayers();routes=[];setPerspective(false);routeEl.classList.add('hidden');$('route-options').classList.add('hidden');$('route-steps').classList.add('hidden');$('start-guidance').classList.add('hidden');$('clear-route').classList.add('hidden');if(watchId!==null){navigator.geolocation.clearWatch(watchId);watchId=null;$('start-guidance').textContent='Follow my location'}if(clearDestination){destination=null;if(destinationMarker){pointLayer.removeLayer(destinationMarker);destinationMarker=null}}}
 $('clear-route').addEventListener('click',()=>{setPanelCollapsed(false);clearRoute(true);statusEl.textContent='Route cleared.'});
 $('reset').addEventListener('click',()=>{setPanelCollapsed(false);clearRoute(true);map.setView(KL,12);statusEl.textContent='Map reset to Kuala Lumpur.'});
 const fmtDist=m=>m>=1000?(m/1000).toFixed(1)+' km':Math.round(m)+' m';
@@ -80,7 +101,11 @@ function renderRoutes(){window.JalanNavigation?.stop();window.JalanGPS?.stop();r
  requestAnimationFrame(()=>requestAnimationFrame(fitSelectedRoute));
  routeEl.innerHTML=`<strong>🚘 ${fmtTime(chosen.duration)} · ${fmtDist(chosen.distance)}</strong><div class="route-warning">${chosen.provider === 'tomtom' ? 'TomTom traffic-aware estimate · route geometry from TomTom. Live traffic can change.' : 'OSRM estimate only — live traffic is not included.'}</div>`;
  const opts=$('route-options');opts.replaceChildren();routes.forEach((r,i)=>{const btn=document.createElement('button');btn.className=i===selectedRoute?'selected':'';btn.textContent=`Route ${i+1} · ${fmtTime(r.duration)} · ${fmtDist(r.distance)}`;btn.onclick=()=>selectRoute(i);opts.appendChild(btn)});opts.classList.remove('hidden');
- const steps=$('route-steps');steps.replaceChildren();const title=document.createElement('strong');title.textContent='Directions (preview)';steps.appendChild(title);const legs=chosen.legs||[];for(const leg of legs){for(const step of leg.steps||[]){if(step.maneuver.type==='arrive')continue;const div=document.createElement('div');const road=step.name||'unnamed road';const maneuver=step.maneuver.modifier||step.maneuver.type||'continue';div.textContent=`${maneuver.replace(/\b\w/g,c=>c.toUpperCase())} onto ${road} · ${fmtDist(step.distance)}`;steps.appendChild(div)}}steps.classList.remove('hidden');$('clear-route').classList.remove('hidden');$('start-guidance').classList.remove('hidden');window.JalanNavigation?.routeReady();window.JalanGPS?.routeReady();}
+ const steps=$('route-steps');steps.replaceChildren();const title=document.createElement('strong');title.textContent='Directions (preview)';steps.appendChild(title);const legs=chosen.legs||[];for(const leg of legs){for(const step of leg.steps||[]){if(step.maneuver.type==='arrive')continue;const div=document.createElement('div');const road=step.name||'unnamed road';const maneuver=step.maneuver.modifier||step.maneuver.type||'continue';div.textContent=`${maneuver.replace(/\b\w/g,c=>c.toUpperCase())} onto ${road} · ${fmtDist(step.distance)}`;steps.appendChild(div)}}steps.classList.remove('hidden');$('clear-route').classList.remove('hidden');$('start-guidance').classList.remove('hidden');window.JalanNavigation?.routeReady();window.JalanGPS?.routeReady();
+ // First completed selection enters the tilt preview automatically; a manual
+ // return to 2D persists across route refreshes until the journey is cleared.
+ setPerspective(!manual2D);
+}
 function selectRoute(i){selectedRoute=i;renderRoutes();window.JalanTomTom?.refreshRouteIncidents()}
 $('start-guidance').addEventListener('click',()=>{if(watchId!==null){navigator.geolocation.clearWatch(watchId);watchId=null;$('start-guidance').textContent='Follow my location';statusEl.textContent='Location following stopped.';return}if(!navigator.geolocation){statusEl.textContent='Location is unavailable.';return}watchId=navigator.geolocation.watchPosition(p=>{const pos=[p.coords.latitude,p.coords.longitude];updateLocation(pos);map.panTo(pos);statusEl.textContent='Following your location. This is not turn-by-turn navigation.'},()=>{statusEl.textContent='Unable to follow location. Check browser permission.';navigator.geolocation.clearWatch(watchId);watchId=null;$('start-guidance').textContent='Follow my location'},{enableHighAccuracy:true,maximumAge:3000,timeout:15000});$('start-guidance').textContent='Stop following';});
 let lastSearchAt=0;

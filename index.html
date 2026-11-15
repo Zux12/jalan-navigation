@@ -15,6 +15,8 @@
 </head>
 <body>
   <div id="map" aria-label="Interactive map"></div>
+  <div id="perspective-note" class="perspective-note hidden" role="status">3D-style perspective preview · not real 3D terrain · return to 2D to interact with the map</div>
+  <button id="perspective-toggle" class="perspective-toggle hidden" type="button" aria-pressed="false" aria-label="Switch to tilted route perspective preview">3D-style view</button>
   <header class="topbar">
     <div class="brand"><span class="brand-icon">↗</span><strong>Jalan</strong><small>prototype</small></div>
     <form id="search-form" class="search">
@@ -186,7 +188,7 @@
     </div>
   </section>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
-  <script src="app.js?v=4-3"></script>
+  <script src="app.js?v=4-7-5"></script>
   <script src="comparison.js?v=4-2"></script>
   <script src="traffic-test.js?v=4-2"></script>
   <script src="tomtom-live.js?v=4-2"></script>

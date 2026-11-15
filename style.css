@@ -154,3 +154,37 @@ body.nav-active.menu-open #info-panel.collapsed{overflow-y:auto;max-height:none;
 
 /* Keep mandatory OSM/Leaflet attribution links recognizable without relying on color alone. */
 .leaflet-control-attribution a{text-decoration:underline;text-underline-offset:2px}
+
+/* Route-only perspective PREVIEW using existing 2-D tile/route geometry.
+   Deliberately not described as real 3-D terrain/buildings. While tilted,
+   Leaflet's 2-D mouse hit-testing is invalid: keep route buttons usable, but
+   disable map pointer input until user restores 2-D. */
+body.route-perspective{background:linear-gradient(180deg,#b6d7f4 0%,#e7f1fa 44%,#c3d6cf 100%)}
+body.route-perspective #map{
+ transform:perspective(1200px) rotateX(34deg) scale(1.25) translateY(2.5vh);
+ transform-origin:center 58%;
+ pointer-events:none;
+ box-shadow:0 5px 80px #0b21353a;
+}
+.perspective-toggle{
+ position:fixed;right:16px;top:calc(244px + env(safe-area-inset-top,0px));
+ z-index:1150;padding:11px 14px;border-radius:12px;border:1px solid #93c5fd;
+ background:#fff;color:#174ea6;box-shadow:0 5px 25px #15243b25;
+ font:700 13px system-ui,sans-serif;min-height:44px;cursor:pointer;
+}
+.perspective-toggle:focus-visible{outline:3px solid #1d4ed8;outline-offset:3px}
+.perspective-note{
+ position:fixed;z-index:850;top:calc(16px + env(safe-area-inset-top,0px));
+ left:50%;transform:translateX(-50%);max-width:50vw;
+ padding:9px 13px;border-radius:10px;background:#0f2749e8;color:white;
+ font:600 12px/1.4 system-ui,sans-serif;text-align:center;pointer-events:none;
+}
+@media(max-width:650px){
+ .perspective-toggle{right:10px;top:calc(300px + env(safe-area-inset-top,0px));padding:9px 12px}
+ .perspective-note{top:auto;bottom:calc(84px + env(safe-area-inset-bottom,0px));left:12px;right:12px;
+  max-width:none;transform:none;font-size:11px}
+ body.route-perspective #map{transform:perspective(850px) rotateX(27deg) scale(1.23) translateY(3vh)}
+}
+@media(prefers-reduced-motion:no-preference){
+ #map{transition:transform .45s ease,box-shadow .45s ease}
+}
