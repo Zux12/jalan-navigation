@@ -195,7 +195,9 @@ async function main(){
   assert.equal(await page.evaluate(()=>getComputedStyle(document.getElementById('map')).pointerEvents),'auto');
   assert.equal(await perspective.textContent(),'3D-style view');
   assert.equal(await page.locator('#perspective-note').isVisible(),false);
+  await page.locator('#toggle-panel').click(); // route options are hidden while panel is collapsed
   await page.locator('#route-options button').first().click();
+  await page.locator('#toggle-panel').click(); // restore collapsed state for later tests
   assert.equal(await perspective.getAttribute('aria-pressed'),'false',
     'Manually selected 2D view remains stable across route re-render');
   await perspective.click();
