@@ -187,7 +187,59 @@ async function main(){
   assert.equal(osrmCalls,1);
   assert.equal(await page.evaluate(()=>routes[0].provider||'osrm'),'osrm');
   await auditCurrentVisibleState('OSRM route visible');
-  await page.locator('#toggle-panel').click(); // OSRM route fit collapses details again
+  await page.locator('#toggle-panel').click(); // reveal provider controls after route fit
+  // Reproduce stale OSRM completion AFTER selecting and completing a TomTom route.
+  // The intentionally noncooperative mocked transport ignores AbortSignal, so
+  // cancellation alone cannot accidentally make the test pass.
+  async function armDelayedOsrm() {
+    await page.evaluate(fixture=>{
+      const priorFetch=window.fetch;
+      window.__restoreOsrmRaceFetch=()=>{window.fetch=priorFetch};
+      window.fetch=(u,opts)=>{
+        if(String(u).startsWith('https://router.project-osrm.org/route/'))
+          return new Promise(resolve=>{window.__finishOldOsrm=()=>resolve({ok:true,json:async()=>fixture})});
+        return priorFetch(u,opts);
+      };
+      window.__pendingOldOsrm=calculateRoutes();
+    },osrmOK);
+    await page.waitForFunction(()=>typeof window.__finishOldOsrm==='function');
+  }
+  async function finishDelayedOsrm() {
+    await page.evaluate(async()=>{
+      window.__finishOldOsrm();
+      await window.__pendingOldOsrm;
+      window.__restoreOsrmRaceFetch();
+      delete window.__finishOldOsrm;delete window.__pendingOldOsrm;
+      delete window.__restoreOsrmRaceFetch;
+    });
+  }
+  await armDelayedOsrm();
+  await page.locator('#tt-primary').check();
+  await page.locator('#tt-route').click();
+  await page.waitForFunction(()=>routes[0]?.provider==='tomtom');
+  await finishDelayedOsrm();
+  assert.equal(await page.evaluate(()=>routes[0]?.provider),'tomtom',
+    'Late OSRM must not replace a newer TomTom route even if abort is ignored');
+  assert.match(await page.locator('#route-summary').textContent(),/TomTom traffic-aware estimate/);
+  await page.evaluate(()=>setPanelCollapsed(false)); // TomTom render refits and collapses panel
+  // A late OSRM response must also not redraw a deliberately cleared route.
+  await page.locator('#tt-primary').uncheck();
+  await armDelayedOsrm();
+  await page.locator('#reset').click();
+  await finishDelayedOsrm();
+  assert.equal(await page.evaluate(()=>routes.length),0,
+    'Old OSRM must not repopulate route after Reset');
+  await page.evaluate(()=>{setStart([3.139,101.6869],'Public test origin');destination=[3.1478,101.6953]});
+  // With TomTom explicitly selected and key missing there must be NO silent OSRM.
+  await page.locator('#tt-remove-key').click();
+  await page.locator('#tt-primary').check();
+  const callsBeforeNoKey=osrmCalls;
+  await page.evaluate(()=>calculateRoutes());
+  assert.equal(osrmCalls,callsBeforeNoKey,'Missing TomTom key must not silently switch to OSRM');
+  assert.match(await page.locator('#status').textContent(),/Enter a TomTom key or uncheck/);
+  await page.locator('#tt-key').fill('PublicTestKey123');
+
+  await page.evaluate(()=>setPanelCollapsed(false)); // preserve accessible provider controls
   await page.locator('#tt-primary').check();
   await page.route('https://api.tomtom.com/routing/**',route=>{
     tomtomCalls++;route.fulfill({status:401,headers:cors,
