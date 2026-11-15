@@ -4,6 +4,7 @@ on:
     paths:
       - 'app.js'
       - 'tomtom-live.js'
+      - 'proactive-routing.js'
       - 'index.html'
       - 'style.css'
       - 'tests/public-desktop-390.cjs'
@@ -13,6 +14,7 @@ on:
     paths:
       - 'app.js'
       - 'tomtom-live.js'
+      - 'proactive-routing.js'
       - 'index.html'
       - 'style.css'
       - 'tests/public-desktop-390.cjs'
