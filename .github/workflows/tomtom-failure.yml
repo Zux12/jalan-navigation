@@ -4,7 +4,9 @@ on:
     paths:
       - 'tomtom-live.js'
       - 'proactive-routing.js'
+      - 'gps-navigation.js'
       - 'tests/proactive-reroute.test.js'
+      - 'tests/gps-match-contract.test.js'
       - 'tests/tomtom-failure.test.js'
       - '.github/workflows/tomtom-failure.yml'
   push:
@@ -12,7 +14,9 @@ on:
     paths:
       - 'tomtom-live.js'
       - 'proactive-routing.js'
+      - 'gps-navigation.js'
       - 'tests/proactive-reroute.test.js'
+      - 'tests/gps-match-contract.test.js'
       - 'tests/tomtom-failure.test.js'
       - '.github/workflows/tomtom-failure.yml'
 permissions:
@@ -26,5 +30,5 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
-      - run: node --check tomtom-live.js && node --check proactive-routing.js
-      - run: node --test tests/tomtom-failure.test.js tests/proactive-reroute.test.js
+      - run: node --check tomtom-live.js && node --check proactive-routing.js && node --check gps-navigation.js
+      - run: node --test tests/tomtom-failure.test.js tests/proactive-reroute.test.js tests/gps-match-contract.test.js

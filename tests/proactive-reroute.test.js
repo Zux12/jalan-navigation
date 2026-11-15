@@ -15,7 +15,7 @@ function scene(){
  }
  nodes['tt-key'].value='fakeTomTomKey123';nodes['tt-primary'].checked=true;
  const route={provider:'tomtom'},state={active:true,route,position:[3.14,101.68],
-  fixAgeMs:100,accuracy:8,remainingSeconds:1200};
+  fixAgeMs:100,accuracy:8,matched:true,remainingSeconds:1200};
  let applied=0,requests=[],resolvers=[],aborted=0,events=[];
  const fetch=(url,options)=>{
   requests.push({url:String(url),options});
@@ -96,5 +96,32 @@ test('a backgrounded page invalidates an in-flight check without restarting it',
  // visibility handler is registered on document; intercepting not available,
  // so this test checks the response-time hidden-state guard independently.
  s.finish();await request;
+ assert.equal(s.nodes['proactive-offer'].classList.contains('hidden'),true);
+});
+
+test('unmatched, predicted and stale GPS never starts a proactive TomTom request',async()=>{
+ for(const changes of [
+  {matched:false},{fixAgeMs:NaN},{fixAgeMs:-1},{fixAgeMs:30001},{accuracy:Infinity},
+  {position:[91,101.68]}
+ ]){
+  const s=scene();Object.assign(s.state,changes);
+  await s.nodes['proactive-check'].onclick();
+  assert.equal(s.requests.length,0,'untrusted GPS must not reach TomTom');
+  assert.match(s.nodes['proactive-status'].textContent,/road-matched GPS/);
+ }
+});
+test('losing a road match during fetch or while the offer is pending prevents reroute',async()=>{
+ const s=scene(),checking=s.nodes['proactive-check'].onclick();
+ s.state.matched=false;
+ s.finish();await checking;
+ assert.equal(s.nodes['proactive-offer'].classList.contains('hidden'),true);
+ assert.equal(s.applied,0);
+ s.state.matched=true;
+ const retry=s.nodes['proactive-check'].onclick();
+ s.finish();await retry;
+ assert.equal(s.nodes['proactive-offer'].classList.contains('hidden'),false);
+ s.state.matched=false;
+ s.nodes['proactive-accept'].onclick();
+ assert.equal(s.applied,0);
  assert.equal(s.nodes['proactive-offer'].classList.contains('hidden'),true);
 });

@@ -11,6 +11,12 @@
  const setEnabled=v=>{enabled=v;el('proactive-toggle').textContent=v?'Disable checks':'Enable 5-min checks';el('proactive-toggle').setAttribute('aria-pressed',String(v));status(v?'Waiting for GPS':'Off');if(!v)invalidate();};
  const closeEnough=(a,b)=>Array.isArray(a)&&Array.isArray(b)&&a.length===2&&b.length===2&&a.every(Number.isFinite)&&b.every(Number.isFinite)&&Math.hypot((a[0]-b[0])*111320,(a[1]-b[1])*111320*Math.cos(a[0]*Math.PI/180))<=150;
  const sameDestination=d=>Array.isArray(destination)&&destination.length===2&&destination.every(Number.isFinite)&&destination[0]===d[0]&&destination[1]===d[1];
+ // Low reported location accuracy alone is insufficient: verify that
+ // the road matcher has positively matched this fresh fix to the route.
+ const trustedGPS=s=>s?.matched===true&&Array.isArray(s.position)&&s.position.length===2&&
+   s.position.every(Number.isFinite)&&Math.abs(s.position[0])<=90&&Math.abs(s.position[1])<=180&&
+   Number.isFinite(s.fixAgeMs)&&s.fixAgeMs>=0&&s.fixAgeMs<=30000&&
+   Number.isFinite(s.accuracy)&&s.accuracy>=0&&s.accuracy<=75;
  const routeFromTomTom=r=>{
   const coordinates=[];
   for(const leg of r.legs||[])for(const p of leg.points||[]){if(Number.isFinite(p.latitude)&&Number.isFinite(p.longitude))coordinates.push([p.longitude,p.latitude]);}
@@ -22,7 +28,7 @@
  async function check(force=false){
   const state=window.JalanGPS?.getState?.();
   if(!state?.active){status('Start GPS test first');return;}
-  if(!Array.isArray(state.position)||state.position.length!==2||!state.position.every(Number.isFinite)||state.fixAgeMs>30000||!Number.isFinite(state.accuracy)||state.accuracy>75){status('Waiting for accurate GPS');return;}
+  if(!trustedGPS(state)){status('Waiting for road-matched GPS');return;}
   if(!Array.isArray(destination)||destination.length!==2||!destination.every(Number.isFinite)){status('Destination missing');return;}
   if(controller||pending)return;
   if(!force&&(!enabled||document.hidden||Date.now()-lastCheck<CHECK_MS||Date.now()<declinedUntil))return;
@@ -48,8 +54,7 @@
    const available=data.routes.map(routeFromTomTom);
    const best=available.reduce((a,b)=>a.duration<=b.duration?a:b);
    const now=window.JalanGPS?.getState?.();
-   if(!now?.active||now.route!==state.route||!now.position||now.fixAgeMs>30000||
-      !Number.isFinite(now.accuracy)||now.accuracy>75||!closeEnough(sourcePosition,now.position)){
+   if(!now?.active||now.route!==state.route||!trustedGPS(now)||!closeEnough(sourcePosition,now.position)){
     status('Position or route changed; check again');return;
    }
    const oldSeconds=now.remainingSeconds;
@@ -71,7 +76,7 @@
   if(!pending||Date.now()-pending.created>120000){hideOffer();status('Offer expired; check again');return;}
   const current=window.JalanGPS?.getState?.();
   if(!current?.active||current.route!==pending.sourceRoute||!el('tt-primary')?.checked||!sameDestination(pending.sourceDestination)||
-     current.fixAgeMs>30000||!Number.isFinite(current.accuracy)||current.accuracy>75||!closeEnough(pending.sourcePosition,current.position)||pending.requestEpoch!==requestEpoch){hideOffer();status('Position, route or provider changed; check again');return;}
+     !trustedGPS(current)||!closeEnough(pending.sourcePosition,current.position)||pending.requestEpoch!==requestEpoch){hideOffer();status('Position, route or provider changed; check again');return;}
   const r=pending.route;hideOffer();
   if(window.JalanGPS.applyTrafficRoute(r)){window.dispatchEvent(new CustomEvent('jalan:route-change',{detail:{reason:'faster-route',provider:'tomtom'}}));status('New TomTom route selected');window.JalanTomTom?.refreshRouteIncidents?.(true);}
   else status('Could not switch route');
