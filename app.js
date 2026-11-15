@@ -6,6 +6,10 @@ const $=id=>document.getElementById(id), statusEl=$('status'), resultsEl=$('resu
 const reportLayer=L.layerGroup().addTo(map),routeLayer=L.layerGroup().addTo(map),pointLayer=L.layerGroup().addTo(map);
 const reportTypes={accident:'🚗',flood:'🌊',hazard:'⚠️',rain:'🌧️'},storageKey='jalan-demo-reports-v1';
 let reportMode=null,chooseStart=false, userLocation=null,locationMarker=null,startPoint=null,startMarker=null,destination=null,destinationMarker=null,routes=[],selectedRoute=0,watchId=null;
+// A response from an old OSRM request must never supersede a TomTom route,
+// a different destination, or an explicit Clear/Reset action.
+let osrmAbort=null,osrmEpoch=0;
+function cancelOSRMPending(){osrmEpoch++;osrmAbort?.abort();osrmAbort=null;}
 const getReports=()=>{try{return JSON.parse(localStorage.getItem(storageKey)||'[]')}catch{return []}};
 function showReport(r){const icon=L.divIcon({className:'report-marker',html:reportTypes[r.type]||'⚠️',iconSize:[32,32],iconAnchor:[16,16]});L.marker([r.lat,r.lng],{icon}).addTo(reportLayer).bindPopup(`${reportTypes[r.type]||''} ${r.type.toUpperCase()} (demo)<br>Unverified community report<br>${new Date(r.time).toLocaleString()}`)}
 getReports().forEach(showReport);
@@ -16,16 +20,50 @@ function updateLocation(point){userLocation=point;if(locationMarker)pointLayer.r
 function getGPS(center=false){return new Promise((resolve,reject)=>{if(!navigator.geolocation)return reject(new Error('Location is not supported'));navigator.geolocation.getCurrentPosition(p=>{const point=[p.coords.latitude,p.coords.longitude];updateLocation(point);if(center)map.setView(point,15);resolve(point)},()=>reject(new Error('Location unavailable. Allow location access or choose a starting point on the map.')),{enableHighAccuracy:true,timeout:14000})})}
 $('locate').addEventListener('click',async()=>{statusEl.textContent='Finding your location…';try{await getGPS(true);statusEl.textContent='Location found.'}catch(e){statusEl.textContent=e.message}});
 $('start-choice').addEventListener('change',async()=>{if($('start-choice').value==='map'){chooseStart=true;reportMode=null;statusEl.textContent='Tap the map to choose a starting point.'}else{chooseStart=false;statusEl.textContent='Using your current location as the starting point.'}});
-function clearRoute(clearDestination=false){window.JalanNavigation?.stop();window.JalanGPS?.stop();window.JalanTomTom?.routeCleared();routeLayer.clearLayers();routes=[];routeEl.classList.add('hidden');$('route-options').classList.add('hidden');$('route-steps').classList.add('hidden');$('start-guidance').classList.add('hidden');$('clear-route').classList.add('hidden');if(watchId!==null){navigator.geolocation.clearWatch(watchId);watchId=null;$('start-guidance').textContent='Follow my location'}if(clearDestination){destination=null;if(destinationMarker){pointLayer.removeLayer(destinationMarker);destinationMarker=null}}}
+function clearRoute(clearDestination=false){cancelOSRMPending();window.JalanNavigation?.stop();window.JalanGPS?.stop();window.JalanTomTom?.routeCleared();routeLayer.clearLayers();routes=[];routeEl.classList.add('hidden');$('route-options').classList.add('hidden');$('route-steps').classList.add('hidden');$('start-guidance').classList.add('hidden');$('clear-route').classList.add('hidden');if(watchId!==null){navigator.geolocation.clearWatch(watchId);watchId=null;$('start-guidance').textContent='Follow my location'}if(clearDestination){destination=null;if(destinationMarker){pointLayer.removeLayer(destinationMarker);destinationMarker=null}}}
 $('clear-route').addEventListener('click',()=>{setPanelCollapsed(false);clearRoute(true);statusEl.textContent='Route cleared.'});
 $('reset').addEventListener('click',()=>{setPanelCollapsed(false);clearRoute(true);map.setView(KL,12);statusEl.textContent='Map reset to Kuala Lumpur.'});
 const fmtDist=m=>m>=1000?(m/1000).toFixed(1)+' km':Math.round(m)+' m';
 const fmtTime=s=>{const min=Math.max(1,Math.round(s/60));return min>=60?`${Math.floor(min/60)} hr ${min%60} min`:`${min} min`};
-async function calculateRoutes(){if(!destination||!startPoint)return;if(window.JalanTomTom?.enabled()) return window.JalanTomTom.calculate();clearRoute(false);statusEl.textContent='Calculating driving routes…';routeEl.textContent='Calculating…';routeEl.classList.remove('hidden');try{
- const [a,b]=[startPoint,destination].map(p=>`${p[1]},${p[0]}`);
- const url=`https://router.project-osrm.org/route/v1/driving/${a};${b}?overview=full&geometries=geojson&steps=true&alternatives=true`;
- const response=await fetch(url);if(!response.ok)throw Error('Routing service unavailable');const data=await response.json();if(data.code!=='Ok'||!data.routes?.length)throw Error('No driving route found between these points');routes=data.routes;selectedRoute=0;setPanelCollapsed(true);renderRoutes();statusEl.textContent=`Found ${routes.length} driving route${routes.length===1?'':'s'}.`;
- }catch(e){routeEl.textContent='Could not calculate route: '+e.message;statusEl.textContent='Try a different start or destination.';console.error(e)}}
+async function calculateRoutes(){
+ if(!destination||!startPoint)return;
+ // A selected TomTom primary provider must not silently fall through to OSRM
+ // when its key is absent. OSRM is a deliberate manual fallback only.
+ if($('tt-primary').checked){
+  cancelOSRMPending();
+  if(!window.JalanTomTom?.enabled()){
+   clearRoute(false);
+   statusEl.textContent='TomTom selected but no key available. Enter a TomTom key or uncheck TomTom primary to use OSRM manually.';
+   return;
+  }
+  return window.JalanTomTom.calculate();
+ }
+ clearRoute(false);
+ const from=[...startPoint],to=[...destination],id=++osrmEpoch;
+ const controller=new AbortController();osrmAbort=controller;
+ const current=()=>id===osrmEpoch&&!controller.signal.aborted&&!$('tt-primary').checked
+  &&startPoint?.[0]===from[0]&&startPoint?.[1]===from[1]
+  &&destination?.[0]===to[0]&&destination?.[1]===to[1];
+ statusEl.textContent='Calculating driving routes…';
+ routeEl.textContent='Calculating…';routeEl.classList.remove('hidden');
+ try{
+  const [a,b]=[from,to].map(p=>`${p[1]},${p[0]}`);
+  const url=`https://router.project-osrm.org/route/v1/driving/${a};${b}?overview=full&geometries=geojson&steps=true&alternatives=true`;
+  const response=await fetch(url,{signal:controller.signal,cache:'no-store'});
+  if(!current())return;
+  if(!response.ok)throw Error('Routing service unavailable');
+  const data=await response.json();
+  if(!current())return;
+  if(data.code!=='Ok'||!data.routes?.length)throw Error('No driving route found between these points');
+  routes=data.routes;selectedRoute=0;setPanelCollapsed(true);renderRoutes();
+  statusEl.textContent=`Found ${routes.length} driving route${routes.length===1?'':'s'}.`;
+ }catch(e){
+  if(!current()||e.name==='AbortError')return;
+  routeEl.textContent='Could not calculate route: '+e.message;
+  statusEl.textContent='Try a different start or destination.';
+  console.error(e);
+ }finally{if(osrmAbort===controller)osrmAbort=null;}
+}
 function renderRoutes(){window.JalanNavigation?.stop();window.JalanGPS?.stop();routeLayer.clearLayers();routes.forEach((r,i)=>{const points=r.geometry.coordinates.map(p=>[p[1],p[0]]);L.polyline(points,{color:i===selectedRoute?'#2563eb':'#94a3b8',weight:i===selectedRoute?7:5,opacity:i===selectedRoute?0.95:0.65}).addTo(routeLayer).on('click',()=>selectRoute(i))});
  const chosen=routes[selectedRoute];
  const bounds=L.latLngBounds(chosen.geometry.coordinates.map(p=>[p[1],p[0]]));
