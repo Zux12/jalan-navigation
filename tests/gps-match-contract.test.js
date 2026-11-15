@@ -40,6 +40,18 @@ test('JalanGPS match confidence is cleared on predicted fixes, stop and restart'
    speed:0,heading:0},timestamp:Date.now()});
  updateGPS(fix());
  assert.equal(state().matched,true,'verified predictor match permits proactive checks');
+ assert.equal(state().accuracy,6,'proactive route checks get the real numeric GPS accuracy');
+ // A predictor match is not enough when the browser supplies no trustworthy
+ // accuracy. In particular "Unknown" must never be parsed as numeric 0 m.
+ for(const badAccuracy of [undefined,NaN,-3,'6']){
+  const f=fix();f.coords.accuracy=badAccuracy;
+  updateGPS(f);
+  assert.equal(state().matched,false,'invalid GPS accuracy revokes a route-match claim');
+  assert.equal(state().accuracy,Infinity,'invalid accuracy must not pass the 75 m proactive threshold');
+ }
+ updateGPS(fix());
+ assert.equal(state().matched,true);
+ assert.equal(state().accuracy,6);
  mode='predicted';updateGPS(fix());
  assert.equal(state().matched,false,'predicted position is not a verified road match');
  mode='matched';updateGPS(fix());
@@ -48,9 +60,11 @@ test('JalanGPS match confidence is cleared on predicted fixes, stop and restart'
  assert.equal(state().active,false);
  assert.equal(state().matched,false);
  assert.equal(state().position,null,'stopped session must not expose stale GPS');
+ assert.equal(state().accuracy,Infinity,'stopped session clears numeric GPS accuracy');
  assert.equal(cleared,1);
  get('gps-start').onclick();
  assert.equal(state().active,true);
  assert.equal(state().matched,false,'restart must reset match confidence');
  assert.equal(state().position,null);
+ assert.equal(state().accuracy,Infinity,'restarted session must not inherit accuracy');
 });

@@ -51,8 +51,14 @@ async function main(){
     // Deterministic permission denial, no browser-held actual location used.
     Object.defineProperty(navigator,'geolocation',{configurable:true,value:{
       getCurrentPosition(_ok,error){error({code:1,message:'Permission denied'})},
-      watchPosition(_ok,error){error({code:1,message:'Permission denied'});return 1},
-      clearWatch(){}
+      watchPosition(ok,error){
+        // Keep a deterministic non-network GPS callback for the separate
+        // opt-in browser navigation safety test; physical GPS stays denied.
+        window.__offlineGPSWatch=ok;
+        error({code:1,message:'Permission denied'});
+        return 1;
+      },
+      clearWatch(){window.__offlineGPSWatch=null}
     }});
   });
   await page.goto(base+'/index.html',{waitUntil:'load'});
@@ -178,6 +184,36 @@ async function main(){
     'Unchecked Remember must never persist TomTom key locally');
   assert.equal(await page.evaluate(()=>sessionStorage.getItem('jalan-tomtom-key')),null,
     'Unchecked Remember must never persist TomTom key in tab storage');
+  // Exercise the real route-matching + GPS display + proactive-readiness
+  // modules in Chromium, not only an isolated VM predictor fixture.
+  // These synthetic fixes never access a device location or leave localhost.
+  const gpsAccuracyGate=await page.evaluate(()=>{
+    document.getElementById('gps-start').click();
+    const before=window.JalanGPS.getState();
+    const good={coords:{latitude:3.139,longitude:101.6869,
+      accuracy:8,speed:0,heading:0},timestamp:Date.now()};
+    window.__offlineGPSWatch?.(good);
+    const matched=window.JalanGPS.getState();
+    const missing={coords:{...good.coords,accuracy:undefined},
+      timestamp:good.timestamp+1000};
+    window.__offlineGPSWatch?.(missing);
+    const missingState=window.JalanGPS.getState();
+    const rendered=document.getElementById('gps-accuracy').textContent;
+    window.JalanGPS.stop();
+    const stopped=window.JalanGPS.getState();
+    return {before,matched,missingState,rendered,stopped};
+  });
+  assert.equal(gpsAccuracyGate.before.active,true,'Mock GPS navigation starts on valid route');
+  assert.equal(gpsAccuracyGate.matched.matched,true,'Known numeric accuracy supports initial route match');
+  assert.equal(gpsAccuracyGate.matched.accuracy,8,'Raw reported browser accuracy preserved');
+  assert.equal(gpsAccuracyGate.missingState.matched,false,
+    'Unknown accuracy must revoke road-match trust before proactive TomTom reroute');
+  assert.equal(gpsAccuracyGate.missingState.accuracy,Infinity,
+    'Unknown GPS accuracy may not be parsed as 0 m from the rendered text');
+  assert.equal(gpsAccuracyGate.rendered,'Unknown');
+  assert.equal(gpsAccuracyGate.stopped.active,false);
+  assert.equal(gpsAccuracyGate.stopped.accuracy,Infinity,
+    'GPS stop must clear the browser navigation accuracy state');
   await page.locator('#toggle-panel').click(); // expand hidden details after route fit
   await page.locator('#tt-primary').uncheck();
   assert.equal(await page.evaluate(()=>routes.length),0,'Provider switch clears previous live route');
