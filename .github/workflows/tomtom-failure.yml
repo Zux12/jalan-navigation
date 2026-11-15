@@ -3,12 +3,16 @@ on:
   pull_request:
     paths:
       - 'tomtom-live.js'
+      - 'proactive-routing.js'
+      - 'tests/proactive-reroute.test.js'
       - 'tests/tomtom-failure.test.js'
       - '.github/workflows/tomtom-failure.yml'
   push:
     branches: [main]
     paths:
       - 'tomtom-live.js'
+      - 'proactive-routing.js'
+      - 'tests/proactive-reroute.test.js'
       - 'tests/tomtom-failure.test.js'
       - '.github/workflows/tomtom-failure.yml'
 permissions:
@@ -22,5 +26,5 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
-      - run: node --check tomtom-live.js
-      - run: node --test tests/tomtom-failure.test.js
+      - run: node --check tomtom-live.js && node --check proactive-routing.js
+      - run: node --test tests/tomtom-failure.test.js tests/proactive-reroute.test.js
