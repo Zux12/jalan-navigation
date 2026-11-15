@@ -293,8 +293,10 @@ async function main(){
     window.JalanGPS.applyTrafficRoute=()=>{window.__proactiveApplied++;return true};
     window.fetch=(url,options)=>{
       if(String(url).startsWith('https://api.tomtom.com/routing/1/calculateRoute/'))
-        return new Promise(resolve=>{window.__finishProactive=payload=>
-          resolve({ok:true,json:async()=>payload})});
+        return new Promise(resolve=>{window.__finishProactive=payload=>{
+          delete window.__finishProactive;
+          resolve({ok:true,json:async()=>payload});
+        }});
       return originalFetch(url,options);
     };
     window.__restoreProactive=()=>{
