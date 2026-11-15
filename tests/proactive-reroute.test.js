@@ -125,3 +125,24 @@ test('losing a road match during fetch or while the offer is pending prevents re
  assert.equal(s.applied,0);
  assert.equal(s.nodes['proactive-offer'].classList.contains('hidden'),true);
 });
+
+test('degenerate coordinates cannot displace current GPS guidance despite positive ETA',async()=>{
+ const s=scene(),request=s.nodes['proactive-check'].onclick();
+ s.finish({routes:[{legs:[{points:[{latitude:3.14,longitude:101.68},
+  {latitude:3.14,longitude:101.68}]}],summary:{
+  travelTimeInSeconds:180,lengthInMeters:2500,trafficDelayInSeconds:30}}]});
+ await request;
+ assert.equal(s.nodes['proactive-offer'].classList.contains('hidden'),true);
+ assert.match(s.nodes['proactive-status'].textContent,/Invalid route geometry distance/);
+ assert.equal(s.applied,0);
+});
+test('an API key changed without firing a DOM input event also revokes an offered route',async()=>{
+ const s=scene(),request=s.nodes['proactive-check'].onclick();
+ s.finish();await request;
+ assert.equal(s.nodes['proactive-offer'].classList.contains('hidden'),false);
+ s.nodes['tt-key'].value='otherFakeKey123'; // e.g. a script mutates the input value.
+ s.nodes['proactive-accept'].onclick();
+ assert.equal(s.applied,0);
+ assert.equal(s.nodes['proactive-offer'].classList.contains('hidden'),true);
+ assert.match(s.nodes['proactive-status'].textContent,/changed; check again/);
+});
