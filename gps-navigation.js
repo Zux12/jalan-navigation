@@ -64,7 +64,13 @@
  }
  function stop(){if(active)window.dispatchEvent(new CustomEvent('jalan:journey-stop'));active=false;current=null;lastFixAt=0;lastReportedAccuracy=Infinity;latestMatched=false;if(watch!==null){navigator.geolocation.clearWatch(watch);watch=null;}if(marker){map.removeLayer(marker);marker=null;}if('speechSynthesis'in window)speechSynthesis.cancel();el('gps-hud').classList.add('hidden');document.body.classList.remove('nav-active');setTimeout(()=>map.invalidateSize(),70);}
  async function reroute(){if(rerouting||!active||!current||!destination)return;if(Date.now()-lastReroute<30000)return;rerouting=true;lastReroute=Date.now();const savedAuto=auto,savedVoice=voice,oldRoute=route;warn('Requesting fastest available route with current traffic…');
-  try{startPoint=[...current];await calculateRoutes();if(routes.length&&routes[0]!==oldRoute){auto=savedAuto;voice=savedVoice;updateButtons();start();warn('New route calculated. Verify the route before continuing.');window.dispatchEvent(new CustomEvent('jalan:route-change',{detail:{reason:'off-route',provider:route?.provider||'unknown'}}));}else{warn('Rerouting failed. Previous guidance may no longer be valid.');}}
+  try{startPoint=[...current];await calculateRoutes();if(routes.length&&routes[0]!==oldRoute){
+   // start() returns immediately while active. End the old watch/session first,
+   // then initialize the predictor and guidance against the selected new route.
+   stop();auto=savedAuto;voice=savedVoice;updateButtons();start();
+   warn('New route calculated. Verify the route before continuing.');
+   window.dispatchEvent(new CustomEvent('jalan:route-change',{detail:{reason:'off-route',provider:route?.provider||'unknown'}}));
+  }else{warn('Rerouting failed. Previous guidance may no longer be valid.');}}
   catch(e){warn('Rerouting failed: '+e.message);}finally{rerouting=false;}
  }
  function updateButtons(){el('gps-auto').textContent='Auto reroute: '+(auto?'On':'Off');el('gps-auto').setAttribute('aria-pressed',String(auto));el('gps-voice').textContent='Voice: '+window.JalanVoice.label(voice);el('gps-voice').setAttribute('aria-pressed',String(voice!=='mute'));}
