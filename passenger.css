@@ -61,3 +61,6 @@ body.passenger-map-flat .passenger-car-arrow{display:none}
  .passenger-stats span{font-size:13px}
 }
 @media(prefers-reduced-motion:reduce){body.passenger-mode #map{transition:none}}
+
+/* Never obstruct the original engineering navigation-menu controls. */
+body:not(.passenger-mode).nav-active .interface-switch{display:none!important}
