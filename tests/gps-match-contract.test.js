@@ -19,7 +19,7 @@ test('JalanGPS match confidence is cleared on predicted fixes, stop and restart'
  };
  const ctx={
   window:browserWindow,document:{hidden:false,getElementById:get,
-    body:{classList:{add(){},remove(){}}},addEventListener(){}},
+    body:{classList:{add(){},remove(){},contains(){return false}}},addEventListener(){}},
   navigator:{geolocation:{watchPosition(success){updateGPS=success;return 1},
     clearWatch(){cleared++}}},
   L:{circleMarker:()=>({addTo(){return this},setLatLng(){}})},
