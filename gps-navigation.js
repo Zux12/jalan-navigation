@@ -63,19 +63,29 @@
   watch=navigator.geolocation.watchPosition(update,e=>warn('GPS unavailable: '+e.message),{enableHighAccuracy:true,maximumAge:1500,timeout:20000});
  }
  function stop(){if(active)window.dispatchEvent(new CustomEvent('jalan:journey-stop'));active=false;current=null;lastFixAt=0;lastReportedAccuracy=Infinity;latestMatched=false;if(watch!==null){navigator.geolocation.clearWatch(watch);watch=null;}if(marker){map.removeLayer(marker);marker=null;}if('speechSynthesis'in window)speechSynthesis.cancel();el('gps-hud').classList.add('hidden');document.body.classList.remove('nav-active');setTimeout(()=>map.invalidateSize(),70);}
- async function reroute(){if(rerouting||!active||!current||!destination)return;if(Date.now()-lastReroute<30000)return;rerouting=true;lastReroute=Date.now();const savedAuto=auto,savedVoice=voice,oldRoute=route;warn('Requesting fastest available route with current traffic…');
+ const rerouteStatus=(state,message)=>window.dispatchEvent(new CustomEvent('jalan:reroute-status',{detail:{state,message}}));
+ async function reroute(){
+  if(rerouting)return;
+  if(!active||!current||!destination){rerouteStatus('error','Route not ready for recalculation.');return;}
+  if(Date.now()-lastReroute<30000){rerouteStatus('error','Please allow 30 seconds before another route check.');return;}
+  rerouting=true;lastReroute=Date.now();
+  const savedAuto=auto,savedVoice=voice,oldRoute=route;
+  warn('Requesting fastest available route with current traffic…');
+  rerouteStatus('checking','Checking an alternative route…');
   try{startPoint=[...current];await calculateRoutes();if(routes.length&&routes[0]!==oldRoute){
    // start() returns immediately while active. End the old watch/session first,
    // then initialize the predictor and guidance against the selected new route.
    stop();auto=savedAuto;voice=savedVoice;updateButtons();start();
    warn('New route calculated. Verify the route before continuing.');
+   rerouteStatus('success','New route ready. Review guidance before continuing.');
    window.dispatchEvent(new CustomEvent('jalan:route-change',{detail:{reason:'off-route',provider:route?.provider||'unknown'}}));
-  }else{warn('Rerouting failed. Previous guidance may no longer be valid.');}}
-  catch(e){warn('Rerouting failed: '+e.message);}finally{rerouting=false;}
+  }else{warn('No new route was available.');rerouteStatus('error','No different route available. Existing route retained.');}}
+  catch(e){warn('Rerouting failed: '+e.message);rerouteStatus('error','Recalculation failed. Check connection and route.');}finally{rerouting=false;}
  }
  function updateButtons(){el('gps-auto').textContent='Auto reroute: '+(auto?'On':'Off');el('gps-auto').setAttribute('aria-pressed',String(auto));el('gps-voice').textContent='Voice: '+window.JalanVoice.label(voice);el('gps-voice').setAttribute('aria-pressed',String(voice!=='mute'));}
  el('gps-start').onclick=start;el('gps-exit').onclick=()=>{stop();if(routes.length)renderRoutes();};el('gps-recenter').onclick=()=>{if(current)map.setView(current,16);};el('gps-reroute').onclick=reroute;
- el('gps-auto').onclick=()=>{auto=!auto;updateButtons();};el('gps-voice').onclick=()=>{voice=window.JalanVoice.nextMode(voice);updateButtons();if('speechSynthesis'in window)speechSynthesis.cancel();if(voice!=='mute'&&active)window.JalanVoice.alert(voice,window.JalanVoice.label(voice));};
+ el('gps-auto').onclick=()=>{auto=!auto;updateButtons();window.dispatchEvent(new CustomEvent('jalan:navigation-settings',{detail:{auto,voice}}));};
+ el('gps-voice').onclick=()=>{voice=window.JalanVoice.nextMode(voice);updateButtons();window.dispatchEvent(new CustomEvent('jalan:navigation-settings',{detail:{auto,voice}}));if('speechSynthesis'in window)speechSynthesis.cancel();if(voice!=='mute'&&active)window.JalanVoice.alert(voice,window.JalanVoice.label(voice));};
  document.addEventListener('visibilitychange',()=>{if(active&&document.hidden){warn('Safari backgrounded. GPS and speech may pause; do not rely on navigation.');if('speechSynthesis'in window)speechSynthesis.cancel();}});
  window.JalanGPS={
   getState(){return {active,matched:active&&latestMatched&&lastFixAt>0,position:current?[...current]:null,accuracy:lastFixAt?lastReportedAccuracy:Infinity,fixAgeMs:lastFixAt?Date.now()-lastFixAt:Infinity,remainingSeconds:active&&route?route.duration*Math.max(0,total-progress)/total:null,remainingMeters:active&&route?route.distance*Math.max(0,total-progress)/total:null,route};},
