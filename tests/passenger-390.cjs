@@ -30,7 +30,7 @@ async function main(){
   await context.addInitScript(()=>{
    Object.defineProperty(navigator,'geolocation',{configurable:true,value:{
     getCurrentPosition(_success,error){error({code:1,message:'Denied in offline fixture'})},
-    watchPosition(_success,error){error({code:1,message:'Denied in offline fixture'});return 1},
+    watchPosition(success,error){window.__offlineGPSWatch=success;error({code:1,message:'Denied in offline fixture'});return 1},
     clearWatch(){}
    }});
   });
@@ -104,40 +104,51 @@ async function main(){
   assert.equal(await page.evaluate(()=>document.body.classList.contains('passenger-guiding')),true);
   assert.equal(await page.locator('#passenger-navigation').isVisible(),true);
   assert.equal(await page.locator('#gps-hud').isVisible(),false,'engineering HUD hidden in clean view');
-  // Permission denied in this fixture must never invent a direction or speed.
-  assert.equal(await page.evaluate(()=>document.body.classList.contains('passenger-camera-follow')),false);
+  const zoomBefore=await page.evaluate(()=>map.getZoom());
+  // Unreliable GPS must NEVER silently zoom into an asserted matched road.
   await page.evaluate(()=>{
-   const original=window.JalanGPS.getState;
-   window.JalanGPS.getState=()=>({...original(),active:true,matched:true,accuracy:12,fixAgeMs:100});
-   window.dispatchEvent(new CustomEvent('jalan:gps-fix',{detail:{
-    matched:true,accuracy:12,heading:90,speedMps:8,matchedPosition:[3.139,101.6869]}}));
+    window.__offlineGPSWatch({timestamp:Date.now(),coords:{
+      latitude:3.139,longitude:101.6869,accuracy:180,speed:2,heading:0}});
   });
+  await page.waitForTimeout(100);
+  assert.equal(await page.evaluate(()=>map.getZoom()),zoomBefore,
+    'uncertain GPS cannot drive passenger camera');
+  await page.evaluate(()=>{
+    window.__offlineGPSWatch({timestamp:Date.now()+1000,coords:{
+      latitude:3.139,longitude:101.6869,accuracy:8,speed:2,heading:0}});
+  });
+  await page.waitForFunction(()=>map.getZoom()>=17,null,{timeout:4000});
+  // The old overview animation used to snap the camera back to 15 shortly
+  // after the matched fix. Hold the contract across that transition window.
+  await page.waitForTimeout(1200);
+  assert.ok(await page.evaluate(()=>map.getZoom()>=17),
+    'passenger follow zoom must persist after delayed route overview settling');
+  assert.equal(await page.evaluate(()=>document.getElementById('passenger-fix').textContent.includes('GPS matched')),true);
+  const forward=await page.evaluate(()=>map.getCenter().lat);
+  assert.ok(forward>3.139,'passenger camera should center ahead along validated route');
+  // Heading-up must preserve PR #27 trusted camera follow and zoom persistence.
+  assert.equal(await page.evaluate(()=>document.body.classList.contains('passenger-camera-follow')),false);
+  await page.evaluate(()=>window.dispatchEvent(new CustomEvent('jalan:gps-fix',{detail:{
+    matched:true,accuracy:12,heading:90,speedMps:8,matchedPosition:[3.139,101.6869]}})));
   await page.waitForFunction(()=>document.body.classList.contains('passenger-camera-follow'));
   assert.equal(await page.evaluate(()=>document.body.style.getPropertyValue('--passenger-camera-bearing')),'-90deg');
   assert.match(await page.locator('.passenger-heading').innerText(),/heading-up 2.5D/);
   assert.match(await page.locator('#map').evaluate(e=>getComputedStyle(e).transform),/matrix3d/);
+  assert.ok(await page.evaluate(()=>map.getZoom()>=17),'heading does not lose trusted route follow zoom');
   await page.evaluate(()=>window.dispatchEvent(new CustomEvent('jalan:gps-fix',{detail:{
-   matched:true,accuracy:250,heading:180,speedMps:10}})));
+    matched:true,accuracy:250,heading:180,speedMps:10}})));
   await page.waitForFunction(()=>!document.body.classList.contains('passenger-camera-follow'));
   assert.equal(await page.evaluate(()=>document.body.style.getPropertyValue('--passenger-camera-bearing')),'');
   await page.evaluate(()=>window.dispatchEvent(new CustomEvent('jalan:gps-fix',{detail:{
-   matched:true,accuracy:10,heading:180,speedMps:0}})));
+    matched:true,accuracy:10,heading:180,speedMps:0}})));
   await page.waitForTimeout(50);
-  assert.equal(await page.evaluate(()=>document.body.classList.contains('passenger-camera-follow')),false,
-   'stationary/unknown heading must not rotate map');
+  assert.equal(await page.evaluate(()=>document.body.classList.contains('passenger-camera-follow')),false);
   await page.evaluate(()=>window.dispatchEvent(new CustomEvent('jalan:gps-fix',{detail:{
-   matched:true,accuracy:10,heading:180,speedMps:12}})));
+    matched:true,accuracy:10,heading:180,speedMps:12}})));
   await page.waitForFunction(()=>document.body.classList.contains('passenger-camera-follow'));
   await page.locator('#passenger-2d').click();
-  assert.equal(await page.evaluate(()=>document.body.classList.contains('passenger-camera-follow')),false,
-   'flat 2D resets heading camera');
+  assert.equal(await page.evaluate(()=>document.body.classList.contains('passenger-camera-follow')),false);
   assert.equal(await page.evaluate(()=>document.body.style.getPropertyValue('--passenger-camera-bearing')),'');
-  await page.evaluate(()=>window.dispatchEvent(new CustomEvent('jalan:gps-fix',{detail:{
-   matched:true,accuracy:10,heading:45,speedMps:12}})));
-  await page.waitForTimeout(50);
-  assert.equal(await page.evaluate(()=>document.body.classList.contains('passenger-camera-follow')),false,
-   '2D toggle holds flat map even on trusted heading fix');
-
   assert.equal(await page.evaluate(()=>document.body.classList.contains('passenger-map-flat')),true);
   await page.locator('#passenger-stop').click();
   assert.equal(await page.evaluate(()=>document.body.classList.contains('passenger-guiding')),false);

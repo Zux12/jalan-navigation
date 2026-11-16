@@ -41,7 +41,9 @@
   if(result.mode==='deviation'){warn('Sustained off-route readings confirmed. Recalculating if enabled.');if(auto&&Date.now()-lastReroute>120000)reroute();}
   else if(result.mode==='matched'){warn('');if(left<55&&meters(p,destination)<110){el('gps-instruction').textContent='Near destination';if(!destinationAnnounced){destinationAnnounced=true;window.JalanVoice.alert(voice,'You are near your destination.');}}}
   else warn('GPS jump or uncertainty detected. Holding predicted route position; guidance may be inaccurate.');
-  if(!document.hidden)map.panTo(p,{animate:false});
+  // Engineering mode follows position directly. Passenger mode has its own
+  // ahead-biased camera; prevent the legacy panTo from overriding its zoom.
+  if(!document.hidden&&!document.body.classList.contains('passenger-mode'))map.panTo(p,{animate:false});
  }
  function start(){if(active)return;if(!build()){statusEl.textContent='Calculate a route before starting GPS test.';return;}if(!navigator.geolocation){statusEl.textContent='Geolocation unavailable';return;}
   window.JalanNavigation?.stop();current=null;lastFixAt=0;lastReportedAccuracy=Infinity;latestMatched=false;predictor=window.JalanPredictiveGPS.create(route.geometry.coordinates);active=true;window.dispatchEvent(new CustomEvent('jalan:journey-start',{detail:{provider:route?.provider||'osrm',predictedSeconds:route?.duration||null,distanceMeters:route?.distance||null}}));progress=0;offCount=0;lastSpeech='';destinationAnnounced=false;window.JalanVoice.reset();document.body.classList.add('nav-active');el('gps-hud').classList.remove('hidden');el('gps-instruction').textContent='Acquiring GPS…';warn('Experimental guidance only. Test stationary or as a passenger.');marker=L.circleMarker(points[0],{radius:10,color:'#fff',weight:3,fillColor:'#0e9f6e',fillOpacity:1}).addTo(map);

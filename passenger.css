@@ -38,9 +38,7 @@ body.passenger-mode .passenger-overview{position:fixed;z-index:1300;bottom:calc(
 /* Reduce the artificial empty horizon seen in the initial passenger desktop
    preview. This is still a flat Leaflet map with visual perspective ONLY. */
 body.passenger-guiding #map{transform:perspective(1200px) rotateX(29deg) scale(1.85) translateY(-3vh);transform-origin:center center;pointer-events:none!important}
-/* GPS heading-up is used only for a moving matched fix. Extra scale avoids
-   exposed corners when the tall mobile map is turned approximately 90deg.
-   This is visual CSS only: no 3D road geometry, legal turn, or GPS authority. */
+/* Trusted moving heading only; CSS orientation, not true 3D/legal navigation. */
 body.passenger-guiding.passenger-camera-follow #map{transform:perspective(1200px) rotateX(29deg) rotateZ(var(--passenger-camera-bearing,0deg)) scale(2.7) translateY(-3vh)}
 body.passenger-guiding{background:#dbe4eb}
 body.passenger-guiding.passenger-map-flat #map{transform:none;pointer-events:none!important}
