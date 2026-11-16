@@ -302,7 +302,7 @@ async function main(){
   assert.equal(osrmCalls,callsBeforeNoKey,'Missing TomTom key must not silently switch to OSRM');
   assert.match(await page.locator('#status').textContent(),/Enter a TomTom key or uncheck/);
   await page.locator('#tt-key').fill('PublicTestKey123');
-  // Delayed TomTom incident JSON may complete despite AbortSignal. Removing the
+  // Delayed TomTom route-traffic JSON may complete despite AbortSignal. Removing the
   // key must invalidate it: no old warning markers or stale 'traffic active'
   // status may reappear after the user has stopped traffic.
   await page.evaluate(()=>setPanelCollapsed(false));
@@ -312,12 +312,13 @@ async function main(){
     const originalFetch=window.fetch;
     window.__restoreIncidentFetch=()=>{window.fetch=originalFetch};
     window.fetch=(url,options)=>{
-      if(String(url).startsWith('https://api.tomtom.com/traffic/services/5/incidentDetails')){
+      if(String(url).startsWith('https://api.tomtom.com/routing/1/calculateRoute/')&&options?.method==='POST'){
         window.__incidentSignal=options?.signal;
+        const points=JSON.parse(options.body).supportingPoints;
         return new Promise(resolve=>{
-          window.__finishStaleIncident=()=>resolve({ok:true,json:async()=>({incidents:[{
-            geometry:{type:'Point',coordinates:[101.6869,3.139]},
-            properties:{iconCategory:6,events:[{description:'Old warning'}]}
+          window.__finishStaleIncident=()=>resolve({ok:true,json:async()=>({routes:[{
+            legs:[{points}],sections:[{sectionType:'TRAFFIC',startPointIndex:0,
+              endPointIndex:points.length-1,simpleCategory:'JAM',eventId:'stale-warning'}]
           }]})});
         });
       }
