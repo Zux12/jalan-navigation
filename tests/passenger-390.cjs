@@ -118,6 +118,11 @@ async function main(){
       latitude:3.139,longitude:101.6869,accuracy:8,speed:2,heading:0}});
   });
   await page.waitForFunction(()=>map.getZoom()>=17,null,{timeout:4000});
+  // The old overview animation used to snap the camera back to 15 shortly
+  // after the matched fix. Hold the contract across that transition window.
+  await page.waitForTimeout(1200);
+  assert.ok(await page.evaluate(()=>map.getZoom()>=17),
+    'passenger follow zoom must persist after delayed route overview settling');
   assert.equal(await page.evaluate(()=>document.getElementById('passenger-fix').textContent.includes('GPS matched')),true);
   const forward=await page.evaluate(()=>map.getCenter().lat);
   assert.ok(forward>3.139,'passenger camera should center ahead along validated route');
