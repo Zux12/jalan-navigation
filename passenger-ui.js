@@ -111,8 +111,17 @@
  window.addEventListener('jalan:route-cleared',()=>{
    routeLabels.clearLayers();overview.classList.add('hidden');
    document.body.classList.remove('passenger-guiding','passenger-map-flat');
+   resetCamera();
    navigation.classList.add('hidden');
  });
+ const cameraBanner=el('passenger-heading');
+ // Heading-up is optional visual orientation, never a legal driving verdict.
+ // Without a fresh, accurate, moving matched fix, stay north-up.
+ const resetCamera=()=>{
+   document.body.classList.remove('passenger-camera-follow');
+   document.body.style.removeProperty('--passenger-camera-bearing');
+   cameraBanner.textContent='PASSENGER PREVIEW · north-up 2.5D, not true 3D';
+ };
  const syncGPS=(fix=null)=>{
    if(!document.body.classList.contains('passenger-guiding'))return;
    el('passenger-instruction').textContent=el('gps-instruction').textContent||'Acquiring GPS…';
@@ -121,6 +130,16 @@
    el('passenger-distance').textContent=el('gps-distance').textContent||'—';
    const state=window.JalanGPS?.getState();
    const matched=state?.matched&&Number.isFinite(state.accuracy)&&state.accuracy<=75&&state.fixAgeMs<10000;
+   const heading=fix?.heading,speed=fix?.speedMps;
+   const headingTrusted=matched&&fix?.matched===true&&Number.isFinite(fix?.accuracy)&&
+     fix.accuracy<=75&&Number.isFinite(heading)&&heading>=0&&heading<=360&&
+     Number.isFinite(speed)&&speed>=2&&document.visibilityState==='visible'&&
+     !document.body.classList.contains('passenger-map-flat');
+   if(headingTrusted){
+     document.body.classList.add('passenger-camera-follow');
+     document.body.style.setProperty('--passenger-camera-bearing',(-heading)+'deg');
+     cameraBanner.textContent='PASSENGER PREVIEW · heading-up 2.5D, approximate';
+   }else resetCamera();
    el('passenger-fix').textContent=matched?'GPS matched · experimental route preview':
       'GPS uncertain or unavailable · do not rely on guidance';
    const speed=fix?.matched&&Number.isFinite(fix.speedMps)&&fix.speedMps>=0?
@@ -144,11 +163,13 @@
    navigation.classList.remove('hidden');
    document.body.classList.add('passenger-guiding');
    document.body.classList.remove('passenger-map-flat');
+   resetCamera();
    el('passenger-2d').setAttribute('aria-pressed','false');
    el('passenger-2d').textContent='2D map';
    syncGPS();
  });
  window.addEventListener('jalan:journey-stop',()=>{
+   resetCamera();
    document.body.classList.remove('passenger-guiding','passenger-map-flat');
    navigation.classList.add('hidden');
  });
@@ -156,9 +177,14 @@
    requestAnimationFrame(()=>syncGPS(event.detail)));
  el('passenger-recenter').addEventListener('click',()=>el('gps-recenter').click());
  el('passenger-2d').addEventListener('click',()=>{
+   resetCamera();
    const flat=document.body.classList.toggle('passenger-map-flat');
+   if(flat)cameraBanner.textContent='PASSENGER PREVIEW · flat 2D (view only)';
    el('passenger-2d').textContent=flat?'2.5D preview':'2D map';
    el('passenger-2d').setAttribute('aria-pressed',String(flat));
+ });
+ document.addEventListener('visibilitychange',()=>{
+   if(document.hidden)resetCamera();
  });
  el('passenger-stop').addEventListener('click',()=>el('gps-exit').click());
  // Keep engineering test panels and private KL coordinate-GET panels untouched.
