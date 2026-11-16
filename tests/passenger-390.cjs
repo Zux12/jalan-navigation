@@ -150,6 +150,22 @@ async function main(){
     'rotating map must not draw a second triangle');
   assert.equal(await page.evaluate(()=>!!locationMarker&&pointLayer.hasLayer(locationMarker)),false,
     'ongoing GPS fixes must not recreate legacy location dot in passenger mode');
+  // A browser-cached 20s-old fix must revoke the previously valid vehicle
+  // marker rather than appearing as current road position.
+  await page.evaluate(()=>{
+    window.__offlineGPSWatch({timestamp:Date.now()-20000,coords:{
+      latitude:3.139,longitude:101.6869,accuracy:8,speed:0,heading:0}});
+  });
+  await page.waitForFunction(()=>!document.querySelector('.jalan-vehicle-marker'),null,{timeout:1500});
+  assert.equal(await page.locator('#passenger-vehicle-screen').isVisible(),false,
+    'expired Safari GPS update removes the upright triangle');
+  await page.evaluate(()=>{
+    window.__offlineGPSWatch({timestamp:Date.now()+2000,coords:{
+      latitude:3.139,longitude:101.6869,accuracy:8,speed:0,heading:0}});
+  });
+  await page.waitForFunction(()=>!!document.querySelector('.jalan-vehicle-marker'),null,{timeout:1500});
+  assert.equal(await page.locator('#passenger-vehicle-screen').isVisible(),true,
+    'trusted fresh GPS update restores vehicle indicator');
   assert.equal(await page.locator('.jalan-vehicle-symbol').getAttribute('data-heading'),
     'route','slow GPS uses clearly estimated route direction, not fake compass');
   assert.equal(await page.locator('.jalan-vehicle-symbol').textContent(),'▲',
