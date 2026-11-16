@@ -115,6 +115,35 @@ async function main(){
   'start and legacy location circles must not overlap the passenger vehicle marker');
   assert.equal(await page.locator('#passenger-navigation').isVisible(),true);
   assert.equal(await page.locator('#gps-hud').isVisible(),false,'engineering HUD hidden in clean view');
+  assert.equal(await page.locator('#passenger-auto-reroute').getAttribute('aria-pressed'),'false',
+    'Passenger Mode must not automatically opt in to rerouting');
+  assert.match(await page.locator('#passenger-voice').innerText(),/Mute/);
+  await page.locator('#passenger-voice').click();
+  assert.match(await page.locator('#passenger-voice').innerText(),/Full guidance/,
+    'voice button enables existing guidance engine');
+  assert.match(await page.locator('#gps-voice').innerText(),/Full guidance/,
+    'passenger voice control mirrors engineering state');
+  await page.locator('#passenger-voice').click();
+  await page.locator('#passenger-voice').click();
+  assert.match(await page.locator('#passenger-voice').innerText(),/Mute/,
+    'passenger voice control can mute without leaving navigation');
+  await page.locator('#passenger-auto-reroute').click();
+  assert.equal(await page.locator('#passenger-auto-reroute').getAttribute('aria-pressed'),'true');
+  assert.equal(await page.locator('#gps-auto').getAttribute('aria-pressed'),'true');
+  assert.match(await page.locator('#passenger-reroute-status').innerText(),/enabled/);
+  await page.locator('#passenger-auto-reroute').click();
+  assert.equal(await page.locator('#passenger-auto-reroute').getAttribute('aria-pressed'),'false');
+  await page.locator('#passenger-reroute-now').click();
+  assert.match(await page.locator('#passenger-reroute-status').innerText(),/not ready/i,
+    'manual recalculate shows unavailable status rather than a fake new route');
+  await page.evaluate(()=>window.dispatchEvent(new CustomEvent('jalan:reroute-status',{
+    detail:{state:'checking',message:'Checking an alternative route…'}
+  })));
+  assert.match(await page.locator('#passenger-reroute-status').innerText(),/Checking an alternative/);
+  await page.evaluate(()=>window.dispatchEvent(new CustomEvent('jalan:reroute-status',{
+    detail:{state:'error',message:'Recalculation failed. Check connection and route.'}
+  })));
+  assert.equal(await page.locator('#passenger-reroute-status').getAttribute('data-state'),'error');
   assert.equal(await page.locator('.passenger-car-arrow').count(),0,
     'fixed fake vehicle triangle must be removed');
   const zoomBefore=await page.evaluate(()=>map.getZoom());
