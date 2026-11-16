@@ -74,3 +74,41 @@ body.passenger-map-flat .passenger-car-arrow{display:none}
 
 /* Never obstruct the original engineering navigation-menu controls. */
 body:not(.passenger-mode).nav-active .interface-switch{display:none!important}
+
+/* iPhone Safari: keep Go pinned inside the actual visual viewport while the
+   alternatives alone scroll. Browser chrome cannot be removed by ordinary CSS. */
+body.passenger-mode .passenger-overview{
+  display:flex;
+  flex-direction:column;
+  overflow:hidden;
+  max-height:min(58dvh,calc(100dvh - 205px - env(safe-area-inset-top,0px)));
+  bottom:calc(8px + env(safe-area-inset-bottom,0px));
+}
+body.passenger-mode .passenger-overview-heading,
+body.passenger-mode .passenger-go,
+body.passenger-mode .passenger-overview>small{flex:0 0 auto}
+body.passenger-mode .passenger-route-list{
+  flex:1 1 auto;
+  min-height:0;
+  overflow-y:auto;
+  overscroll-behavior:contain;
+  -webkit-overflow-scrolling:touch;
+  margin:10px 0;
+}
+body.passenger-mode .passenger-go{margin-top:4px;min-height:54px}
+@media(max-width:600px){
+ body.passenger-mode .passenger-overview{
+   max-height:min(59dvh,calc(100dvh - 190px - env(safe-area-inset-top,0px)));
+   padding:12px;
+   border-radius:20px;
+ }
+ body.passenger-mode .passenger-overview-heading strong{font-size:17px}
+ body.passenger-mode .passenger-overview-heading small{font-size:10px}
+ body.passenger-mode .passenger-route-list button{padding:10px 11px;min-height:58px}
+ body.passenger-mode .passenger-route-list{gap:6px}
+ body.passenger-mode .passenger-go{font-size:17px;padding:11px;min-height:48px}
+ body.passenger-mode .passenger-overview>small{font-size:10px;line-height:1.25;margin-top:6px}
+}
+@media(max-height:650px){
+ body.passenger-mode .passenger-overview{max-height:calc(100dvh - 174px - env(safe-area-inset-top,0px))}
+}

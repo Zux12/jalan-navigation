@@ -66,6 +66,33 @@ async function main(){
   assert.equal(await page.evaluate(()=>routes[0].duration),600,'provider routes sorted by ETA');
   assert.equal(await page.locator('#passenger-overview').isVisible(),true);
   assert.equal(await page.locator('#passenger-route-list button').count(),3);
+  // A shorter Safari-like visible viewport must never clip the Go button.
+  // A long list should scroll inside the card instead of pushing Go below it.
+  await page.setViewportSize({width:390,height:560});
+  const layout=await page.evaluate(()=>{
+    const panel=document.getElementById('passenger-overview');
+    const list=document.getElementById('passenger-route-list');
+    const button=document.getElementById('passenger-go');
+    for(let i=0;i<10;i++){
+      const copy=list.firstElementChild.cloneNode(true);
+      copy.removeAttribute('aria-pressed');
+      list.appendChild(copy);
+    }
+    const p=panel.getBoundingClientRect(),b=button.getBoundingClientRect();
+    return {viewport:window.innerHeight,panelTop:p.top,panelBottom:p.bottom,
+      goBottom:b.bottom,goTop:b.top,listScrollHeight:list.scrollHeight,
+      listClientHeight:list.clientHeight};
+  });
+  assert.ok(layout.panelTop>=0,'route overview must fit visible mobile viewport');
+  assert.ok(layout.goBottom<=layout.viewport-1,
+    'Go action must remain visible above mobile Safari browser chrome');
+  assert.ok(layout.listScrollHeight>layout.listClientHeight,
+    'only alternative cards should scroll; Go stays pinned');
+  await page.setViewportSize({width:390,height:844});
+  await page.evaluate(()=>{
+    const list=document.getElementById('passenger-route-list');
+    while(list.children.length>3)list.lastElementChild.remove();
+  });
   assert.match(await page.locator('#passenger-route-list').innerText(),/\+2 min/);
   assert.match(await page.locator('#passenger-route-list').innerText(),/\+4 min/);
   assert.equal(await page.evaluate(()=>document.body.classList.contains('route-perspective')),false,
@@ -110,6 +137,7 @@ async function main(){
   await page.waitForTimeout(50);
   assert.equal(await page.evaluate(()=>document.body.classList.contains('passenger-camera-follow')),false,
    '2D toggle holds flat map even on trusted heading fix');
+
   assert.equal(await page.evaluate(()=>document.body.classList.contains('passenger-map-flat')),true);
   await page.locator('#passenger-stop').click();
   assert.equal(await page.evaluate(()=>document.body.classList.contains('passenger-guiding')),false);
