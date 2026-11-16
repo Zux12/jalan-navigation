@@ -170,9 +170,53 @@ async function main(){
     '90deg','triangle counter-rotates to screen-up while map turns');
   assert.equal(await page.evaluate(()=>document.getElementById('map').style.getPropertyValue('--jalan-camera-turn')),
     '-90deg','moving camera rotates only on a reliable heading');
+  // Simulated touch-only interactions on the actual tilted navigation gesture
+  // plane: one finger pans, two fingers pinch/rotate. No GPS or network calls.
+  const touchResults=await page.evaluate(()=>{
+    const surface=document.getElementById('passenger-map-gestures');
+    const send=(type,points)=>{
+      const event=new Event(type,{bubbles:true,cancelable:true});
+      Object.defineProperty(event,'touches',{value:points.map(([clientX,clientY])=>({clientX,clientY}))});
+      surface.dispatchEvent(event);
+    };
+    const first=map.getCenter();
+    send('touchstart',[[170,400]]);
+    send('touchmove',[[210,415]]);
+    send('touchend',[]);
+    const moved=map.getCenter();
+    const zoomBefore=map.getZoom();
+    const bearingBefore=Number.parseFloat(map.getContainer().style.getPropertyValue('--jalan-camera-turn'));
+    send('touchstart',[[120,390],[240,390]]);
+    send('touchmove',[[100,380],[260,420]]);
+    send('touchend',[]);
+    return {
+      moved:Math.abs(moved.lng-first.lng)+Math.abs(moved.lat-first.lat)>0.00000001,
+      zoomChanged:map.getZoom()!==zoomBefore,
+      bearingChanged:Math.abs(Number.parseFloat(map.getContainer().style.getPropertyValue('--jalan-camera-turn'))-bearingBefore)>1,
+      exploringText:document.getElementById('passenger-gesture-hint').textContent,
+      rotation:map.getContainer().style.getPropertyValue('--jalan-camera-turn')
+    };
+  });
+  assert.equal(touchResults.moved,true,'one finger drags tilted map');
+  assert.equal(touchResults.zoomChanged,true,'two fingers pinch to zoom tilted map');
+  assert.equal(touchResults.bearingChanged,true,'two fingers twist to rotate tilted map');
+  assert.match(touchResults.exploringText,/Exploring map/);
+  const exploreCenter=await page.evaluate(()=>[map.getCenter().lat,map.getCenter().lng]);
+  await page.evaluate(()=>{
+    window.__offlineGPSWatch({timestamp:Date.now()+3000,coords:{
+      latitude:3.1392,longitude:101.6872,accuracy:8,speed:5,heading:90}});
+  });
+  assert.deepEqual(await page.evaluate(()=>[map.getCenter().lat,map.getCenter().lng]),exploreCenter,
+    'GPS updates do not steal the camera while manually exploring');
+  await page.locator('#passenger-recenter').click();
+  assert.match(await page.locator('#passenger-gesture-hint').innerText(),/Following GPS/);
   await page.locator('#passenger-2d').click();
   assert.equal(await page.evaluate(()=>document.getElementById('map').style.getPropertyValue('--jalan-camera-turn')),
     '0deg','2D mode stays north-up');
+  assert.equal(await page.evaluate(()=>getComputedStyle(document.getElementById('map')).pointerEvents),
+    'auto','flat 2D must restore native Leaflet touch interactions');
+  assert.equal(await page.evaluate(()=>getComputedStyle(document.getElementById('passenger-map-gestures')).pointerEvents),
+    'none','flat 2D touch must reach Leaflet without transformed overlay');
   await page.locator('#passenger-2d').click();
   assert.equal(await page.evaluate(()=>document.getElementById('map').style.getPropertyValue('--jalan-camera-turn')),
     '-90deg','returning to perspective restores heading');
