@@ -358,6 +358,12 @@
    discardVehicle();
    if(!routes.length)return;
    hidePlannerMarkers();
+   // The selected road remains prominent, while unused grey alternatives
+   // are hidden during Go. Route overview regains them after preview exits.
+   routeLayer.getLayers().forEach((line,i)=>{
+     if(typeof line.setStyle==='function')line.setStyle(i===selectedRoute?
+       {color:'#087af5',weight:9,opacity:1}:{opacity:0});
+   });
    routeLabels.clearLayers();
    overview.classList.add('hidden');
    navigation.classList.remove('hidden');
@@ -379,6 +385,11 @@
    discardVehicle();
    document.body.classList.remove('passenger-guiding','passenger-map-flat');
    restorePlannerMarkers();
+   routeLayer.getLayers().forEach((line,i)=>{
+     if(typeof line.setStyle==='function')line.setStyle(i===selectedRoute?
+       {color:'#2563eb',weight:7,opacity:0.95}:
+       {color:'#94a3b8',weight:5,opacity:0.65});
+   });
    navigation.classList.add('hidden');
  });
  // The old passenger view retained the full-route zoom (often 15) after Go,
@@ -424,7 +435,7 @@
       !detail?.matched||!Array.isArray(detail.matchedPosition)||
       detail.matchedPosition.length!==2||
       !detail.matchedPosition.every(Number.isFinite))return;
-   const center=routeAheadCenter(detail.matchedPosition);
+   const center=routeAheadCenter(detail.matchedPosition,125);
    // A preceding route-overview fitBounds() may still be animating; cancel
    // it before taking ownership of the passenger camera.
    map.stop();
@@ -532,7 +543,7 @@
    updateVehicle(lastGPSDetail);
    const flat=document.body.classList.contains('passenger-map-flat');
    applyCameraAngle(flat?0:lastValidHeading===null?0:-lastValidHeading);
-   const target=flat?state.position:routeAheadCenter(state.position,90);
+   const target=flat?state.position:routeAheadCenter(state.position,125);
    map.stop();
    map.setView(target,17,{animate:false,reset:true});
    scheduleScreenVehicle();
