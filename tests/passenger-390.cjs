@@ -114,7 +114,7 @@ async function main(){
   });
   await page.waitForFunction(()=>document.body.classList.contains('passenger-camera-follow'));
   assert.equal(await page.evaluate(()=>document.body.style.getPropertyValue('--passenger-camera-bearing')),'-90deg');
-  assert.match(await page.locator('#passenger-heading').innerText(),/heading-up 2.5D/);
+  assert.match(await page.locator('.passenger-heading').innerText(),/heading-up 2.5D/);
   assert.match(await page.locator('#map').evaluate(e=>getComputedStyle(e).transform),/matrix3d/);
   await page.evaluate(()=>window.dispatchEvent(new CustomEvent('jalan:gps-fix',{detail:{
    matched:true,accuracy:250,heading:180,speedMps:10}})));
