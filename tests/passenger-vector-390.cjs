@@ -146,6 +146,8 @@ async function main(){
   assert.deepEqual(mapFailures,[],'public vector resources must load');
   assert.ok(tileResponses.some(code=>code===200),'actual vector/glyph resources received');
   assert.equal(await live.evaluate(()=>JalanVectorMap.active),true);
+  assert.ok(await live.evaluate(()=>document.querySelector('.passenger-bottom').getBoundingClientRect().bottom<=
+    document.querySelector('.maplibregl-ctrl-attrib').getBoundingClientRect().top),'map attribution stays below the HUD');
   await live.screenshot({path:path.join(artifacts,'vector-live-kl-mobile.png')});
   await live.setViewportSize({width:1280,height:800});
   await live.screenshot({path:path.join(artifacts,'vector-live-kl-desktop.png')});

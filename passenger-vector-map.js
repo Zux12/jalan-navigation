@@ -221,6 +221,11 @@
      if(layer.type==='background')gl.setPaintProperty(layer.id,'background-color','#f5f3ee');
      if(layer.type==='fill'&&layer['source-layer']==='water')gl.setPaintProperty(layer.id,'fill-color','#b4e0ec');
      if(layer.type==='fill'&&layer['source-layer']==='park')gl.setPaintProperty(layer.id,'fill-color','#d5e8cb');
+     if(layer.type==='fill'&&['landcover','landuse'].includes(layer['source-layer'])){
+       const color=gl.getPaintProperty(layer.id,'fill-color')||'#eeece7';
+       gl.setPaintProperty(layer.id,'fill-color',['match',['get','class'],
+         ['wood','grass','grassland','park','recreation_ground'],'#dcead4',color]);
+     }
      if(layer.type==='fill'&&layer['source-layer']==='building')gl.setPaintProperty(layer.id,'fill-color','#e1dfda');
    });
    const building=layers.find(layer=>layer['source-layer']==='building');
@@ -257,7 +262,7 @@
      gl=new maplibregl.Map({container,style:'https://tiles.openfreemap.org/styles/positron',
        center:[center.lng,center.lat],zoom:map.getZoom()-1,minZoom:2,maxZoom:19,maxPitch:60,
        maxTileCacheSize:96,pixelRatio:Math.min(window.devicePixelRatio||1,2),
-       attributionControl:{compact:true},canvasContextAttributes:{antialias:true}});
+       attributionControl:{compact:false},canvasContextAttributes:{antialias:true}});
      gl.on('error',event=>{
        if(event.sourceId&&rasters.has(event.sourceId))rasters.get(event.sourceId).layer.fire('tileerror');
        else if(active)status.textContent='Some map details unavailable';

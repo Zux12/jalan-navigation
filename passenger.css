@@ -220,5 +220,6 @@ body.passenger-vector-active #passenger-vehicle-screen{transform:translate(-50%,
 .jalan-vector-report-label .maplibregl-popup-content{border:2px solid #d85800;border-radius:12px;padding:10px 13px;font:700 13px system-ui;color:#3c260f;text-align:center}
 #jalan-map-status{position:fixed;z-index:8;left:10px;bottom:1px;font:10px system-ui;color:#4d5963;background:#ffffffe6;border-radius:4px;padding:1px 4px;pointer-events:none}
 #jalan-map-status:empty{display:none}
-body.passenger-vector-active .maplibregl-ctrl-bottom-right{z-index:4}
-body.passenger-vector-active .maplibregl-ctrl-attrib{font-size:10px;line-height:16px;background:#ffffffe0}
+body.passenger-vector-active .maplibregl-ctrl-bottom-right{z-index:4;bottom:env(safe-area-inset-bottom,0px)}
+body.passenger-vector-active .maplibregl-ctrl-attrib{margin:0!important;padding:0 4px;font-size:10px;line-height:14px;min-height:0;background:#fffffff0;color:#425364}
+body.passenger-vector-active.passenger-guiding .passenger-bottom{bottom:calc(18px + env(safe-area-inset-bottom,0px))}
