@@ -52,7 +52,11 @@
  const currentCameraAngle=()=>Number.parseFloat(map.getContainer().style.getPropertyValue('--jalan-camera-turn'))||0;
  const applyCameraAngle=degrees=>{
    const angle=((degrees+180)%360+360)%360-180;
-   map.getContainer().style.setProperty('--jalan-camera-turn',angle+'deg');
+   const previous=currentCameraAngle();
+   const delta=((angle-previous+540)%360)-180;
+   // Avoid retransforming every raster tile on sub-degree GPS heading jitter.
+   if(Math.abs(delta)>=1.2||!map.getContainer().style.getPropertyValue('--jalan-camera-turn'))
+     map.getContainer().style.setProperty('--jalan-camera-turn',angle+'deg');
    scheduleScreenVehicle();
    const symbol=vehicle?.getElement()?.querySelector('.jalan-vehicle-symbol');
    if(symbol)symbol.style.setProperty('--jalan-vehicle-heading',
@@ -221,6 +225,99 @@
  const turnToggle=el('passenger-turn-toggle'),
        turnList=el('passenger-turn-list'),
        maneuverList=el('passenger-maneuver-list');
+ const reportsTab=el('passenger-tab-reports'),directionsTab=el('passenger-tab-directions'),
+       reportsPanel=el('passenger-reports-panel'),directionsPanel=el('passenger-directions-panel'),
+       reportList=el('passenger-report-list'),reportNote=el('passenger-report-note');
+ let activeInfoTab='reports',incidentSnapshot={route:null,incidents:[],checkedAt:0};
+ // Do not call a nearby report "on the route" unless it projects within
+ // 300 metres of the selected provider's road geometry.
+ const pointOnRoute=(position,coords)=>{
+   if(!Array.isArray(position)||position.length!==2||!position.every(Number.isFinite)||
+      !Array.isArray(coords)||coords.length<2)return null;
+   const sx=111320*Math.cos(position[0]*Math.PI/180),sy=111320;
+   let best={offset:Infinity,along:0},cumulative=0;
+   for(let i=1;i<coords.length;i++){
+     const a=coords[i-1],b=coords[i];
+     if(!Array.isArray(a)||!Array.isArray(b)||!a.every(Number.isFinite)||!b.every(Number.isFinite))return null;
+     const dx=(b[0]-a[0])*sx,dy=(b[1]-a[1])*sy,segment=Math.hypot(dx,dy);
+     const vx=(a[0]-position[1])*sx,vy=(a[1]-position[0])*sy;
+     const ratio=Math.max(0,Math.min(1,-(vx*dx+vy*dy)/(segment*segment||1)));
+     const offset=Math.hypot(vx+ratio*dx,vy+ratio*dy);
+     if(offset<best.offset)best={offset,along:cumulative+ratio*segment};
+     cumulative+=segment;
+   }
+   return {...best,total:cumulative};
+ };
+ const renderReports=()=>{
+   reportList.replaceChildren();
+   const state=window.JalanGPS?.getState?.(),route=state?.route,
+         coords=route?.geometry?.coordinates;
+   if(!state?.active||!state.matched||state.fixAgeMs>10000||
+      state.accuracy>75||!Array.isArray(state.position)||!Array.isArray(coords)){
+     reportNote.textContent='Waiting for verified GPS and a selected route to calculate distances to reports.';
+     return;
+   }
+   const current=pointOnRoute(state.position,coords);
+   if(!current){reportNote.textContent='Route distances are unavailable.';return;}
+   const items=[];
+   // Local community reports are demo records, NOT verified incidents.
+   for(const report of (typeof getReports==='function'?getReports():[])){
+     if(!report||!['accident','flood','hazard','rain'].includes(report.type))continue;
+     items.push({lat:Number(report.lat),lng:Number(report.lng),
+       title:report.type.toUpperCase()+' · unverified demo report',
+       detail:'Local demonstration report',source:'demo'});
+   }
+   const freshIncidents=incidentSnapshot.route===route&&
+     Date.now()-incidentSnapshot.checkedAt<=10*60*1000?incidentSnapshot.incidents:[];
+   for(const incident of freshIncidents){
+     items.push({lat:Number(incident.lat),lng:Number(incident.lng),
+       title:'TomTom traffic incident',detail:String(incident.description||'Traffic event').slice(0,160),
+       source:'tomtom'});
+   }
+   const positioned=[];
+   for(const item of items){
+     if(!Number.isFinite(item.lat)||!Number.isFinite(item.lng))continue;
+     const projected=pointOnRoute([item.lat,item.lng],coords);
+     if(!projected||projected.offset>300||projected.along<current.along-30)continue;
+     positioned.push({...item,ahead:Math.max(0,projected.along-current.along),
+       fromReportToDestination:Math.max(0,projected.total-projected.along)});
+   }
+   positioned.sort((a,b)=>a.ahead-b.ahead);
+   for(const item of positioned.slice(0,40)){
+     const li=document.createElement('li'),marker=document.createElement('span'),
+           info=document.createElement('div'),title=document.createElement('strong'),
+           distances=document.createElement('small'),detail=document.createElement('small');
+     marker.className='turn-list-arrow';marker.textContent=item.source==='demo'?'⚠️':'🚧';
+     title.textContent=item.title;
+     distances.textContent='In '+fmtDist(item.ahead)+' · '+fmtDist(item.fromReportToDestination)+' from report to destination';
+     detail.textContent=item.detail;
+     info.append(title,distances,detail);li.append(marker,info);reportList.appendChild(li);
+   }
+   const hasIncidents=incidentSnapshot.route===route&&
+     Date.now()-incidentSnapshot.checkedAt<=10*60*1000;
+   reportNote.textContent=positioned.length?
+     'Demo reports are unverified. TomTom incidents reflect the last connected traffic fetch. Distances are approximate along-route values.':
+     'No applicable reports ahead on this selected route.'+
+       (hasIncidents?' TomTom incident check returned no applicable items.':
+        ' Connect TomTom traffic incidents separately for live traffic reports.');
+ };
+ const selectInfoTab=tab=>{
+   activeInfoTab=tab==='directions'?'directions':'reports';
+   const reports=activeInfoTab==='reports';
+   reportsTab.setAttribute('aria-selected',String(reports));
+   directionsTab.setAttribute('aria-selected',String(!reports));
+   reportsPanel.classList.toggle('hidden',!reports);
+   directionsPanel.classList.toggle('hidden',reports);
+   if(reports)renderReports();else renderDirections();
+ };
+ reportsTab.addEventListener('click',()=>selectInfoTab('reports'));
+ directionsTab.addEventListener('click',()=>selectInfoTab('directions'));
+ window.addEventListener('jalan:incidents-updated',event=>{
+   const detail=event.detail||{};
+   incidentSnapshot={route:detail.route||null,incidents:Array.isArray(detail.incidents)?detail.incidents:[],
+     checkedAt:Number(detail.checkedAt)||0};
+   if(!turnList.classList.contains('hidden')&&activeInfoTab==='reports')renderReports();
+ });
  const turnIcon=action=>/roundabout/i.test(action)?'⟳':
    /left/i.test(action)?'↰':/right/i.test(action)?'↱':
    /u.turn|u-turn/i.test(action)?'↶':'↑';
@@ -250,7 +347,7 @@
  };
  turnToggle.addEventListener('click',()=>{
    const open=turnList.classList.contains('hidden');
-   if(open){renderDirections();turnList.classList.remove('hidden');}
+   if(open){selectInfoTab('reports');turnList.classList.remove('hidden');}
    else closeDirections();
    turnToggle.setAttribute('aria-expanded',String(open));
  });
@@ -276,7 +373,9 @@
    el('passenger-speed').textContent=speed;
    const message=el('passenger-instruction').textContent;
    el('passenger-turn-arrow').textContent=turnIcon(message);
-   if(!turnList.classList.contains('hidden'))renderDirections();
+   if(!turnList.classList.contains('hidden')){
+     if(activeInfoTab==='reports')renderReports();else renderDirections();
+   }
    el('passenger-turn-details').textContent=message;
  };
  // Passenger controls mirror the existing engineering GPS buttons; no
@@ -388,6 +487,7 @@
  });
  window.addEventListener('jalan:journey-start',()=>{
    closeDirections();
+   incidentSnapshot={route:null,incidents:[],checkedAt:0};
    el('passenger-options').open=false;
    clearLiveEta();
    el('passenger-signal-alert').classList.remove('hidden');
@@ -484,8 +584,14 @@
    const center=detail.matchedPosition;
    // A preceding route-overview fitBounds() may still be animating; cancel
    // it before taking ownership of the passenger camera.
-   map.stop();
-   map.setView(center,17,{animate:false,reset:true});
+   // The previous update called map.stop() + setView(...zoom17) for *every*
+   // matched GPS fix. Safari repeatedly repainted raster tiles and flashed.
+   // Respect the current zoom, changing camera only when the vehicle moved.
+   const zoom=map.getZoom();
+   const camera=map.getCenter(),dx=(camera.lng-center[1])*111320*Math.cos(center[0]*Math.PI/180),
+         dy=(camera.lat-center[0])*111320;
+   if(!Number.isFinite(zoom)||zoom<15)map.setView(center,17,{animate:false});
+   else if(Math.hypot(dx,dy)>8)map.panTo(center,{animate:false});
    scheduleScreenVehicle();
  };
  window.addEventListener('jalan:gps-fix',event=>{
@@ -575,7 +681,8 @@
  gestureSurface.addEventListener('touchcancel',()=>{gesture=null;});
  // Both 2D and 2.5D views use this gesture surface so rotating the map
  // does not invalidate Leaflet's original hit-testing.
- el('passenger-recenter').addEventListener('click',()=>{
+ const recenterPassenger=()=>{
+
    gesture=null;exploring=false;
    hint.textContent='Following GPS · drag, pinch or twist to explore';
    const state=window.JalanGPS?.getState();
@@ -593,7 +700,9 @@
    map.stop();
    map.setView(target,17,{animate:false,reset:true});
    scheduleScreenVehicle();
- });
+ };
+ el('passenger-recenter').addEventListener('click',recenterPassenger);
+ el('passenger-recenter-floating').addEventListener('click',recenterPassenger);
  el('passenger-2d').addEventListener('click',()=>{
    gesture=null;
    const flat=document.body.classList.toggle('passenger-map-flat');
