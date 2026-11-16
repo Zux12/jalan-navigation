@@ -9,6 +9,49 @@
        list=el('passenger-route-list'),settings=el('passenger-setup'),
        navigation=el('passenger-navigation');
  const routeLabels=L.layerGroup().addTo(map);
+ // Vehicle icon is georeferenced. Never show a fixed screen arrow implying
+ // a valid position before the GPS predictor has actually matched a route.
+ let vehicle=null,lastValidHeading=null;
+ const vehicleIcon=L.divIcon({
+   className:'jalan-vehicle-marker',
+   html:'<span class="jalan-vehicle-symbol" data-heading="unavailable">•</span>',
+   iconSize:[40,40],iconAnchor:[20,20]
+ });
+ function discardVehicle(){
+   if(vehicle){map.removeLayer(vehicle);vehicle=null;}
+   lastValidHeading=null;
+   map.getContainer().style.removeProperty('--jalan-camera-turn');
+ }
+ function updateVehicle(detail){
+   const state=window.JalanGPS?.getState();
+   const valid=state?.active&&state.matched&&Number.isFinite(state.accuracy)&&
+     state.accuracy<=65&&state.fixAgeMs<=5000&&detail?.matched&&
+     Array.isArray(detail.matchedPosition)&&detail.matchedPosition.length===2&&
+     detail.matchedPosition.every(Number.isFinite);
+   if(!valid){discardVehicle();return false;}
+   const position=detail.matchedPosition;
+   if(!vehicle)vehicle=L.marker(position,{icon:vehicleIcon,interactive:false,
+     keyboard:false,zIndexOffset:950}).addTo(map);
+   else vehicle.setLatLng(position);
+   const heading=detail.heading,speed=detail.speedMps;
+   // Browser headings are often unreliable or absent at low speed. Keep the
+   // map north-up and display a neutral dot until moving direction is known.
+   const headingValid=Number.isFinite(heading)&&heading>=0&&heading<360&&
+     Number.isFinite(speed)&&speed>=2.5;
+   lastValidHeading=headingValid?heading:null;
+   const symbol=vehicle.getElement()?.querySelector('.jalan-vehicle-symbol');
+   if(symbol){
+     symbol.dataset.heading=headingValid?'reliable':'unavailable';
+     symbol.textContent=headingValid?'▲':'•';
+     symbol.style.setProperty('--jalan-vehicle-heading',
+       headingValid?heading+'deg':'0deg');
+   }
+   const guiding=document.body.classList.contains('passenger-guiding')&&
+     !document.body.classList.contains('passenger-map-flat');
+   map.getContainer().style.setProperty('--jalan-camera-turn',
+     guiding&&headingValid?(-heading)+'deg':'0deg');
+   return true;
+ }
  const hideSettings=()=>settings.classList.add('hidden');
  const showSettings=()=>settings.classList.remove('hidden');
  el('passenger-settings-top').addEventListener('click',showSettings);
@@ -109,6 +152,7 @@
  }
  window.addEventListener('jalan:routes-rendered',refreshOverview);
  window.addEventListener('jalan:route-cleared',()=>{
+   discardVehicle();
    routeLabels.clearLayers();overview.classList.add('hidden');
    document.body.classList.remove('passenger-guiding','passenger-map-flat');
    navigation.classList.add('hidden');
@@ -138,6 +182,7 @@
    }
  });
  window.addEventListener('jalan:journey-start',()=>{
+   discardVehicle();
    if(!routes.length)return;
    routeLabels.clearLayers();
    overview.classList.add('hidden');
@@ -149,6 +194,7 @@
    syncGPS();
  });
  window.addEventListener('jalan:journey-stop',()=>{
+   discardVehicle();
    document.body.classList.remove('passenger-guiding','passenger-map-flat');
    navigation.classList.add('hidden');
  });
@@ -203,14 +249,16 @@
    else map.panTo(center,{animate:false});
  };
  window.addEventListener('jalan:gps-fix',event=>{
-   // GPS module has already updated its trust state at dispatch. Camera
-   // positioning does not depend on paint and should not be deferred.
-   followPassengerGPS(event.detail);
+   // Never move the vehicle or camera on an unmatched, stale, or inaccurate
+   // reading. The GPS module emits its trust result before this listener.
+   if(updateVehicle(event.detail))followPassengerGPS(event.detail);
    requestAnimationFrame(()=>syncGPS(event.detail));
  });
  el('passenger-recenter').addEventListener('click',()=>el('gps-recenter').click());
  el('passenger-2d').addEventListener('click',()=>{
    const flat=document.body.classList.toggle('passenger-map-flat');
+   map.getContainer().style.setProperty('--jalan-camera-turn',
+     flat||lastValidHeading===null?'0deg':(-lastValidHeading)+'deg');
    el('passenger-2d').textContent=flat?'2.5D preview':'2D map';
    el('passenger-2d').setAttribute('aria-pressed',String(flat));
  });

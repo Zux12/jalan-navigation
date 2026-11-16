@@ -37,7 +37,7 @@ body.passenger-mode .passenger-overview{position:fixed;z-index:1300;bottom:calc(
 .passenger-delta-pin{background:#fff;border:2px solid #e2e8f0;border-radius:10px;padding:5px 8px;white-space:nowrap;font:bold 12px system-ui,sans-serif;box-shadow:0 4px 10px #10243c4d;color:#172d45}
 /* Reduce the artificial empty horizon seen in the initial passenger desktop
    preview. This is still a flat Leaflet map with visual perspective ONLY. */
-body.passenger-guiding #map{transform:perspective(1200px) rotateX(29deg) scale(1.85) translateY(-3vh);transform-origin:center center;pointer-events:none!important}
+body.passenger-guiding #map{transform:perspective(1200px) rotateX(29deg) rotateZ(var(--jalan-camera-turn,0deg)) scale(1.85) translateY(-3vh);transform-origin:center center;pointer-events:none!important}
 body.passenger-guiding{background:#dbe4eb}
 body.passenger-guiding.passenger-map-flat #map{transform:none;pointer-events:none!important}
 body.passenger-guiding .topbar,body.passenger-guiding .results,body.passenger-guiding .passenger-overview,body.passenger-guiding .passenger-setup{display:none!important}
@@ -46,7 +46,10 @@ body.passenger-guiding .interface-switch{display:none}
 .passenger-turn{position:absolute;top:0;left:0;right:0;padding:calc(20px + env(safe-area-inset-top,0px)) 18px 22px;background:#090d16;display:flex;align-items:center;gap:16px;min-height:112px}
 .passenger-turn>span{font-size:48px;font-weight:900}.passenger-turn strong{font-size:clamp(19px,4.8vw,26px);display:block}.passenger-turn small{font-size:14px;color:#61d7fc}
 .passenger-heading{position:absolute;top:calc(139px + env(safe-area-inset-top,0px));left:10px;right:10px;text-align:center;color:#273d58;background:#ffffffd9;padding:6px 9px;border-radius:12px;font-size:11px;font-weight:750}
-.passenger-car-arrow{position:absolute;bottom:29%;left:50%;transform:translateX(-50%);font-size:40px;line-height:1;color:#03a8d8;text-shadow:0 2px #fff,2px 0 #fff,-2px 0 #fff;filter:drop-shadow(0 6px 9px #17283e88)}
+.jalan-vehicle-marker{border:0;background:transparent;pointer-events:none}
+.jalan-vehicle-marker .jalan-vehicle-symbol{display:grid;place-items:center;width:40px;height:40px;border:3px solid white;border-radius:50%;background:#087fb5;color:white;font:900 26px system-ui,sans-serif;filter:drop-shadow(0 3px 7px #17283e88);transform:rotate(var(--jalan-vehicle-heading,0deg))}
+.jalan-vehicle-marker .jalan-vehicle-symbol[data-heading="unavailable"]{border-radius:50%;background:#617d9b;color:white;font-size:17px}
+
 .passenger-bottom{pointer-events:auto;position:absolute;left:0;right:0;bottom:0;background:#fff;border-radius:25px 25px 0 0;padding:22px max(18px,env(safe-area-inset-left,0px)) calc(18px + env(safe-area-inset-bottom,0px));box-shadow:0 -10px 25px #19345240;color:#1c2837}
 .passenger-stats{display:flex;justify-content:space-around;align-items:center;gap:15px}
 .passenger-stats b{font-size:29px}.passenger-stats span{font-size:16px;font-weight:700}
@@ -54,7 +57,7 @@ body.passenger-guiding .interface-switch{display:none}
 .passenger-controls{display:flex;gap:8px}
 .passenger-controls button{flex:1;border:1px solid #d4e0ea;border-radius:12px;padding:11px 6px;background:#eef4fb;color:#244a72;font-size:12px;font-weight:750;cursor:pointer}
 .passenger-controls button:last-child{background:#fff0ef;color:#a12e2e}
-body.passenger-map-flat .passenger-car-arrow{display:none}
+/* In north-up 2D overview, the same geolocated marker remains on the map. */
 @media(max-width:600px){
  .interface-switch{left:10px;right:10px;justify-content:space-evenly}
  .interface-switch a,.interface-switch button{padding:9px 7px;font-size:11px}
