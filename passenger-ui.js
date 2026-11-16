@@ -199,11 +199,12 @@
    if(map.getZoom()<17)map.setView(center,17,{animate:false});
    else map.panTo(center,{animate:false});
  };
- window.addEventListener('jalan:gps-fix',event=>
-   requestAnimationFrame(()=>{
-     syncGPS(event.detail);
-     followPassengerGPS(event.detail);
-   }));
+ window.addEventListener('jalan:gps-fix',event=>{
+   // GPS module has already updated its trust state at dispatch. Camera
+   // positioning does not depend on paint and should not be deferred.
+   followPassengerGPS(event.detail);
+   requestAnimationFrame(()=>syncGPS(event.detail));
+ });
  el('passenger-recenter').addEventListener('click',()=>el('gps-recenter').click());
  el('passenger-2d').addEventListener('click',()=>{
    const flat=document.body.classList.toggle('passenger-map-flat');
