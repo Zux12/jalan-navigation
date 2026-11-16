@@ -26,10 +26,34 @@
  let vehicle=null,lastValidHeading=null,directionSource='unavailable';
  let exploring=false,lastGPSDetail=null;
  const gestureSurface=el('passenger-map-gestures'),hint=el('passenger-gesture-hint');
+ const screenVehicle=el('passenger-vehicle-screen');
+ let pendingOverlay=false;
+ const syncScreenVehicle=()=>{
+   pendingOverlay=false;
+   const anchor=vehicle?.getElement();
+   if(!anchor||!document.body.classList.contains('passenger-guiding')){
+     screenVehicle.classList.add('hidden');return;
+   }
+   const bounds=anchor.getBoundingClientRect();
+   const x=bounds.left+bounds.width/2,y=bounds.top+bounds.height/2;
+   const maxX=window.innerWidth,maxY=window.innerHeight;
+   if(!Number.isFinite(x)||!Number.isFinite(y)||x<0||x>maxX||
+     y<0||y>maxY){screenVehicle.classList.add('hidden');return;}
+   screenVehicle.style.left=x+'px';
+   screenVehicle.style.top=y+'px';
+   screenVehicle.classList.remove('hidden');
+ };
+ const scheduleScreenVehicle=()=>{
+   if(pendingOverlay)return;
+   pendingOverlay=true;
+   requestAnimationFrame(syncScreenVehicle);
+ };
+ map.on('move zoom zoomend moveend resize',scheduleScreenVehicle);
  const currentCameraAngle=()=>Number.parseFloat(map.getContainer().style.getPropertyValue('--jalan-camera-turn'))||0;
  const applyCameraAngle=degrees=>{
    const angle=((degrees+180)%360+360)%360-180;
    map.getContainer().style.setProperty('--jalan-camera-turn',angle+'deg');
+   scheduleScreenVehicle();
    const symbol=vehicle?.getElement()?.querySelector('.jalan-vehicle-symbol');
    if(symbol)symbol.style.setProperty('--jalan-vehicle-heading',
      document.body.classList.contains('passenger-map-flat')?
@@ -45,6 +69,7 @@
    lastValidHeading=null;
    directionSource='unavailable';
    map.getContainer().style.removeProperty('--jalan-camera-turn');
+   screenVehicle.classList.add('hidden');
  }
  function updateVehicle(detail){
    const state=window.JalanGPS?.getState();
@@ -84,6 +109,7 @@
      !document.body.classList.contains('passenger-map-flat');
    if(!exploring)applyCameraAngle(guiding&&lastValidHeading!==null?-lastValidHeading:0);
    else applyCameraAngle(currentCameraAngle());
+   scheduleScreenVehicle();
    return true;
  }
  const hideSettings=()=>settings.classList.add('hidden');
@@ -231,6 +257,7 @@
    el('passenger-2d').setAttribute('aria-pressed','false');
    el('passenger-2d').textContent='2D map';
    syncGPS();
+   scheduleScreenVehicle();
  });
  window.addEventListener('jalan:journey-stop',()=>{
    exploring=false;lastGPSDetail=null;
@@ -286,8 +313,8 @@
    // A preceding route-overview fitBounds() may still be animating; cancel
    // it before taking ownership of the passenger camera.
    map.stop();
-   if(map.getZoom()<17)map.setView(center,17,{animate:false,reset:true});
-   else map.panTo(center,{animate:false});
+   map.setView(center,17,{animate:false,reset:true});
+   scheduleScreenVehicle();
  };
  window.addEventListener('jalan:gps-fix',event=>{
    lastGPSDetail=event.detail;
@@ -315,16 +342,16 @@
  gestureSurface.addEventListener('touchstart',event=>{
    if(!startExplore())return;
    if(event.cancelable)event.preventDefault();
-   gesture=snapshot(event.touches);
+   gesture={...snapshot(event.touches),pinchTotal:0};
  },{passive:false});
  gestureSurface.addEventListener('touchmove',event=>{
    if(!gesture||!document.body.classList.contains('passenger-guiding'))return;
    if(event.cancelable)event.preventDefault();
    const next=snapshot(event.touches);
-   if(next.n!==gesture.n){gesture=next;return;}
+   if(next.n!==gesture.n){gesture={...next,pinchTotal:0};return;}
    const dx=next.x-gesture.x,dy=next.y-gesture.y;
    const turn=currentCameraAngle()*Math.PI/180;
-   const scale=1.85;
+   const scale=document.body.classList.contains('passenger-map-flat')?1:1.85;
    const tx=(dx*Math.cos(turn)+dy*Math.sin(turn))/scale;
    const ty=(-dx*Math.sin(turn)+dy*Math.cos(turn))/scale;
    // Limited per-frame movement avoids GPS-like jumps during a finger switch.
@@ -333,40 +360,56 @@
      const rotation=((next.angle-gesture.angle+540)%360)-180;
      if(Math.abs(rotation)<45&&Math.abs(rotation)>0.15)
        applyCameraAngle(currentCameraAngle()+rotation);
-     if(gesture.distance>0){
+     if(gesture.distance>0&&next.distance>0){
+       // Accumulate incremental Safari touchmove changes. The old per-frame
+       // 23% threshold never triggered for ordinary slow pinch gestures.
        const factor=next.distance/gesture.distance;
-       if(factor>1.23||factor<0.81){
-         map.setZoom(Math.max(5,Math.min(19,map.getZoom()+(factor>1?1:-1))),{animate:false});
-         next.distance=gesture.distance;
+       let cumulative=(gesture.pinchTotal||0)+Math.log(factor);
+       const threshold=Math.log(1.12);
+       const direction=cumulative>=threshold?1:cumulative<=-threshold?-1:0;
+       if(direction){
+         const oldZoom=map.getZoom();
+         const desired=Math.max(map.getMinZoom(),Math.min(map.getMaxZoom(),oldZoom+direction));
+         if(desired!==oldZoom)map.setZoom(desired,{animate:false});
+         cumulative=0;
        }
+       next.pinchTotal=cumulative;
      }
    }
    gesture=next;
  },{passive:false});
  gestureSurface.addEventListener('touchend',event=>{
    if(event.cancelable)event.preventDefault();
-   gesture=event.touches.length?snapshot(event.touches):null;
+   gesture=event.touches.length?{...snapshot(event.touches),pinchTotal:0}:null;
  },{passive:false});
  gestureSurface.addEventListener('touchcancel',()=>{gesture=null;});
- // Flat mode delegates gestures to untransformed Leaflet.
- map.on('dragstart zoomstart',()=>{
-   if(document.body.classList.contains('passenger-guiding')&&
-      document.body.classList.contains('passenger-map-flat'))startExplore();
- });
+ // Both 2D and 2.5D views use this gesture surface so rotating the map
+ // does not invalidate Leaflet's original hit-testing.
  el('passenger-recenter').addEventListener('click',()=>{
-   exploring=false;gesture=null;
+   gesture=null;exploring=false;
    hint.textContent='Following GPS · drag, pinch or twist to explore';
-   if(lastGPSDetail&&updateVehicle(lastGPSDetail)){
-     followPassengerGPS(lastGPSDetail);
-   }else{
-     const state=window.JalanGPS?.getState();
-     if(state?.active&&Array.isArray(state.position))map.setView(state.position,16,{animate:false});
+   const state=window.JalanGPS?.getState();
+   const reliable=state?.active&&state.matched&&
+     Number.isFinite(state.accuracy)&&state.accuracy<=65&&
+     state.fixAgeMs<=5000&&Array.isArray(state.position);
+   if(!reliable||!lastGPSDetail?.matched){
+     hint.textContent='Waiting for reliable GPS · cannot recenter yet';
+     return;
    }
+   updateVehicle(lastGPSDetail);
+   const flat=document.body.classList.contains('passenger-map-flat');
+   applyCameraAngle(flat?0:lastValidHeading===null?0:-lastValidHeading);
+   const target=flat?state.position:routeAheadCenter(state.position,90);
+   map.stop();
+   map.setView(target,17,{animate:false,reset:true});
+   scheduleScreenVehicle();
  });
  el('passenger-2d').addEventListener('click',()=>{
+   gesture=null;
    const flat=document.body.classList.toggle('passenger-map-flat');
    applyCameraAngle(flat?0:exploring?currentCameraAngle():lastValidHeading===null?0:-lastValidHeading);
    map.invalidateSize();
+   scheduleScreenVehicle();
    el('passenger-2d').textContent=flat?'2.5D preview':'2D map';
    el('passenger-2d').setAttribute('aria-pressed',String(flat));
  });
