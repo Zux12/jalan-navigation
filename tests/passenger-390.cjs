@@ -290,9 +290,11 @@ async function main(){
     window.__offlineGPSWatch({timestamp:Date.now()+2000,coords:{
       latitude:3.139,longitude:101.6869,accuracy:8,speed:0,heading:0}});
   });
-  await page.waitForFunction(()=>!!document.querySelector('.jalan-vehicle-marker'),null,{timeout:1500});
+  await page.waitForFunction(()=>!!document.querySelector('.jalan-vehicle-marker')&&
+    !document.getElementById('passenger-vehicle-screen').classList.contains('hidden'),
+    null,{timeout:1500});
   assert.equal(await page.locator('#passenger-vehicle-screen').isVisible(),true,
-    'trusted fresh GPS update restores vehicle indicator');
+    'trusted fresh GPS update restores vehicle indicator after projection frame');
   // Verified live TomTom query is informational: never replace ETA or road
   // geometry just because the provider found a faster alternative.
   const quote=await page.evaluate(()=>{
