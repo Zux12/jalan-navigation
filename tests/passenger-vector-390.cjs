@@ -125,6 +125,45 @@ async function main(){
   assert.match(await page.locator('#jalan-map-status').textContent(),/Basic map/);
   assert.deepEqual(errors,[]);
   await page.close();
+  // Sustained post-style-load vector tile outage: the live provider smoke
+  // above/below cannot establish this recovery behavior on its own.
+  const outage=await context.newPage();currentPage=outage;
+  let failTiles=false,failedTileRequests=0;
+  await outage.route('**/*',route=>route.request().url().startsWith(base)?route.continue():route.abort());
+  await dependencies(outage);
+  const outageStyle=JSON.parse(JSON.stringify(style));
+  outageStyle.sources.outage={type:'vector',tiles:['https://tiles.openfreemap.org/outage-fixture/{z}/{x}/{y}.pbf'],maxzoom:18};
+  outageStyle.layers.push({id:'outage-roads',type:'line',source:'outage','source-layer':'transportation',paint:{'line-color':'#fff'}});
+  await outage.route('https://tiles.openfreemap.org/styles/positron',route=>route.fulfill({json:outageStyle}));
+  await outage.route('https://tiles.openfreemap.org/outage-fixture/**',route=>{
+   if(failTiles){failedTileRequests++;return route.abort('failed');}
+   return route.fulfill({status:200,contentType:'application/x-protobuf',body:Buffer.alloc(0)});
+  });
+  await outage.goto(base+'/index.html?mode=passenger');
+  await outage.waitForFunction(()=>JalanVectorMap?.active,null,{timeout:25000});
+  await outage.evaluate(routeFixture);
+  await outage.locator('#passenger-go').click();
+  await outage.evaluate(fix);
+  await outage.waitForFunction(()=>map.getZoom()>=17);
+  await outage.evaluate(()=>{
+   window.__savedGeometry=routes[selectedRoute].geometry;
+   window.__retainedTraffic=L.tileLayer('https://api.tomtom.com/traffic/map/4/tile/flow/relative0/{z}/{x}/{y}.png?key=FIXTURE',
+    {opacity:.82,maxNativeZoom:18}).addTo(map);
+  });
+  await outage.waitForFunction(()=>JalanVectorMap.getState().trafficLayers===1);
+  failTiles=true;
+  await outage.evaluate(()=>map.setView([3.5,102],17));
+  await outage.waitForFunction(()=>!document.getElementById('jalan-map-status').disabled);
+  assert.ok(failedTileRequests>=3,'sustained outage exercises multiple actual vector tile failures');
+  const recover=outage.getByRole('button',{name:'Map details unavailable · Use basic map'});
+  assert.equal(await recover.isVisible(),true);
+  await recover.focus();await recover.press('Enter');
+  await outage.waitForFunction(()=>!JalanVectorMap.active);
+  assert.equal(await outage.evaluate(()=>routes[selectedRoute].geometry===window.__savedGeometry),true);
+  assert.equal(await outage.evaluate(()=>window.__retainedTraffic._map===map&&map.hasLayer(window.__retainedTraffic)),true,
+    'basic renderer restores enabled TomTom flow without replacing the selected route');
+  assert.equal(await outage.locator('#passenger-map-gestures').isVisible(),true);
+  await outage.close();
   // Live public basemap smoke. Local dependency files, actual provider style,
   // vector tiles, glyphs and sprites. No traffic key or real user's location.
   const live=await context.newPage(),mapFailures=[],tileResponses=[];currentPage=live;
@@ -151,7 +190,7 @@ async function main(){
   await live.screenshot({path:path.join(artifacts,'vector-live-kl-mobile.png')});
   await live.setViewportSize({width:1280,height:800});
   await live.screenshot({path:path.join(artifacts,'vector-live-kl-desktop.png')});
-  console.log('PASS: native WebGL map, GPS projection, gestures, report zoom, traffic lifecycle, fallback and live OpenFreeMap');
+  console.log('PASS: native WebGL map, GPS projection, gestures, report zoom, traffic lifecycle, graphics and post-style tile-outage fallback, live OpenFreeMap');
  }catch(error){
   if(currentPage&&!currentPage.isClosed()){
    await currentPage.screenshot({path:path.join(artifacts,'vector-failure.png')});

@@ -7,8 +7,9 @@
  const host=map.getContainer(),original={},virtualTiles=new Set(),pins=new Map(),rasters=new Map();
  const watched=new WeakSet(),handlers=[],zoomSnap=map.options.zoomSnap;
  let gl=null,active=false,stopped=false,queued=false,syncing=false,lineSignature='',timer,popup=null,popupLayer=null;
- const status=document.createElement('span');
- status.id='jalan-map-status';status.setAttribute('role','status');
+ const status=document.createElement('button');
+ status.type='button';status.disabled=true;status.id='jalan-map-status';status.setAttribute('aria-live','polite');
+ status.addEventListener('click',fallback);
  status.textContent='Loading detailed map…';document.body.append(status);
  const container=document.createElement('div');container.id='jalan-vector-map';host.append(container);
  // Native events belong to MapLibre; the parent Leaflet container would
@@ -65,7 +66,7 @@
    handlers.forEach(handler=>handler.enable());
    pins.forEach(pin=>{pin.marker.remove();pin.label?.remove();});pins.clear();
    if(gl){gl.remove();gl=null;}popup=null;popupLayer=null;container.remove();
-   status.textContent='Basic map · detailed view unavailable';
+   status.disabled=true;status.textContent='Basic map · detailed view unavailable';
    original.invalidateSize({animate:false});emit();
  }
  window.JalanVectorMap={
@@ -265,7 +266,11 @@
        attributionControl:{compact:false},canvasContextAttributes:{antialias:true}});
      gl.on('error',event=>{
        if(event.sourceId&&rasters.has(event.sourceId))rasters.get(event.sourceId).layer.fire('tileerror');
-       else if(active)status.textContent='Some map details unavailable';
+       else if(active){
+         // A style can load successfully before later tile/glyph requests fail.
+         // Keep an accessible escape from the native canvas for that outage.
+         status.disabled=false;status.textContent='Map details unavailable · Use basic map';
+       }
      });
      gl.on('webglcontextlost',fallback);
      gl.once('load',()=>{

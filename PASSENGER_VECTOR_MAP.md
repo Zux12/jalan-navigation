@@ -31,6 +31,9 @@ The map retains OpenFreeMap/OpenMapTiles/OpenStreetMap source attribution and
 TomTom traffic attribution. OpenFreeMap needs no account or API key. Its public
 service is an external availability dependency, so the existing raster map
 stays available for failed loads, unsupported WebGL, or graphics context loss.
+If vector tiles or glyphs fail after startup, a visible keyboard-accessible
+"Use basic map" button restores the existing renderer and current route/traffic
+layers. A successfully loaded style alone does not prove later tiles are usable.
 
 ## Verification
 
