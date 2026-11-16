@@ -117,7 +117,18 @@ async function main(){
     window.__offlineGPSWatch({timestamp:Date.now()+1000,coords:{
       latitude:3.139,longitude:101.6869,accuracy:8,speed:2,heading:0}});
   });
-  await page.waitForFunction(()=>map.getZoom()>=17);
+  await page.waitForTimeout(150);
+  const diagnostic=await page.evaluate(()=>({
+    zoom:map.getZoom(),
+    session:window.JalanGPS?.getState()?.active,
+    matched:window.JalanGPS?.getState()?.matched,
+    accuracy:window.JalanGPS?.getState()?.accuracy,
+    guiding:document.body.classList.contains('passenger-guiding'),
+    flat:document.body.classList.contains('passenger-map-flat'),
+    camera:window.__jalanPassengerCameraDiagnostic||null
+  }));
+  console.log('Offline passenger camera contract: '+JSON.stringify(diagnostic));
+  await page.waitForFunction(()=>map.getZoom()>=17,{timeout:3500});
   assert.equal(await page.evaluate(()=>document.getElementById('passenger-fix').textContent.includes('GPS matched')),true);
   const forward=await page.evaluate(()=>map.getCenter().lat);
   assert.ok(forward>3.139,'passenger camera should center ahead along validated route');
