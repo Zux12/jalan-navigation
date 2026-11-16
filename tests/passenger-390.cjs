@@ -189,6 +189,7 @@ async function main(){
   // Actual proactive engine denies missing key and never offers a route
   // after a blocked TomTom request, even with matched synthetic GPS.
   await page.evaluate(()=>{
+    window.__originalTrafficPrimary=document.getElementById('tt-primary').checked;
     routes[selectedRoute].provider='tomtom';
     document.getElementById('tt-primary').checked=true;
     document.getElementById('tt-key').value='';
@@ -203,7 +204,7 @@ async function main(){
     'failed network request cannot fabricate an alternative');
   await page.evaluate(()=>{
     routes[selectedRoute].provider='osrm';
-    document.getElementById('tt-primary').checked=false;
+    document.getElementById('tt-primary').checked=window.__originalTrafficPrimary;
     document.getElementById('tt-key').value='';
   });
   const forward=await page.evaluate(()=>map.getCenter().lat);
