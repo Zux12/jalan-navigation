@@ -55,7 +55,9 @@ async function main(){
   await page.evaluate(()=>{
    // Deliberately out-of-order synthetic provider returns, NOT live roads.
    const points=[[101.6869,3.139],[101.6953,3.1478]];
-   startPoint=[3.139,101.6869];destination=[3.1478,101.6953];
+   setStart([3.139,101.6869],'Fixture starting point');
+   updateLocation([3.139,101.6869]);
+   destination=[3.1478,101.6953];
    const route=(duration,distance)=>({provider:'osrm',duration,distance,
     geometry:{type:'LineString',coordinates:points},
     legs:[{steps:[{name:'Test segment',distance,maneuver:{type:'turn',modifier:'left'}}]}]});
@@ -100,8 +102,17 @@ async function main(){
   await page.locator('#passenger-route-list button').nth(1).click();
   assert.equal(await page.evaluate(()=>selectedRoute),1,'alternative selectable');
   await page.locator('#passenger-route-list button').first().click();
+  assert.deepEqual(await page.evaluate(()=>({
+    startVisible:!!startMarker&&pointLayer.hasLayer(startMarker),
+    locationVisible:!!locationMarker&&pointLayer.hasLayer(locationMarker)
+  })),{startVisible:true,locationVisible:true},'route-planning indicators visible before Go');
   await page.locator('#passenger-go').click();
   assert.equal(await page.evaluate(()=>document.body.classList.contains('passenger-guiding')),true);
+  assert.deepEqual(await page.evaluate(()=>({
+    startVisible:!!startMarker&&pointLayer.hasLayer(startMarker),
+    locationVisible:!!locationMarker&&pointLayer.hasLayer(locationMarker)
+  })),{startVisible:false,locationVisible:false},
+  'start and legacy location circles must not overlap the passenger vehicle marker');
   assert.equal(await page.locator('#passenger-navigation').isVisible(),true);
   assert.equal(await page.locator('#gps-hud').isVisible(),false,'engineering HUD hidden in clean view');
   assert.equal(await page.locator('.passenger-car-arrow').count(),0,
@@ -132,6 +143,8 @@ async function main(){
   assert.ok(forward>3.139,'passenger camera should center ahead along validated route');
   assert.equal(await page.locator('.jalan-vehicle-marker').count(),1,
     'verified GPS must create one georeferenced marker');
+  assert.equal(await page.evaluate(()=>!!locationMarker&&pointLayer.hasLayer(locationMarker)),false,
+    'ongoing GPS fixes must not recreate legacy location dot in passenger mode');
   assert.equal(await page.locator('.jalan-vehicle-symbol').getAttribute('data-heading'),
     'unavailable','slow GPS must not invent road direction');
   await page.evaluate(()=>{
@@ -162,6 +175,8 @@ async function main(){
   assert.equal(await page.evaluate(()=>document.body.classList.contains('passenger-map-flat')),true);
   await page.locator('#passenger-stop').click();
   assert.equal(await page.evaluate(()=>document.body.classList.contains('passenger-guiding')),false);
+  assert.equal(await page.evaluate(()=>!!startMarker&&pointLayer.hasLayer(startMarker)),true,
+    'route planning start marker returns after ending preview');
   assert.equal(await page.locator('#passenger-overview').isVisible(),true);
   await page.locator('#passenger-settings-top').click();
   assert.equal(await page.locator('#passenger-setup').isVisible(),true);
