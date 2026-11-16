@@ -190,6 +190,10 @@
    if(!document.body.classList.contains('passenger-guiding')||
       document.body.classList.contains('passenger-map-flat'))return;
    const state=window.JalanGPS?.getState();
+   window.__jalanPassengerCameraDiagnostic={seen:true,active:!!state?.active,matched:!!state?.matched,
+     accuracy:state?.accuracy,age:state?.fixAgeMs,detailMatched:!!detail?.matched,
+     positionValid:Array.isArray(detail?.matchedPosition)&&detail.matchedPosition.length===2,
+     zoomBefore:map.getZoom()};
    if(!state?.active||!state.matched||!Number.isFinite(state.accuracy)||
       state.accuracy>75||state.fixAgeMs>10000||
       !detail?.matched||!Array.isArray(detail.matchedPosition)||
