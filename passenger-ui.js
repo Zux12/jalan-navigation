@@ -285,6 +285,7 @@
    if(!document.body.classList.contains('passenger-guiding')||
       !state?.active||!state.matched||state.fixAgeMs>10000||
       info?.provider!=='tomtom'||state.route!==info.route||
+      state.route?.provider!=='tomtom'||!el('tt-primary')?.checked||!el('tt-key')?.value.trim()||
       !Number.isFinite(info.seconds)||info.seconds<=0||
       !Number.isFinite(info.checkedAt)||Math.abs(Date.now()-info.checkedAt)>30000)return;
    const minutes=Math.max(1,Math.round(info.seconds/60));
@@ -321,8 +322,10 @@
    trafficStatus.textContent=String(event.detail?.message||'Traffic check unavailable.');
    syncTraffic();
    // Do not leave an old proposal visible after a failed or cancelled check.
-   if(/failed|changed|removed|unavailable|waiting|off|expired|kept|selected/i.test(trafficStatus.textContent))
+   if(/failed|changed|removed|unavailable|waiting|off|expired|kept|selected/i.test(trafficStatus.textContent)){
      hideTrafficOffer();
+     if(/changed|removed|off|selected/i.test(trafficStatus.textContent))clearLiveEta();
+   }
  });
  window.addEventListener('jalan:route-offer',event=>{
    if(!document.body.classList.contains('passenger-guiding')||
