@@ -205,6 +205,8 @@
    map.stop();
    if(map.getZoom()<17)map.setView(center,17,{animate:false,reset:true});
    else map.panTo(center,{animate:false});
+   window.__jalanPassengerCameraDiagnostic.zoomAfter=map.getZoom();
+   window.__jalanPassengerCameraDiagnostic.maxZoom=map.getMaxZoom();
  };
  window.addEventListener('jalan:gps-fix',event=>{
    // GPS module has already updated its trust state at dispatch. Camera
