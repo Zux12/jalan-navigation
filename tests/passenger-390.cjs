@@ -228,13 +228,46 @@ async function main(){
     'follow camera must keep the matched vehicle location in frame');
   assert.match(await page.locator('#passenger-instruction').innerText(),/left/i,
     'the banner shows the next maneuver provided by the selected route');
+  // The top banner remains fixed and opening it defaults to available Reports.
+  assert.equal(await page.locator('#passenger-turn-toggle').evaluate(x=>getComputedStyle(x).position),
+    'fixed','next-turn banner remains locked while the map moves');
+  await page.evaluate(()=>{
+    localStorage.setItem('jalan-demo-reports-v1',JSON.stringify([
+      {type:'flood',lat:3.144,lng:101.6917,time:Date.now()},
+      {type:'hazard',lat:4.0,lng:102.0,time:Date.now()}
+    ]));
+  });
   await page.locator('#passenger-turn-toggle').click();
   assert.equal(await page.locator('#passenger-turn-list').isVisible(),true);
+  assert.equal(await page.locator('#passenger-tab-reports').getAttribute('aria-selected'),'true',
+    'Reports tab selected by default');
+  assert.equal(await page.locator('#passenger-report-list li').count(),1,
+    'only demo reports projected near the selected road appear');
+  assert.match(await page.locator('#passenger-report-list').innerText(),
+    /unverified demo report|from report to destination/i);
+  // A TomTom incident must belong to the same selected route and its
+  // original provider fetch. Never invent an incident if traffic unavailable.
+  await page.evaluate(()=>{
+    window.dispatchEvent(new CustomEvent('jalan:incidents-updated',{detail:{
+      route:window.JalanGPS.getState().route,checkedAt:Date.now(),
+      incidents:[{lat:3.145,lng:101.6925,description:'Reported traffic delay',category:'🚧'}]
+    }}));
+  });
+  assert.equal(await page.locator('#passenger-report-list li').count(),2,
+    'confirmed TomTom event is shown beside labeled demo report');
+  await page.locator('#passenger-tab-directions').click();
+  assert.equal(await page.locator('#passenger-tab-directions').getAttribute('aria-selected'),'true');
   assert.equal(await page.locator('#passenger-maneuver-list li').count(),2,
-    'list includes the actual next maneuver and destination');
+    'Directions tab includes the actual next maneuver and destination');
   assert.match(await page.locator('#passenger-maneuver-list').innerText(),/Test segment|left|destination/i);
+  await page.locator('#passenger-tab-reports').click();
+  assert.equal(await page.locator('#passenger-report-list li').count(),2);
   await page.locator('#passenger-turn-close').click();
   assert.equal(await page.locator('#passenger-turn-list').isVisible(),false);
+  await page.locator('#passenger-turn-toggle').click();
+  assert.equal(await page.locator('#passenger-tab-reports').getAttribute('aria-selected'),'true',
+    'reopened turn banner defaults back to Reports');
+  await page.locator('#passenger-turn-close').click();
   assert.equal(await page.locator('.jalan-vehicle-marker').count(),1,
     'verified GPS must create one georeferenced marker');
   assert.equal(await page.locator('#passenger-vehicle-screen').isVisible(),true,
@@ -385,6 +418,27 @@ async function main(){
   });
   assert.deepEqual(await page.evaluate(()=>[map.getCenter().lat,map.getCenter().lng]),exploreCenter,
     'GPS updates do not steal the camera while manually exploring');
+  assert.equal(await page.locator('#passenger-recenter-floating').isVisible(),true,
+    'right-side Recenter remains available without opening the menu');
+  await page.locator('#passenger-recenter-floating').click();
+  assert.match(await page.locator('#passenger-gesture-hint').innerText(),/Following GPS/);
+  // Repeated identical GPS fixes must not invoke Leaflet setView or panTo:
+  // this previously flashed raster tiles on the phone after Recenter.
+  const stableCamera=await page.evaluate(()=>{
+    const originalSet=map.setView.bind(map),originalPan=map.panTo.bind(map);
+    let setCount=0,panCount=0;
+    map.setView=(...args)=>{setCount++;return originalSet(...args);};
+    map.panTo=(...args)=>{panCount++;return originalPan(...args);};
+    const position=window.JalanGPS.getState().position;
+    for(let i=0;i<3;i++){
+      window.__offlineGPSWatch({timestamp:Date.now()+5000+i*1000,coords:{
+        latitude:position[0],longitude:position[1],accuracy:8,speed:0,heading:0}});
+    }
+    const result={setCount,panCount};map.setView=originalSet;map.panTo=originalPan;
+    return result;
+  });
+  assert.deepEqual(stableCamera,{setCount:0,panCount:0},
+    'stationary GPS updates must not redraw the entire route camera');
   await page.locator('#passenger-recenter').click();
   assert.match(await page.locator('#passenger-gesture-hint').innerText(),/Following GPS/);
   assert.equal(await page.evaluate(()=>map.getZoom()),17,
