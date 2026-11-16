@@ -230,8 +230,23 @@
  const reportsTab=el('passenger-tab-reports'),directionsTab=el('passenger-tab-directions'),
        reportsPanel=el('passenger-reports-panel'),directionsPanel=el('passenger-directions-panel'),
        reportList=el('passenger-report-list'),reportNote=el('passenger-report-note');
- let activeInfoTab='reports';
+ let activeInfoTab='reports',incidentSnapshot={route:null,incidents:[],checkedAt:0};
  const reportFocus=L.layerGroup().addTo(map);
+ const passengerDemoReports=L.layerGroup().addTo(map);
+ const refreshDemoReportMarkers=()=>{
+   passengerDemoReports.clearLayers();
+   const coords=window.JalanGPS?.getState?.()?.route?.geometry?.coordinates;
+   if(!coords)return;
+   for(const report of (typeof getReports==='function'?getReports():[])){
+     if(!report||!['accident','flood','hazard','rain'].includes(report.type))continue;
+     const match=window.JalanTomTom?.matchReportGeometry(
+       {type:'Point',coordinates:[Number(report.lng),Number(report.lat)]},coords);
+     if(!match)continue;
+     L.marker([match.lat,match.lng],{icon:L.divIcon({className:'report-marker passenger-demo-report-marker',
+       html:'⚠️',iconSize:[28,28],iconAnchor:[14,14]}),
+       title:report.type.toUpperCase()+' · unverified demo report'}).addTo(passengerDemoReports);
+   }
+ };
  let focusedReport=null;
  const clearReportFocus=()=>{reportFocus.clearLayers();focusedReport=null;};
  const focusReport=(item,route)=>{
@@ -256,6 +271,9 @@
    scheduleScreenVehicle();
    el('passenger-recenter-floating').focus({preventScroll:true});
  };
+ // Share the same projection and 25m corridor with provider map pins.
+ const pointOnRoute=(position,coords)=>Array.isArray(position)?
+   window.JalanTomTom?.projectReportPoint([position[1],position[0]],coords):null;
  const renderReports=()=>{
    reportList.replaceChildren();
    const state=window.JalanGPS?.getState?.(),route=state?.route,
@@ -264,17 +282,40 @@
      reportNote.textContent='Choose a route to see traffic reports.';
      return;
    }
-   // Only the traffic module's current selected-route snapshot is eligible.
-   // Local demos and area incidents cannot establish a carriageway/direction.
-   const positioned=(window.JalanTomTom?.getRouteReports(route)||[]).map(item=>({...item,
-     title:'TomTom · '+item.title,detail:item.description,source:'tomtom',
-     fromReportToDestination:Math.max(0,item.total-item.along)}));
+   const current=state.matched&&state.fixAgeMs<=10000&&state.accuracy<=75&&Array.isArray(state.position)?
+     pointOnRoute(state.position,coords):null;
+   const items=[];
+   // Local community reports are demo records, NOT verified incidents.
+   for(const report of (typeof getReports==='function'?getReports():[])){
+     if(!report||!['accident','flood','hazard','rain'].includes(report.type))continue;
+     items.push({lat:Number(report.lat),lng:Number(report.lng),
+       title:report.type.toUpperCase()+' · unverified demo report',
+       detail:'Local demonstration report',source:'demo'});
+   }
+   const freshIncidents=incidentSnapshot.route===route&&
+     Date.now()-incidentSnapshot.checkedAt<=10*60*1000?incidentSnapshot.incidents:[];
+   for(const incident of freshIncidents){
+     items.push({lat:Number(incident.lat),lng:Number(incident.lng),
+       title:'TomTom traffic incident',detail:String(incident.description||'Traffic event').slice(0,160),
+       source:'tomtom'});
+   }
+   const positioned=[];
+   for(const item of items){
+     if(!Number.isFinite(item.lat)||!Number.isFinite(item.lng)||
+        Math.abs(item.lat)>90||Math.abs(item.lng)>180)continue;
+     const projected=pointOnRoute([item.lat,item.lng],coords);
+     if(!projected||projected.offset>window.JalanTomTom.reportRouteTolerance||
+        (current&&projected.along<current.along-30))continue;
+     positioned.push({...item,ahead:current?Math.max(0,projected.along-current.along):null,routeAlong:projected.along,
+       fromReportToDestination:Math.max(0,projected.total-projected.along)});
+   }
+   positioned.sort((a,b)=>a.routeAlong-b.routeAlong);
    for(const item of positioned.slice(0,40)){
      const li=document.createElement('li'),button=document.createElement('button'),
            marker=document.createElement('span'),
            info=document.createElement('div'),title=document.createElement('strong'),
            distances=document.createElement('small'),detail=document.createElement('small');
-     marker.className='turn-list-arrow';marker.textContent=item.category;
+     marker.className='turn-list-arrow';marker.textContent=item.source==='demo'?'⚠️':'🚧';
      marker.setAttribute('aria-hidden','true');
      button.type='button';button.className='passenger-report-button';
      button.setAttribute('aria-label','View report on map: '+item.title+' · '+item.detail);
@@ -286,11 +327,14 @@
      info.append(title,distances,detail);button.append(marker,info);
      li.appendChild(button);reportList.appendChild(li);
    }
-   const hasIncidents=window.JalanTomTom?.hasRouteTraffic(route);
+   const hasIncidents=incidentSnapshot.route===route&&
+     Date.now()-incidentSnapshot.checkedAt<=10*60*1000;
    reportNote.textContent=positioned.length?
-     'TomTom traffic on your route toward destination. Distances are approximate.':
-     hasIncidents?'TomTom returned no traffic sections affecting your remaining route.':
-       'Traffic for this route is not confirmed yet. '+el('passenger-traffic-summary').textContent;
+     'Reports closely match the blue route. Traffic colours also show surrounding roads. Demo reports are unverified. '+
+       (current?'Distances are approximate along-route values.':'Showing the selected route; distance from you awaits verified GPS.'):
+     'No applicable reports ahead on this selected route.'+
+       (hasIncidents?' TomTom incident check returned no applicable items.':
+        ' '+el('passenger-traffic-summary').textContent);
  };
  const selectInfoTab=tab=>{
    activeInfoTab=tab==='directions'?'directions':'reports';
@@ -303,8 +347,11 @@
  };
  reportsTab.addEventListener('click',()=>selectInfoTab('reports'));
  directionsTab.addEventListener('click',()=>selectInfoTab('directions'));
- window.addEventListener('jalan:incidents-updated',()=>{
+ window.addEventListener('jalan:incidents-updated',event=>{
+   const detail=event.detail||{};
    if(focusedReport?.source==='tomtom')clearReportFocus();
+   incidentSnapshot={route:detail.route||null,incidents:Array.isArray(detail.incidents)?detail.incidents:[],
+     checkedAt:Number(detail.checkedAt)||0};
    if(!turnList.classList.contains('hidden')&&activeInfoTab==='reports')renderReports();
  });
  const turnIcon=action=>/roundabout/i.test(action)?'⟳':
@@ -487,9 +534,9 @@
    trafficOffer.classList.remove('hidden');
  });
  window.addEventListener('jalan:route-change',()=>{
-   hideTrafficOffer();clearLiveEta();clearReportFocus();
+   hideTrafficOffer();clearLiveEta();clearReportFocus();refreshDemoReportMarkers();
  });
- window.addEventListener('jalan:route-cleared',()=>{clearReportFocus();});
+ window.addEventListener('jalan:route-cleared',()=>{clearReportFocus();passengerDemoReports.clearLayers();});
  window.addEventListener('jalan:route-decline',hideTrafficOffer);
  syncTraffic();
  el('passenger-go').addEventListener('click',()=>{
@@ -504,6 +551,7 @@
  window.addEventListener('jalan:journey-start',()=>{
    closeDirections();
    clearReportFocus();
+   incidentSnapshot={route:null,incidents:[],checkedAt:0};
    el('passenger-options').open=false;
    clearLiveEta();
    el('passenger-signal-alert').classList.remove('hidden');
@@ -518,6 +566,7 @@
    if(!routes.length)return;
    hidePlannerMarkers();
    map.removeLayer(reportLayer);
+   refreshDemoReportMarkers();
    // The selected road remains prominent, while unused grey alternatives
    // are hidden during Go. Route overview regains them after preview exits.
    routeLayer.getLayers().forEach((line,i)=>{
@@ -538,6 +587,7 @@
  window.addEventListener('jalan:journey-stop',()=>{
    closeDirections();
    clearReportFocus();
+   passengerDemoReports.clearLayers();
    if(!map.hasLayer(reportLayer))reportLayer.addTo(map);
    el('passenger-options').open=false;
    clearLiveEta();

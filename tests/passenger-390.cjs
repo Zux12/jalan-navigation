@@ -118,8 +118,8 @@ async function main(){
   await page.locator('#passenger-go').click();
   assert.equal(await page.evaluate(()=>map.hasLayer(reportLayer)),false,
     'Go hides the unrestricted area-wide demo marker layer');
-  assert.equal(await page.locator('.passenger-demo-report-marker').count(),0,
-    'demo reports lack a direction association and stay off the navigation map');
+  assert.equal(await page.locator('.passenger-demo-report-marker').count(),1,
+    'only the demo pin close to the selected route appears during navigation');
   assert.equal(await page.evaluate(()=>document.body.classList.contains('passenger-guiding')),true);
   assert.deepEqual(await page.evaluate(()=>({
     startVisible:!!startMarker&&pointLayer.hasLayer(startMarker),
@@ -248,15 +248,21 @@ async function main(){
   assert.equal(await page.locator('#passenger-turn-list').isVisible(),true);
   assert.equal(await page.locator('#passenger-tab-reports').getAttribute('aria-selected'),'true',
     'Reports tab selected by default');
-  assert.equal(await page.locator('#passenger-report-list li').count(),0,
-    'unverified demo reports cannot establish the selected road direction');
-  // Area events, even at precisely the same coordinates, are not a provider
-  // route association. Only the traffic module's validated snapshot is used.
-  await page.evaluate(()=>window.dispatchEvent(new CustomEvent('jalan:incidents-updated',{detail:{
-    route:window.JalanGPS.getState().route,checkedAt:Date.now(),
-    incidents:[{lat:3.139,lng:101.6869,description:'Opposite direction area report'}]
-  }})));
-  assert.equal(await page.locator('#passenger-report-list li').count(),0);
+  assert.equal(await page.locator('#passenger-report-list li').count(),1,
+    'only demo reports projected near the selected road appear');
+  assert.match(await page.locator('#passenger-report-list').innerText(),
+    /unverified demo report|from report to destination/i);
+  // A TomTom incident must belong to the same selected route and its
+  // original provider fetch. Never invent an incident if traffic unavailable.
+  await page.evaluate(()=>{
+    window.dispatchEvent(new CustomEvent('jalan:incidents-updated',{detail:{
+      route:window.JalanGPS.getState().route,checkedAt:Date.now(),
+      incidents:[{lat:3.145,lng:101.6925,description:'Reported traffic delay',category:'🚧'},
+        {lat:3.145,lng:101.694,description:'Unrelated nearby road',category:'🚧'}]
+    }}));
+  });
+  assert.equal(await page.locator('#passenger-report-list li').count(),2,
+    'route incident appears beside the demo, with the nearby-road incident excluded');
   const reportCenter=()=>page.evaluate(()=>[map.getCenter().lat,map.getCenter().lng]);
   const assertReportCenter=async(lat,lng)=>{
     const center=await reportCenter();
@@ -264,13 +270,36 @@ async function main(){
       'report camera centers on the actual reported coordinates');
     assert.equal(await page.evaluate(()=>map.getZoom()),18,'report opens at street detail');
   };
+  await page.evaluate(()=>{window.__routeBeforeReport=window.JalanGPS.getState().route;});
+  await page.locator('#passenger-report-list button').first().tap();
+  await assertReportCenter(3.144,101.6917);
+  assert.equal(await page.locator('#passenger-turn-list').isVisible(),false,
+    'tapping a report dismisses the panel so the location is visible');
+  assert.equal(await page.locator('#passenger-turn-toggle').getAttribute('aria-expanded'),'false');
+  assert.equal(await page.locator('.jalan-report-focus-marker').count(),1);
+  assert.match(await page.locator('.jalan-report-focus-label').innerText(),/unverified demo report/);
+  assert.equal(await page.locator('#passenger-recenter-floating').evaluate(x=>x===document.activeElement),true,
+    'focus moves out of the hidden report panel to Recenter');
+  await page.evaluate(()=>window.__offlineGPSWatch({timestamp:Date.now()+1000,coords:{
+    latitude:3.139,longitude:101.6869,accuracy:8,speed:0,heading:0}}));
+  await page.waitForTimeout(100);
+  await assertReportCenter(3.144,101.6917);
+  assert.equal(await page.evaluate(()=>window.JalanGPS.getState().route===window.__routeBeforeReport),true,
+    'viewing a report never changes the selected route');
+  await page.locator('#passenger-recenter-floating').tap();
+  assert.equal(await page.locator('.jalan-report-focus-marker').count(),0,
+    'Recenter clears the report highlight');
+  const returned=await reportCenter();
+  assert.ok(Math.abs(returned[0]-3.139)<0.00002&&Math.abs(returned[1]-101.6869)<0.00002,
+    'Recenter returns to the trusted GPS position');
+  await page.locator('#passenger-turn-toggle').click();
   await page.locator('#passenger-tab-directions').click();
   assert.equal(await page.locator('#passenger-tab-directions').getAttribute('aria-selected'),'true');
   assert.equal(await page.locator('#passenger-maneuver-list li').count(),2,
     'Directions tab includes the actual next maneuver and destination');
   assert.match(await page.locator('#passenger-maneuver-list').innerText(),/Test segment|left|destination/i);
   await page.locator('#passenger-tab-reports').click();
-  assert.equal(await page.locator('#passenger-report-list li').count(),0);
+  assert.equal(await page.locator('#passenger-report-list li').count(),2);
   await page.locator('#passenger-turn-close').click();
   assert.equal(await page.locator('#passenger-turn-list').isVisible(),false);
   await page.locator('#passenger-turn-toggle').click();
@@ -547,31 +576,31 @@ async function main(){
   assert.equal(await page.evaluate(()=>document.getElementById('tt-key').value),'');
   // Exercise actual Go -> traffic module -> mocked provider -> Reports flow.
   // All provider requests remain intercepted; no real key or GPS is sent.
-  let incidentRequests=0,trafficRouteRequests=0,incidentFailure=false,areaRequests=0;
+  let incidentRequests=0,trafficRouteRequests=0,incidentFailure=false;
+  await page.route('https://api.tomtom.com/traffic/map/**',route=>route.fulfill({
+    status:200,contentType:'image/png',body:Buffer.from(
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=','base64')}));
   await page.route('https://api.tomtom.com/traffic/services/5/incidentDetails?**',route=>{
-    areaRequests++;return route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({incidents:[{
+    incidentRequests++;
+    return route.fulfill({status:incidentFailure?503:200,contentType:'application/json',body:JSON.stringify({incidents:[{
       geometry:{type:'Point',coordinates:[101.6925,3.145]},
-      properties:{id:'wrong-carriageway',events:[{description:'Opposite direction traffic'}]}
+      properties:{iconCategory:6,events:[{description:'Fixture roadworks ahead'}]}
+    },{
+      geometry:{type:'Point',coordinates:[101.694,3.145]},
+      properties:{iconCategory:6,events:[{description:'Unrelated nearby road'}]}
+    },{
+      geometry:{type:'LineString',coordinates:[[101.6889,3.139],[101.6973,3.1478]]},
+      properties:{iconCategory:6,events:[{description:'Unrelated parallel road'}]}
+    },{
+      geometry:{type:'LineString',coordinates:[[101.6827,3.1346],[101.69362,3.14604]]},
+      properties:{iconCategory:6,events:[{description:'Long incident overlapping selected route'}]}
     }]})});
   });
   await page.route('https://api.tomtom.com/routing/1/calculateRoute/**',route=>{
-    const request=route.request(),isTraffic=request.method()==='POST';
-    if(isTraffic){
-      incidentRequests++;
-      const query=new URL(request.url()).searchParams;
-      assert.equal(query.get('reconstructionMode'),'update');
-      assert.equal(query.get('sectionType'),'traffic');
-      assert.equal(query.get('maxAlternatives'),'0');
-      assert.equal(request.postDataJSON().supportingPoints.length,4);
-    }else trafficRouteRequests++;
-    return route.fulfill({status:isTraffic&&incidentFailure?503:200,contentType:'application/json',body:JSON.stringify({routes:[{
-      legs:[{points:[{latitude:3.139,longitude:101.6869},{latitude:3.142,longitude:101.6897},
-        {latitude:3.145,longitude:101.6925},{latitude:3.1478,longitude:101.6953}]}],
-      summary:{lengthInMeters:3200,travelTimeInSeconds:600,trafficDelayInSeconds:30},guidance:{instructions:[]},
-      sections:isTraffic?[{sectionType:'TRAFFIC',startPointIndex:2,endPointIndex:3,
-        simpleCategory:'ROAD_WORK',delayInSeconds:180,eventId:'same-direction-works'},
-        {sectionType:'TRAFFIC',startPointIndex:1,endPointIndex:2,simpleCategory:'JAM',
-        delayInSeconds:120,effectiveSpeedInKmh:15,eventId:'same-direction-jam'}]:[]
+    trafficRouteRequests++;
+    return route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({routes:[{
+      legs:[{points:[{latitude:3.139,longitude:101.6869},{latitude:3.1478,longitude:101.6953}]}],
+      summary:{lengthInMeters:3200,travelTimeInSeconds:600,trafficDelayInSeconds:30},guidance:{instructions:[]}
     }]})});
   });
   await page.goto(base+'/index.html?mode=passenger',{waitUntil:'load'});
@@ -582,16 +611,14 @@ async function main(){
     localStorage.removeItem('jalan-demo-reports-v1');
     setStart([3.139,101.6869],'Fixture start');destination=[3.1478,101.6953];
     routes=[{provider:'tomtom',duration:600,distance:3200,delay:30,
-      geometry:{type:'LineString',coordinates:[[101.6869,3.139],[101.6897,3.142],
-        [101.6925,3.145],[101.6953,3.1478]]},legs:[{steps:[]}]}];
+      geometry:{type:'LineString',coordinates:[[101.6869,3.139],[101.6953,3.1478]]},legs:[{steps:[]}]}];
     selectedRoute=0;renderRoutes();
   });
   await setupTrafficRoute();
   assert.equal(incidentRequests,0,'route review does not start traffic fetching');
   await page.locator('#passenger-go').click();
   await page.waitForFunction(()=>document.getElementById('passenger-traffic-summary').dataset.state==='ready');
-  assert.equal(incidentRequests,1,'Go refreshes traffic on the selected ordered route');
-  assert.equal(areaRequests,0,'area incidents cannot establish direction and are never fetched');
+  assert.equal(incidentRequests,1,'Go fetches incidents without opening options');
   assert.equal(trafficRouteRequests,0,'GPS-based traffic checks wait for a trusted fix');
   assert.equal(await page.locator('#passenger-options').evaluate(x=>x.open),false);
   assert.equal(await page.locator('#passenger-traffic-summary').isVisible(),true);
@@ -603,19 +630,16 @@ async function main(){
   const trafficLayers=()=>page.evaluate(()=>{
     let n=0;map.eachLayer(layer=>{if(String(layer._url||'').includes('/traffic/map/'))n++;});return n;
   });
-  assert.equal(await trafficLayers(),0,'Passenger map has no area-wide traffic colours');
-  assert.equal(await page.locator('.jalan-route-traffic-section').count(),2,
-    'only provider-associated affected sections receive traffic colouring');
+  assert.equal(await trafficLayers(),1,'Go starts one traffic colour overlay');
   await page.locator('#passenger-turn-toggle').click();
-  assert.match(await page.locator('#passenger-report-list').innerText(),/Roadworks/);
+  assert.match(await page.locator('#passenger-report-list').innerText(),/Fixture roadworks ahead/);
   assert.equal(await page.locator('#passenger-report-list li').count(),2);
-  assert.doesNotMatch(await page.locator('#passenger-report-list').innerText(),/Opposite direction|Unrelated/);
-  await page.getByRole('button',{name:/Traffic congestion/}).tap();
-  await assertReportCenter(3.142,101.6897);
+  assert.doesNotMatch(await page.locator('#passenger-report-list').innerText(),/Unrelated/);
+  await page.getByRole('button',{name:/Long incident overlapping selected route/}).tap();
+  await assertReportCenter(3.14252,101.69026);
   await page.locator('#passenger-turn-toggle').click();
   // Reports can be inspected immediately after Go, even before GPS matches.
-  await page.evaluate(()=>{window.__routeBeforeReport=window.JalanGPS.getState().route;});
-  const liveReport=page.getByRole('button',{name:/View report on map: TomTom.*Roadworks/});
+  const liveReport=page.getByRole('button',{name:/View report on map: TomTom traffic incident.*Fixture roadworks ahead/});
   await liveReport.focus();
   await liveReport.press('Enter');
   await assertReportCenter(3.145,101.6925);
@@ -623,8 +647,6 @@ async function main(){
   assert.equal(await page.locator('.jalan-vehicle-marker').count(),0,
     'a report marker must not impersonate a matched GPS vehicle');
   assert.equal(await page.locator('#passenger-turn-list').isVisible(),false);
-  assert.equal(await page.locator('#passenger-turn-toggle').getAttribute('aria-expanded'),'false');
-  assert.equal(await page.locator('#passenger-recenter-floating').evaluate(x=>x===document.activeElement),true);
   await page.evaluate(()=>window.__offlineGPSWatch({timestamp:Date.now(),coords:{
     latitude:3.139,longitude:101.6869,accuracy:8,speed:0,heading:0}}));
   await page.waitForFunction(()=>document.getElementById('passenger-live-eta').textContent.includes('10 min'));
@@ -632,20 +654,16 @@ async function main(){
   await page.locator('#passenger-recenter-floating').click();
   assert.equal(await page.locator('.jalan-report-focus-marker').count(),0);
   assert.equal(trafficRouteRequests,1,'first trusted fix starts the immediate traffic route check');
-  assert.equal(await page.evaluate(()=>window.JalanGPS.getState().route===window.__routeBeforeReport),true,
-    'report focus and traffic reconstruction never replace the selected route');
   await page.evaluate(()=>window.__offlineGPSWatch({timestamp:Date.now()+1000,coords:{
     latitude:3.139,longitude:101.6869,accuracy:8,speed:0,heading:0}}));
   assert.equal(trafficRouteRequests,1,'GPS updates do not repeatedly request traffic routes');
   await page.locator('#passenger-turn-toggle').click();
-  await page.getByRole('button',{name:/Roadworks/}).tap();
+  await page.getByRole('button',{name:/Fixture roadworks ahead/}).tap();
   await assertReportCenter(3.145,101.6925);
   await page.locator('#passenger-options > summary').click();
   await page.locator('#passenger-traffic-details summary').click();
   await page.locator('#passenger-traffic-toggle').click();
-  assert.equal(await trafficLayers(),0,'Live traffic Off has no area-wide colour overlay');
-  assert.equal(await page.locator('.jalan-route-traffic-section').count(),0,
-    'Live traffic Off removes route-specific markings');
+  assert.equal(await trafficLayers(),0,'Live traffic Off removes colour overlay');
   assert.equal(await page.locator('.jalan-report-focus-marker').count(),0,
     'Live traffic Off also removes the selected incident highlight');
   assert.equal(await page.locator('#passenger-traffic-summary').getAttribute('data-state'),'off');
