@@ -104,7 +104,19 @@ async function main(){
   assert.equal(await page.evaluate(()=>document.body.classList.contains('passenger-guiding')),true);
   assert.equal(await page.locator('#passenger-navigation').isVisible(),true);
   assert.equal(await page.locator('#gps-hud').isVisible(),false,'engineering HUD hidden in clean view');
-  const zoomBefore=await page.evaluate(()=>map.getZoom());
+  const zoomBefore=await page.evaluate(()=>{
+    window.__jalanCameraTrace=[];
+    for(const method of ['setView','fitBounds','panTo','setZoom']){
+      const original=map[method].bind(map);
+      map[method]=(...args)=>{
+        window.__jalanCameraTrace.push({method,zoom:map.getZoom(),target:method==='setView'?args[1]:null,
+          stack:new Error().stack?.split('\\n').slice(1,4).join(' | ')});
+        return original(...args);
+      };
+    }
+    map.on('zoomend',()=>window.__jalanCameraTrace.push({method:'zoomend',zoom:map.getZoom()}));
+    return map.getZoom();
+  });
   // Unreliable GPS must NEVER silently zoom into an asserted matched road.
   await page.evaluate(()=>{
     window.__offlineGPSWatch({timestamp:Date.now(),coords:{
@@ -129,6 +141,7 @@ async function main(){
   }));
   console.log('Offline passenger camera contract: '+JSON.stringify(diagnostic));
   console.log('Offline passenger page exceptions: '+JSON.stringify(errors.slice(0,3)));
+  console.log('Offline passenger map trace: '+JSON.stringify(await page.evaluate(()=>window.__jalanCameraTrace.slice(-18))));
   await page.waitForFunction(()=>map.getZoom()>=17,null,{timeout:4000});
   assert.equal(await page.evaluate(()=>document.getElementById('passenger-fix').textContent.includes('GPS matched')),true);
   const forward=await page.evaluate(()=>map.getCenter().lat);
