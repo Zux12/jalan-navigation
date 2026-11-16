@@ -143,6 +143,11 @@ async function main(){
   assert.ok(forward>3.139,'passenger camera should center ahead along validated route');
   assert.equal(await page.locator('.jalan-vehicle-marker').count(),1,
     'verified GPS must create one georeferenced marker');
+  assert.equal(await page.locator('#passenger-vehicle-screen').isVisible(),true,
+    'upright vehicle HUD is visible only on matched GPS');
+  assert.equal(await page.locator('#passenger-vehicle-screen').textContent(),'▲');
+  assert.equal(await page.evaluate(()=>getComputedStyle(document.querySelector('.jalan-vehicle-marker')).opacity),'0',
+    'rotating map must not draw a second triangle');
   assert.equal(await page.evaluate(()=>!!locationMarker&&pointLayer.hasLayer(locationMarker)),false,
     'ongoing GPS fixes must not recreate legacy location dot in passenger mode');
   assert.equal(await page.locator('.jalan-vehicle-symbol').getAttribute('data-heading'),
@@ -157,6 +162,11 @@ async function main(){
   assert.ok(Number.isFinite(slowDirection.map)&&
     Math.abs(slowDirection.map+slowDirection.marker)<0.01,
     'triangle stays up while map uses estimated route bearing');
+  const visibleTriangle=await page.locator('#passenger-vehicle-screen').boundingBox();
+  const anchorTriangle=await page.locator('.jalan-vehicle-marker').boundingBox();
+  assert.ok(Math.abs(visibleTriangle.x+visibleTriangle.width/2-
+    (anchorTriangle.x+anchorTriangle.width/2))<6,
+    'upright triangle stays screen-aligned with georeferenced marker');
   await page.evaluate(()=>{
     window.__offlineGPSWatch({timestamp:Date.now()+2500,coords:{
       latitude:3.1391,longitude:101.6870,accuracy:8,speed:5,heading:90}});
@@ -200,6 +210,28 @@ async function main(){
   assert.equal(touchResults.moved,true,'one finger drags tilted map');
   assert.equal(touchResults.zoomChanged,true,'two fingers pinch to zoom tilted map');
   assert.equal(touchResults.bearingChanged,true,'two fingers twist to rotate tilted map');
+  assert.equal(await page.evaluate(()=>getComputedStyle(document.getElementById('passenger-vehicle-screen')).transform.includes('matrix(')),true,
+    'upright vehicle HUD uses its own transform, separate from camera turn');
+  // Slow incremental pinches are common on iOS. The old per-event threshold
+  // never accumulated them, so test a full gesture across several small moves.
+  const incrementalPinch=await page.evaluate(()=>{
+    const surface=document.getElementById('passenger-map-gestures');
+    const send=(type,p)=>{
+      const e=new Event(type,{bubbles:true,cancelable:true});
+      Object.defineProperty(e,'touches',{value:p.map(([clientX,clientY])=>({clientX,clientY}))});
+      surface.dispatchEvent(e);
+    };
+    map.setZoom(15,{animate:false});
+    const before=map.getZoom();
+    send('touchstart',[[150,400],[250,400]]);
+    for(const d of [102,104,106,108,110,113,116,120]){
+      send('touchmove',[[200-d/2,400],[200+d/2,400]]);
+    }
+    send('touchend',[]);
+    return {before,after:map.getZoom()};
+  });
+  assert.ok(incrementalPinch.after>incrementalPinch.before,
+    'incremental two-finger pinch must accumulate into a zoom step');
   assert.match(touchResults.exploringText,/Exploring map/);
   const exploreCenter=await page.evaluate(()=>[map.getCenter().lat,map.getCenter().lng]);
   await page.evaluate(()=>{
@@ -210,13 +242,43 @@ async function main(){
     'GPS updates do not steal the camera while manually exploring');
   await page.locator('#passenger-recenter').click();
   assert.match(await page.locator('#passenger-gesture-hint').innerText(),/Following GPS/);
+  assert.equal(await page.evaluate(()=>map.getZoom()),17,
+    'Recenter explicitly restores navigation zoom after exploration');
+  const restored=await page.evaluate(()=>[map.getCenter().lat,map.getCenter().lng]);
+  assert.notDeepEqual(restored,exploreCenter,
+    'Recenter returns the map to the GPS-follow target instead of keeping the dragged view');
   await page.locator('#passenger-2d').click();
   assert.equal(await page.evaluate(()=>document.getElementById('map').style.getPropertyValue('--jalan-camera-turn')),
     '0deg','2D mode stays north-up');
   assert.equal(await page.evaluate(()=>getComputedStyle(document.getElementById('map')).pointerEvents),
-    'auto','flat 2D must restore native Leaflet touch interactions');
+    'none','2D map rotation uses a dedicated gesture plane, not mismatched Leaflet hit testing');
   assert.equal(await page.evaluate(()=>getComputedStyle(document.getElementById('passenger-map-gestures')).pointerEvents),
-    'none','flat 2D touch must reach Leaflet without transformed overlay');
+    'auto','2D gesture plane supports pan pinch and twist');
+  const flatGestures=await page.evaluate(()=>{
+    const surface=document.getElementById('passenger-map-gestures');
+    const send=(type,p)=>{
+      const e=new Event(type,{bubbles:true,cancelable:true});
+      Object.defineProperty(e,'touches',{value:p.map(([clientX,clientY])=>({clientX,clientY}))});
+      surface.dispatchEvent(e);
+    };
+    const before=map.getCenter(),zoom=map.getZoom();
+    send('touchstart',[[170,350]]);
+    send('touchmove',[[210,390]]);
+    send('touchend',[]);
+    const panned=Math.abs(map.getCenter().lng-before.lng)>0.000001;
+    send('touchstart',[[150,400],[250,400]]);
+    send('touchmove',[[140,390],[260,410]]);
+    send('touchend',[]);
+    return {panned,zoomed:map.getZoom()!==zoom,
+      rotated:Math.abs(Number.parseFloat(document.getElementById('map').style.getPropertyValue('--jalan-camera-turn')))>2};
+  });
+  assert.equal(flatGestures.panned,true,'flat 2D one-finger drag works');
+  assert.equal(flatGestures.zoomed,true,'flat 2D pinch works');
+  assert.equal(flatGestures.rotated,true,'flat 2D two-finger rotation works');
+  await page.locator('#passenger-recenter').click();
+  assert.equal(await page.evaluate(()=>document.getElementById('map').style.getPropertyValue('--jalan-camera-turn')),
+    '0deg','2D Recenter restores north-up');
+  assert.equal(await page.evaluate(()=>map.getZoom()),17,'2D Recenter returns to GPS zoom');
   await page.locator('#passenger-2d').click();
   assert.equal(await page.evaluate(()=>document.getElementById('map').style.getPropertyValue('--jalan-camera-turn')),
     '-90deg','returning to perspective restores heading');
