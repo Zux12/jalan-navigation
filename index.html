@@ -15,7 +15,7 @@
   <title>Jalan — Navigation Prototype V4.7.4 Shared Traffic Pilot</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
   <link rel="stylesheet" href="style.css?v=4-7-1" />
-  <link rel="stylesheet" href="passenger.css?v=5" />
+  <link rel="stylesheet" href="passenger.css?v=6" />
   <link rel="stylesheet" href="jalan-kl-preview.css?v=3a1">
   <link rel="stylesheet" href="jalan-kl-3b.css?v=3b1">
   <link rel="stylesheet" href="jalan-kl-3c.css?v=3c1">
@@ -50,6 +50,8 @@
     <div class="passenger-turn"><span id="passenger-turn-arrow" aria-hidden="true">↑</span><div><strong id="passenger-instruction">Acquiring GPS…</strong><small id="passenger-next">Following selected route</small></div></div>
     <div class="passenger-heading">PASSENGER PREVIEW · 2.5D map, not true 3D</div>
     <div class="passenger-bottom"><div class="passenger-stats"><b id="passenger-eta">—</b><span id="passenger-distance">—</span><span id="passenger-speed">— km/h</span></div><div id="passenger-fix" class="passenger-fix">Waiting for GPS</div><div id="passenger-gesture-hint" class="passenger-gesture-hint">Drag · pinch · twist to explore · Recenter to resume following</div>
+      <div id="passenger-reroute-status" class="passenger-reroute-status" role="status" aria-live="polite">Rerouting is off until you enable it.</div>
+      <div class="passenger-nav-options"><button id="passenger-voice" type="button" aria-pressed="false">Voice: Mute</button><button id="passenger-auto-reroute" type="button" aria-pressed="false">Auto reroute: Off</button><button id="passenger-reroute-now" type="button">Recalculate</button></div>
       <div class="passenger-controls"><button id="passenger-2d" type="button" aria-pressed="false">2D map</button><button id="passenger-recenter" type="button">Recenter</button><button id="passenger-stop" type="button">End preview</button></div>
     </div>
   </section>
@@ -247,6 +249,6 @@
   <script src="jalan-kl-preview.js?v=3a1"></script>
   <script src="jalan-kl-3b.js?v=3b1"></script>
   <script src="jalan-kl-3c.js?v=3c2"></script>
-  <script src="passenger-ui.js?v=4"></script>
+  <script src="passenger-ui.js?v=5"></script>
 </body>
 </html>
