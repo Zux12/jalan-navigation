@@ -213,11 +213,49 @@
  window.addEventListener('jalan:routes-rendered',refreshOverview);
  window.addEventListener('jalan:route-cleared',()=>{
    discardVehicle();
+   closeDirections();
    routeLabels.clearLayers();overview.classList.add('hidden');
    document.body.classList.remove('passenger-guiding','passenger-map-flat');
    navigation.classList.add('hidden');
  });
- const syncGPS=(fix=null)=>{
+ const turnToggle=el('passenger-turn-toggle'),
+       turnList=el('passenger-turn-list'),
+       maneuverList=el('passenger-maneuver-list');
+ const turnIcon=action=>/roundabout/i.test(action)?'⟳':
+   /left/i.test(action)?'↰':/right/i.test(action)?'↱':
+   /u.turn|u-turn/i.test(action)?'↶':'↑';
+ const closeDirections=()=>{
+   turnList.classList.add('hidden');
+   turnToggle.setAttribute('aria-expanded','false');
+ };
+ const renderDirections=()=>{
+   if(!document.body.classList.contains('passenger-guiding'))return;
+   const steps=window.JalanGPS?.getDirections?.()||[];
+   maneuverList.replaceChildren();
+   if(!steps.length){
+     const li=document.createElement('li');
+     li.textContent='Route instructions unavailable. Follow the selected route preview only.';
+     maneuverList.appendChild(li);return;
+   }
+   for(const step of steps){
+     if(!Number.isFinite(step.distanceMeters)||step.distanceMeters<0)continue;
+     const li=document.createElement('li'),arrow=document.createElement('span'),
+           info=document.createElement('div'),name=document.createElement('strong'),
+           distance=document.createElement('small');
+     arrow.className='turn-list-arrow';arrow.textContent=step.arrival?'⚑':turnIcon(step.action||'');
+     name.textContent=String(step.action||'Continue');
+     distance.textContent='In '+fmtDist(step.distanceMeters);
+     info.append(name,distance);li.append(arrow,info);maneuverList.appendChild(li);
+   }
+ };
+ turnToggle.addEventListener('click',()=>{
+   const open=turnList.classList.contains('hidden');
+   if(open){renderDirections();turnList.classList.remove('hidden');}
+   else closeDirections();
+   turnToggle.setAttribute('aria-expanded',String(open));
+ });
+ el('passenger-turn-close').addEventListener('click',closeDirections);
+  const syncGPS=(fix=null)=>{
    if(!document.body.classList.contains('passenger-guiding'))return;
    el('passenger-instruction').textContent=el('gps-instruction').textContent||'Acquiring GPS…';
    el('passenger-next').textContent=el('gps-detail').textContent||'Route preview';
@@ -237,7 +275,8 @@
      Math.round(fix.speedMps*3.6)+' km/h':'— km/h';
    el('passenger-speed').textContent=speed;
    const message=el('passenger-instruction').textContent;
-   el('passenger-turn-arrow').textContent=/left/i.test(message)?'↰':/right/i.test(message)?'↱':'↑';
+   el('passenger-turn-arrow').textContent=turnIcon(message);
+   if(!turnList.classList.contains('hidden'))renderDirections();
    el('passenger-turn-details').textContent=message;
  };
  // Passenger controls mirror the existing engineering GPS buttons; no
@@ -348,6 +387,7 @@
    }
  });
  window.addEventListener('jalan:journey-start',()=>{
+   closeDirections();
    el('passenger-options').open=false;
    clearLiveEta();
    el('passenger-signal-alert').classList.remove('hidden');
@@ -378,6 +418,7 @@
    scheduleScreenVehicle();
  });
  window.addEventListener('jalan:journey-stop',()=>{
+   closeDirections();
    el('passenger-options').open=false;
    clearLiveEta();
    el('passenger-signal-alert').classList.add('hidden');
@@ -438,7 +479,9 @@
       !detail?.matched||!Array.isArray(detail.matchedPosition)||
       detail.matchedPosition.length!==2||
       !detail.matchedPosition.every(Number.isFinite))return;
-   const center=routeAheadCenter(detail.matchedPosition,125);
+   // Keeping the trusted vehicle at camera centre avoids the off-screen
+   // triangle seen on Safari when 125m look-ahead met a tilted, rotating map.
+   const center=detail.matchedPosition;
    // A preceding route-overview fitBounds() may still be animating; cancel
    // it before taking ownership of the passenger camera.
    map.stop();
@@ -546,7 +589,7 @@
    updateVehicle(lastGPSDetail);
    const flat=document.body.classList.contains('passenger-map-flat');
    applyCameraAngle(flat?0:lastValidHeading===null?0:-lastValidHeading);
-   const target=flat?state.position:routeAheadCenter(state.position,125);
+   const target=state.position;
    map.stop();
    map.setView(target,17,{animate:false,reset:true});
    scheduleScreenVehicle();
