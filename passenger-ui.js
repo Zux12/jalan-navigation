@@ -130,10 +130,10 @@
    el('passenger-distance').textContent=el('gps-distance').textContent||'—';
    const state=window.JalanGPS?.getState();
    const matched=state?.matched&&Number.isFinite(state.accuracy)&&state.accuracy<=75&&state.fixAgeMs<10000;
-   const heading=fix?.heading,speed=fix?.speedMps;
+   const heading=fix?.heading,motionSpeed=fix?.speedMps;
    const headingTrusted=matched&&fix?.matched===true&&Number.isFinite(fix?.accuracy)&&
      fix.accuracy<=75&&Number.isFinite(heading)&&heading>=0&&heading<=360&&
-     Number.isFinite(speed)&&speed>=2&&document.visibilityState==='visible'&&
+     Number.isFinite(motionSpeed)&&motionSpeed>=2&&document.visibilityState==='visible'&&
      !document.body.classList.contains('passenger-map-flat');
    if(headingTrusted){
      document.body.classList.add('passenger-camera-follow');
