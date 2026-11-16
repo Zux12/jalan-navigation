@@ -126,8 +126,11 @@ async function main(){
   assert.equal(await page.evaluate(()=>document.getElementById('passenger-fix').textContent.includes('GPS matched')),true);
   const forward=await page.evaluate(()=>map.getCenter().lat);
   assert.ok(forward>3.139,'passenger camera should center ahead along validated route');
-  // Heading-up must preserve PR #27 trusted camera follow and zoom persistence.
-  assert.equal(await page.evaluate(()=>document.body.classList.contains('passenger-camera-follow')),false);
+  // The previously injected valid, moving 0-degree GPS fix already activates
+  // heading-up, by design; denial/low accuracy was asserted earlier.
+  // Preserve PR #27 zoom/lookahead while changing the trusted heading.
+  assert.equal(await page.evaluate(()=>document.body.classList.contains('passenger-camera-follow')),true);
+  assert.equal(await page.evaluate(()=>document.body.style.getPropertyValue('--passenger-camera-bearing')),'0deg');
   await page.evaluate(()=>window.dispatchEvent(new CustomEvent('jalan:gps-fix',{detail:{
     matched:true,accuracy:12,heading:90,speedMps:8,matchedPosition:[3.139,101.6869]}})));
   await page.waitForFunction(()=>document.body.classList.contains('passenger-camera-follow'));
