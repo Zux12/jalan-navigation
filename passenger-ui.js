@@ -1,0 +1,136 @@
+/* JALAN Passenger Preview V1: separate interface over existing public routing/GPS.
+   This does NOT certify legal-road turns or real-world driving guidance. */
+(() => {
+ 'use strict';
+ const passenger=new URLSearchParams(location.search).get('mode')==='passenger';
+ if(!passenger)return;
+ document.body.classList.add('passenger-mode');
+ const el=id=>document.getElementById(id),overview=el('passenger-overview'),
+       list=el('passenger-route-list'),settings=el('passenger-setup'),
+       navigation=el('passenger-navigation');
+ const routeLabels=L.layerGroup().addTo(map);
+ const hideSettings=()=>settings.classList.add('hidden');
+ const showSettings=()=>settings.classList.remove('hidden');
+ el('passenger-settings-top').addEventListener('click',showSettings);
+ el('passenger-settings').addEventListener('click',showSettings);
+ el('passenger-setup-close').addEventListener('click',hideSettings);
+ el('passenger-use-osrm').addEventListener('click',()=>{
+   const toggle=el('tt-primary');
+   if(toggle.checked){toggle.checked=false;toggle.dispatchEvent(new Event('change',{bubbles:true}));}
+   el('passenger-provider-status').textContent='OSRM manually selected — no live traffic ETA.';
+   hideSettings();
+ });
+ el('passenger-use-tomtom').addEventListener('click',()=>{
+   const input=el('passenger-key'),value=input.value.trim();
+   if(!/^[\w-]{8,160}$/.test(value)){
+     el('passenger-provider-status').textContent='Enter a valid restricted TomTom API key.';
+     return;
+   }
+   el('tt-remember').checked=false;
+   const original=el('tt-key');
+   original.value=value;
+   original.dispatchEvent(new Event('input',{bubbles:true}));
+   const toggle=el('tt-primary');
+   if(!toggle.checked){toggle.checked=true;toggle.dispatchEvent(new Event('change',{bubbles:true}));}
+   el('passenger-provider-status').textContent='TomTom selected. Key is kept in page memory only.';
+   input.value='';
+   hideSettings();
+ });
+ function refreshOverview(){
+   routeLabels.clearLayers();
+   if(!routes.length||document.body.classList.contains('passenger-guiding')){
+     overview.classList.add('hidden');return;
+   }
+   overview.classList.remove('hidden');
+   const chosen=routes[selectedRoute],valid=routes.filter(r=>Number.isFinite(r.duration));
+   const fastest=valid.length?Math.min(...valid.map(r=>r.duration)):null;
+   const name=chosen?.provider==='tomtom'?'TomTom · traffic-aware ETA':'OSRM · no live traffic';
+   el('passenger-route-provider').textContent=name+' · experimental, not approved for driving';
+   list.replaceChildren();
+   routes.forEach((r,i)=>{
+     if(!r?.geometry?.coordinates?.length||!Number.isFinite(r.duration))return;
+     const delta=fastest===null?null:Math.max(0,Math.round((r.duration-fastest)/60));
+     const label=delta===0?'Fastest':'+'+delta+' min';
+     const button=document.createElement('button');
+     button.type='button';
+     button.setAttribute('aria-pressed',String(i===selectedRoute));
+     const left=document.createElement('span'),bold=document.createElement('b'),small=document.createElement('small');
+     bold.textContent=i===0?'Fastest route':'Alternative '+i;
+     small.textContent=fmtDist(r.distance)+' · '+(r.provider==='tomtom'?'Traffic estimate':'No traffic');
+     left.append(bold,small);
+     const time=document.createElement('span');
+     time.className='route-time';
+     time.textContent=fmtTime(r.duration)+(delta>0?' · '+label:'');
+     button.append(left,time);
+     button.addEventListener('click',()=>selectRoute(i));
+     list.appendChild(button);
+     if(i>0&&delta!==null){
+       const coords=r.geometry.coordinates;
+       const mid=coords[Math.min(coords.length-1,Math.floor(coords.length*0.55))];
+       if(Array.isArray(mid)&&mid.length>=2&&mid.every(Number.isFinite)){
+         const marker=L.marker([mid[1],mid[0]],{
+           icon:L.divIcon({className:'',html:'<span class="passenger-delta-pin">+'+delta+' min</span>',iconSize:[75,28],iconAnchor:[37,14]})
+         }).addTo(routeLabels);
+         marker.on('click',()=>selectRoute(i));
+       }
+     }
+   });
+   el('passenger-route-title').textContent=routes.length>1?
+     routes.length+' available routes':'Your route';
+ }
+ window.addEventListener('jalan:routes-rendered',refreshOverview);
+ window.addEventListener('jalan:route-cleared',()=>{
+   routeLabels.clearLayers();overview.classList.add('hidden');
+   document.body.classList.remove('passenger-guiding','passenger-map-flat');
+   navigation.classList.add('hidden');
+ });
+ const syncGPS=(fix=null)=>{
+   if(!document.body.classList.contains('passenger-guiding'))return;
+   el('passenger-instruction').textContent=el('gps-instruction').textContent||'Acquiring GPS…';
+   el('passenger-next').textContent=el('gps-detail').textContent||'Route preview';
+   el('passenger-eta').textContent=el('gps-eta').textContent||'—';
+   el('passenger-distance').textContent=el('gps-distance').textContent||'—';
+   const state=window.JalanGPS?.getState();
+   const matched=state?.matched&&Number.isFinite(state.accuracy)&&state.accuracy<=75&&state.fixAgeMs<10000;
+   el('passenger-fix').textContent=matched?'GPS matched · experimental route preview':
+      'GPS uncertain or unavailable · do not rely on guidance';
+   const speed=fix?.matched&&Number.isFinite(fix.speedMps)&&fix.speedMps>=0?
+     Math.round(fix.speedMps*3.6)+' km/h':'— km/h';
+   el('passenger-speed').textContent=speed;
+   const message=el('passenger-instruction').textContent;
+   el('passenger-turn-arrow').textContent=/left/i.test(message)?'↰':/right/i.test(message)?'↱':'↑';
+ };
+ el('passenger-go').addEventListener('click',()=>{
+   if(!routes.length)return;
+   hideSettings();
+   el('gps-start').click();
+   if(!window.JalanGPS?.getState()?.active){
+     el('passenger-route-provider').textContent='GPS preview could not start. Check browser permissions or use Engineering tests.';
+   }
+ });
+ window.addEventListener('jalan:journey-start',()=>{
+   if(!routes.length)return;
+   routeLabels.clearLayers();
+   overview.classList.add('hidden');
+   navigation.classList.remove('hidden');
+   document.body.classList.add('passenger-guiding');
+   document.body.classList.remove('passenger-map-flat');
+   el('passenger-2d').setAttribute('aria-pressed','false');
+   el('passenger-2d').textContent='2D map';
+   syncGPS();
+ });
+ window.addEventListener('jalan:journey-stop',()=>{
+   document.body.classList.remove('passenger-guiding','passenger-map-flat');
+   navigation.classList.add('hidden');
+ });
+ window.addEventListener('jalan:gps-fix',event=>
+   requestAnimationFrame(()=>syncGPS(event.detail)));
+ el('passenger-recenter').addEventListener('click',()=>el('gps-recenter').click());
+ el('passenger-2d').addEventListener('click',()=>{
+   const flat=document.body.classList.toggle('passenger-map-flat');
+   el('passenger-2d').textContent=flat?'2.5D preview':'2D map';
+   el('passenger-2d').setAttribute('aria-pressed',String(flat));
+ });
+ el('passenger-stop').addEventListener('click',()=>el('gps-exit').click());
+ // Keep engineering test panels and private KL coordinate-GET panels untouched.
+})();
