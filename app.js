@@ -97,6 +97,10 @@ function renderRoutes(){
  const bounds=L.latLngBounds(chosen.geometry.coordinates.map(p=>[p[1],p[0]]));
  // Update the panel first; fitBounds runs after the layout has settled.
  const fitSelectedRoute=()=>{
+   // Route-overview fit is queued for later paint. Go may have started GPS
+   // meanwhile; never zoom back out over the active passenger camera.
+   if(document.body.classList.contains('nav-active')||
+      document.body.classList.contains('passenger-guiding'))return;
    if(!bounds.isValid())return;
    map.invalidateSize();
    const h=map.getSize().y,w=map.getSize().x;
