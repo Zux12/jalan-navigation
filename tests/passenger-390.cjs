@@ -433,7 +433,7 @@ async function main(){
     map.panTo=(...args)=>{panCount++;return originalPan(...args);};
     const position=window.JalanGPS.getState().position;
     for(let i=0;i<3;i++){
-      window.__offlineGPSWatch({timestamp:Date.now()+5000+i*1000,coords:{
+      window.__offlineGPSWatch({timestamp:Date.now()+3900+i*100,coords:{
         latitude:position[0],longitude:position[1],accuracy:8,speed:0,heading:0}});
     }
     const result={setCount,panCount};map.setView=originalSet;map.panTo=originalPan;
