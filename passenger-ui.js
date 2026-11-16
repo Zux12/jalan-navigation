@@ -322,6 +322,21 @@
    if(updateVehicle(event.detail))followPassengerGPS(event.detail);
    requestAnimationFrame(()=>syncGPS(event.detail));
  });
+ // iOS may suspend geolocation when Safari is backgrounded or the screen
+ // locks. An old trusted marker must never continue looking like live GPS.
+ const expireStalePassengerGPS=()=>{
+   if(!document.body.classList.contains('passenger-guiding'))return;
+   const state=window.JalanGPS?.getState();
+   if(state?.active&&state.matched&&Number.isFinite(state.fixAgeMs)&&
+      state.fixAgeMs<=10000&&!document.hidden)return;
+   discardVehicle();
+   el('passenger-fix').textContent=document.hidden?
+     'Safari in background · GPS cannot be verified':
+     'GPS signal stale or unavailable · waiting for fresh position';
+   hint.textContent='GPS follow paused · Recenter after a fresh location update';
+ };
+ setInterval(expireStalePassengerGPS,2000);
+ document.addEventListener('visibilitychange',expireStalePassengerGPS);
  // Heading-up map: custom touch gestures because Leaflet's 2-D hit-testing
  // does not match a CSS-tilted/rotated perspective. Gesture exploration
  // deliberately suspends automatic follow until Recenter is pressed.
