@@ -54,6 +54,9 @@ async function main(){
    selectedRoute=0;renderRoutes();
   };
   await page.evaluate(routeFixture);
+  await page.locator('.jalan-vector-pin').first().press('Enter');
+  assert.match(await page.locator('.maplibregl-popup-content').first().textContent(),/Fixture start/);
+  await page.locator('.maplibregl-popup-close-button').click();
   await page.locator('#passenger-route-list button').nth(1).click();
   assert.equal(await page.evaluate(()=>selectedRoute),1);
   await page.locator('#passenger-route-list button').first().click();
@@ -64,6 +67,12 @@ async function main(){
   await page.evaluate(fix);
   await page.waitForFunction(()=>map.getZoom()>=17);
   assert.equal(await page.evaluate(()=>JalanVectorMap.getBearing()),45);
+  // Screen HUD is deliberately batched into requestAnimationFrame; assert the
+  // rendered frame, not the synchronous midpoint of a GPS event dispatch.
+  await page.waitForFunction(()=>{
+   const p=JalanVectorMap.project([3.139,101.6869]),b=document.getElementById('passenger-vehicle-screen').getBoundingClientRect();
+   return Math.abs(b.x+b.width/2-p.x)<2&&Math.abs(b.y+b.height/2-p.y)<2;
+  },null,{timeout:2000});
   const placement=await page.evaluate(()=>{
    const p=JalanVectorMap.project([3.139,101.6869]),box=document.getElementById('passenger-vehicle-screen').getBoundingClientRect();
    return {dx:Math.abs(box.x+box.width/2-p.x),dy:Math.abs(box.y+box.height/2-p.y),y:p.y};

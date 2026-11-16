@@ -6,7 +6,7 @@
  if(params.get('mode')!=='passenger'||params.get('renderer')==='raster')return;
  const host=map.getContainer(),original={},virtualTiles=new Set(),pins=new Map(),rasters=new Map();
  const watched=new WeakSet(),handlers=[],zoomSnap=map.options.zoomSnap;
- let gl=null,active=false,stopped=false,queued=false,syncing=false,lineSignature='',timer;
+ let gl=null,active=false,stopped=false,queued=false,syncing=false,lineSignature='',timer,popup=null,popupLayer=null;
  const status=document.createElement('span');
  status.id='jalan-map-status';status.setAttribute('role','status');
  status.textContent='Loading detailed map…';document.body.append(status);
@@ -26,6 +26,23 @@
      if(typeof layer[name]!=='function')return;
      const fn=layer[name];layer[name]=function(...args){const result=fn.apply(this,args);schedule();return result;};
    });
+   if(typeof layer.openPopup==='function'){
+     const open=layer.openPopup,close=layer.closePopup;
+     layer.openPopup=function(position){
+       if(!active)return open.call(this,position);
+       const content=this.getPopup?.()?.getContent();
+       if(content!==undefined&&this.getLatLng){
+         popup?.remove();popupLayer=this;
+         popup=new maplibregl.Popup({maxWidth:'250px'}).setLngLat(lngLat(position||this.getLatLng()))
+           .setDOMContent(popupContent(content)).addTo(gl);
+       }
+       return this;
+     };
+     layer.closePopup=function(){
+       if(!active)return close.call(this);
+       if(popupLayer===this){popup?.remove();popup=null;popupLayer=null;}return this;
+     };
+   }
  }
  function syncCamera(){
    if(!active||syncing)return;
@@ -44,7 +61,7 @@
    virtualTiles.forEach(layer=>original.addLayer(layer));virtualTiles.clear();
    handlers.forEach(handler=>handler.enable());
    pins.forEach(pin=>{pin.marker.remove();pin.label?.remove();});pins.clear();
-   if(gl){gl.remove();gl=null;}container.remove();
+   if(gl){gl.remove();gl=null;}popup=null;popupLayer=null;container.remove();
    status.textContent='Basic map · detailed view unavailable';
    original.invalidateSize({animate:false});emit();
  }
@@ -152,9 +169,6 @@
        }
        element.addEventListener('click',event=>{
          event.stopPropagation();layer.fire('click',{latlng:layer.getLatLng(),originalEvent:event});
-         const popup=layer.getPopup?.();
-         if(popup)new maplibregl.Popup({maxWidth:'250px'}).setLngLat(lngLat(layer.getLatLng()))
-           .setDOMContent(popupContent(popup.getContent())).addTo(gl);
        });
      }else element.style.pointerEvents='none';
      pin={marker,signature};pins.set(id,pin);
@@ -178,6 +192,7 @@
      }else if(layer instanceof L.Marker||layer instanceof L.CircleMarker){seen.add(id);pinFor(layer,id);}
    });
    pins.forEach((pin,id)=>{if(!seen.has(id)){pin.marker.remove();pin.label?.remove();pins.delete(id);}});
+   if(popupLayer&&!original.hasLayer(popupLayer)){popup?.remove();popup=null;popupLayer=null;}
    const signature=JSON.stringify(features);
    if(signature!==lineSignature){lineSignature=signature;gl.getSource('jalan-routes').setData({type:'FeatureCollection',features});}
    virtualTiles.forEach(layer=>{
