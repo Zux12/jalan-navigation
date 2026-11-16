@@ -25,7 +25,7 @@ test('JalanGPS match confidence is cleared on predicted fixes, stop and restart'
   L:{circleMarker:()=>({addTo(){return this},setLatLng(){}})},
   map:display,routes:[{provider:'tomtom',duration:600,distance:1200,legs:[],
     geometry:{type:'LineString',coordinates:[[101.6869,3.139],[101.6953,3.1478]]}}],
-  selectedRoute:0,destination:[3.1478,101.6953],renderRoutes(){},
+  selectedRoute:0,destination:[3.1478,101.6953],startPoint:null,renderRoutes(){},
   updateLocation(){},fmtDist:m=>String(m),fmtTime:s=>String(s),
   statusEl:{textContent:''},CustomEvent:class{constructor(type){this.type=type}},
   Date,Math,setTimeout(){},console
