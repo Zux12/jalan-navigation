@@ -129,3 +129,54 @@ test('editing an active remembered TomTom key revokes storage and prevents stale
  assert.equal(s.renders,0,'replaced key must never revive old route');
  assert.match(n['tt-status'].textContent,/Old stored key removed/);
 });
+
+// Coordinates derived from independent metre offsets make nearby-road cases
+// reproducible without provider calls or a real user position.
+const coordinate=(east,north)=>[101.68+east/(111320*Math.cos(3.14*Math.PI/180)),3.14+north/111320];
+const straightRoute=[coordinate(0,0),coordinate(1000,0)];
+test('route report points exclude nearby streets and retain actual coordinates',()=>{
+ const api=scene().ctx.window.JalanTomTom;
+ const point=coordinate(400,12),match=api.matchReportGeometry({type:'Point',coordinates:point},straightRoute);
+ assert.ok(match);assert.equal(match.lng,point[0]);assert.equal(match.lat,point[1]);
+ assert.ok(Math.abs(match.offset-12)<.01);assert.ok(Math.abs(match.along-400)<.01);
+ for(const offset of [26,80,299,900])assert.equal(api.matchReportGeometry(
+   {type:'Point',coordinates:coordinate(400,offset)},straightRoute),null);
+});
+test('parallel and crossing incident roads do not count as affected route segments',()=>{
+ const api=scene().ctx.window.JalanTomTom;
+ for(const points of [
+  [coordinate(100,50),coordinate(700,50)],
+  [coordinate(400,-200),coordinate(400,200)],
+  [coordinate(400,0),coordinate(400,200)],
+  [coordinate(1000,0),coordinate(1300,0)]
+ ])assert.equal(api.matchReportGeometry({type:'LineString',coordinates:points},straightRoute),null);
+});
+test('long incident is anchored in its overlapping section, not its off-route first point',()=>{
+ const api=scene().ctx.window.JalanTomTom;
+ const points=[coordinate(-500,0),coordinate(600,0)];
+ const match=api.matchReportGeometry({type:'LineString',coordinates:points},straightRoute);
+ assert.ok(match);assert.ok(Math.abs(match.along-300)<.01);assert.ok(match.offset<.01);
+ assert.ok(match.lng>straightRoute[0][0]&&match.lng<straightRoute[1][0]);
+ // Geometry order is not evidence of traffic direction; reversing it still
+ // identifies the same overlap without inventing a carriageway claim.
+ const reversed=api.matchReportGeometry({type:'LineString',coordinates:points.slice().reverse()},straightRoute);
+ assert.ok(reversed);assert.ok(Math.abs(reversed.lng-match.lng)<1e-9);
+});
+test('continuous incident overlap spans short route segments and bends',()=>{
+ const api=scene().ctx.window.JalanTomTom;
+ const route=[coordinate(0,0),coordinate(10,0),coordinate(20,0),coordinate(40,0),coordinate(40,40)];
+ const match=api.matchReportGeometry({type:'LineString',coordinates:[coordinate(5,0),coordinate(40,0),coordinate(40,35)]},route);
+ assert.ok(match);assert.ok(match.offset<.01);assert.ok(match.along>=5&&match.along<=75);
+});
+test('invalid or degenerate incident and route geometry cannot produce a report match',()=>{
+ const api=scene().ctx.window.JalanTomTom;
+ for(const geometry of [null,{type:'Point',coordinates:[101,91]},
+  {type:'Point',coordinates:[NaN,3]}, {type:'LineString',coordinates:[]},
+  {type:'LineString',coordinates:[coordinate(10,0)]},
+  {type:'LineString',coordinates:[coordinate(10,0),coordinate(10,0)]},
+  {type:'LineString',coordinates:[coordinate(10,0),[null,3]]},
+  {type:'Polygon',coordinates:[straightRoute]}])
+  assert.equal(api.matchReportGeometry(geometry,straightRoute),null);
+ assert.equal(api.matchReportGeometry({type:'Point',coordinates:coordinate(10,0)},[coordinate(0,0),coordinate(0,0)]),null);
+ assert.equal(api.projectReportPoint(coordinate(10,0),[[101,3],[181,3]]),null);
+});
