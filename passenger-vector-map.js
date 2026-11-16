@@ -140,6 +140,14 @@
      element.style.opacity=String(o.opacity??1);
      const marker=new maplibregl.Marker({element,anchor:'center',offset}).setLngLat(lngLat(layer.getLatLng())).addTo(gl);
      if(o.interactive!==false){
+       element.setAttribute('role','button');
+       element.setAttribute('aria-label',o.title||'Map location');
+       if(o.keyboard!==false){
+         element.tabIndex=0;
+         element.addEventListener('keydown',event=>{
+           if(event.key==='Enter'||event.key===' '){event.preventDefault();element.click();}
+         });
+       }
        element.addEventListener('click',event=>{
          event.stopPropagation();layer.fire('click',{latlng:layer.getLatLng(),originalEvent:event});
          const popup=layer.getPopup?.();
