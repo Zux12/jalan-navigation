@@ -5,13 +5,29 @@ const el=id=>document.getElementById(id), input=el('tt-key');
 const status=s=>el('tt-status').textContent=s;
 // Default is page-memory only: do not silently keep an unchecked key across
 // reloads in sessionStorage. Clear previously persisted legacy session values.
-const rememberedKey=localStorage.getItem('jalan-tomtom-key')||'';
-sessionStorage.removeItem('jalan-tomtom-key');
+// Some Safari/private and enterprise contexts deny storage getter access outright.
+// The TomTom key must remain usable in this page, but never claim persistence
+// when the browser refuses it. No key values are logged or sent to JALAN.
+const STORAGE_KEY='jalan-tomtom-key';
+const keyStorage={
+ read(){try{return localStorage.getItem(STORAGE_KEY)||''}catch{return ''}},
+ remember(value){try{localStorage.setItem(STORAGE_KEY,value);return true}catch{return false}},
+ forget(){try{localStorage.removeItem(STORAGE_KEY)}catch{};
+  try{sessionStorage.removeItem(STORAGE_KEY)}catch{}}
+};
+try{sessionStorage.removeItem(STORAGE_KEY)}catch{}
+const rememberedKey=keyStorage.read();
+window.JalanTomTomKeyStorage=Object.freeze({remember:keyStorage.remember,forget:keyStorage.forget});
 input.value=rememberedKey;
 el('tt-remember').checked=!!rememberedKey;
 const enabled=()=>el('tt-primary').checked && !!input.value.trim();
 let keyEdited=false;
-function key(){const k=input.value.trim();if(!/^[\w-]{8,160}$/.test(k))throw Error('Enter a valid TomTom key.');if(el('tt-remember').checked)localStorage.setItem('jalan-tomtom-key',k);else localStorage.removeItem('jalan-tomtom-key');keyEdited=false;return k;}
+function key(){const k=input.value.trim();if(!/^[\w-]{8,160}$/.test(k))throw Error('Enter a valid TomTom key.');if(el('tt-remember').checked){
+ if(!keyStorage.remember(k)){
+  el('tt-remember').checked=false;
+  status('Browser storage blocked. Key remains available on this page only.');
+ }
+}else keyStorage.forget();keyEdited=false;return k;}
 let tiles=null,active=false,timer=null,routeAbort=null,incidentAbort=null,token=0,lastIncidents=0,debounce=null,incidentEpoch=0;
 const incidentLayer=L.layerGroup().addTo(map);
 const publishIncidents=detail=>window.dispatchEvent?.(new CustomEvent('jalan:incidents-updated',{detail}));
@@ -164,14 +180,13 @@ function connect(){try{const k=key();hide();active=true;trafficState('loading','
 input.addEventListener('input',()=>{
  if(keyEdited)return;
  keyEdited=true;
- localStorage.removeItem('jalan-tomtom-key');
- sessionStorage.removeItem('jalan-tomtom-key');
+ keyStorage.forget();
  routeCleared();hide();
  if(routes[selectedRoute]?.provider==='tomtom')clearRoute(false);
  status('Key changed. Old stored key removed; reconnect to use live traffic.');
 });
-el('tt-remember').onchange=()=>{if(!el('tt-remember').checked){localStorage.removeItem('jalan-tomtom-key');sessionStorage.removeItem('jalan-tomtom-key');status('Key will be kept only for this open page.');}};
-el('tt-connect').onclick=connect;el('tt-hide').onclick=()=>{hide();status('Traffic overlay hidden.');};el('tt-route').onclick=calculate;el('tt-primary').onchange=()=>{routeCleared();clearRoute(false);status(enabled()?'TomTom routing selected. Search again to apply.':'OSRM routing selected. Search again to apply.');};el('tt-incident-toggle').onchange=()=>{if(!el('tt-incident-toggle').checked)invalidateIncidents();else refreshRouteIncidents(true);};el('tt-toggle-key').onclick=()=>{const show=input.type==='password';input.type=show?'text':'password';el('tt-toggle-key').textContent=show?'Hide':'Show';};el('tt-remove-key').onclick=()=>{routeCleared();hide();clearRoute(false);input.value='';localStorage.removeItem('jalan-tomtom-key');sessionStorage.removeItem('jalan-tomtom-key');el('tt-remember').checked=false;status('Key cleared from browser. Active route and pending TomTom requests cancelled.');};
+el('tt-remember').onchange=()=>{if(!el('tt-remember').checked){keyStorage.forget();status('Key will be kept only for this open page.');}};
+el('tt-connect').onclick=connect;el('tt-hide').onclick=()=>{hide();status('Traffic overlay hidden.');};el('tt-route').onclick=calculate;el('tt-primary').onchange=()=>{routeCleared();clearRoute(false);status(enabled()?'TomTom routing selected. Search again to apply.':'OSRM routing selected. Search again to apply.');};el('tt-incident-toggle').onchange=()=>{if(!el('tt-incident-toggle').checked)invalidateIncidents();else refreshRouteIncidents(true);};el('tt-toggle-key').onclick=()=>{const show=input.type==='password';input.type=show?'text':'password';el('tt-toggle-key').textContent=show?'Hide':'Show';};el('tt-remove-key').onclick=()=>{routeCleared();hide();clearRoute(false);input.value='';keyStorage.forget();el('tt-remember').checked=false;status('Key cleared from browser. Active route and pending TomTom requests cancelled.');};
 function startPassengerTraffic(){
  if(!el('tt-primary').checked||routes[selectedRoute]?.provider!=='tomtom'){
   trafficState('error','Live traffic unavailable · OSRM route');return false;

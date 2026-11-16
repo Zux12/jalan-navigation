@@ -691,6 +691,60 @@ async function main(){
   assert.equal(await page.evaluate(()=>document.body.classList.contains('passenger-mode')),false);
   assert.equal(await page.locator('#info-panel').isVisible(),true,'original engineering dashboard retained');
   assert.equal(await page.locator('#passenger-settings-top').isVisible(),false);
+  // Privacy-restricted browser: storage getters may throw SecurityError before
+  // the TomTom module initializes. Preserve the no-key/OSRM experience and
+  // use an explicitly entered key only for this tab, never claim it was saved.
+  const deniedContext=await browser.newContext({viewport:{width:390,height:844},
+    isMobile:true,hasTouch:true,reducedMotion:'reduce'});
+  await deniedContext.addInitScript(()=>{
+    for(const storage of ['localStorage','sessionStorage']){
+      Object.defineProperty(window,storage,{configurable:true,get(){
+        throw new DOMException('Disabled by browser privacy policy','SecurityError');
+      }});
+    }
+    Object.defineProperty(navigator,'geolocation',{configurable:true,value:{
+      getCurrentPosition(_ok,error){error({code:1,message:'Permission denied'})},
+      watchPosition(_ok,error){error({code:1,message:'Permission denied'});return 1},
+      clearWatch(){}
+    }});
+  });
+  const deniedPage=await deniedContext.newPage(),deniedErrors=[];
+  deniedPage.on('pageerror',error=>deniedErrors.push(error.message));
+  await deniedPage.route('**/*',route=>route.request().url().startsWith(base+'/')?
+    route.continue():route.abort('blockedbyclient'));
+  await deniedPage.route('https://unpkg.com/leaflet@1.9.4/dist/leaflet.js',route=>
+    route.fulfill({status:200,contentType:'application/javascript',
+      body:fs.readFileSync(path.join(leaflet,'leaflet.js'))}));
+  await deniedPage.route('https://unpkg.com/leaflet@1.9.4/dist/leaflet.css',route=>
+    route.fulfill({status:200,contentType:'text/css',
+      body:fs.readFileSync(path.join(leaflet,'leaflet.css'))}));
+  await deniedPage.goto(base+'/index.html?mode=passenger',{waitUntil:'load'});
+  assert.equal(await deniedPage.evaluate(()=>document.body.classList.contains('passenger-mode')),true);
+  assert.equal(await deniedPage.locator('#passenger-remember').isChecked(),false);
+  await deniedPage.locator('#passenger-settings-top').click();
+  await deniedPage.locator('#passenger-key').fill('TEST_RESTRICTED_KEY_1234');
+  await deniedPage.locator('#passenger-remember').check();
+  await deniedPage.locator('#passenger-use-tomtom').click();
+  assert.equal(await deniedPage.evaluate(()=>document.getElementById('tt-primary').checked),true,
+    'page-memory key remains usable when browser blocks storage');
+  assert.equal(await deniedPage.locator('#passenger-remember').isChecked(),false,
+    'a denied key persistence attempt must unset remember');
+  assert.match(await deniedPage.locator('#passenger-provider-status').innerText(),
+    /Browser storage blocked; key not saved/);
+  assert.equal(await deniedPage.evaluate(()=>document.getElementById('tt-key').value),
+    'TEST_RESTRICTED_KEY_1234','key is retained only in the current page');
+  await deniedPage.locator('#passenger-settings-top').click();
+  await deniedPage.locator('#passenger-forget-key').click();
+  assert.equal(await deniedPage.evaluate(()=>document.getElementById('tt-key').value),'',
+    'Forget must still clear a page-memory key when persistent storage fails');
+  await deniedPage.evaluate(()=>{
+    document.getElementById('report-hazard').click();
+    map.fire('click',{latlng:L.latLng(3.139,101.687)});
+  });
+  assert.match(await deniedPage.locator('#status').innerText(),
+    /visible for this page only; browser storage unavailable/);
+  assert.deepEqual(deniedErrors,[],'storage denial must not crash either TomTom or Passenger scripts');
+  await deniedContext.close();
   assert.deepEqual(errors,[],'no uncaught JS errors in either UI');
   console.log('JALAN passenger 390px offline PASS: two modes, fastest, real alternatives, +minutes, Go, 2D, exit and provider fallback.');
  }finally{if(browser)await browser.close();await new Promise(resolve=>server.close(resolve));}
