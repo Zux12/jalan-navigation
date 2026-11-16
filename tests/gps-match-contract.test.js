@@ -40,6 +40,13 @@ test('JalanGPS match confidence is cleared on predicted fixes, stop and restart'
    speed:0,heading:0},timestamp:Date.now()});
  updateGPS(fix());
  assert.equal(state().matched,true,'verified predictor match permits proactive checks');
+ const expired=fix();expired.timestamp=Date.now()-20000;
+ updateGPS(expired);
+ assert.equal(state().matched,false,'cached 20-second-old Safari reading invalidates GPS match');
+ assert.equal(state().accuracy,Infinity,'expired reading must not claim accuracy');
+ assert.equal(state().fixAgeMs,Infinity,'expired reading must not refresh GPS age');
+ updateGPS(fix());
+ assert.equal(state().matched,true,'fresh verified fix can recover after stale location');
  assert.equal(state().accuracy,6,'proactive route checks get the real numeric GPS accuracy');
  // A predictor match is not enough when the browser supplies no trustworthy
  // accuracy. In particular "Unknown" must never be parsed as numeric 0 m.
