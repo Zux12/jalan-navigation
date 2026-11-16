@@ -89,6 +89,16 @@
  document.addEventListener('visibilitychange',()=>{if(active&&document.hidden){warn('Safari backgrounded. GPS and speech may pause; do not rely on navigation.');if('speechSynthesis'in window)speechSynthesis.cancel();}});
  window.JalanGPS={
   getState(){return {active,matched:active&&latestMatched&&lastFixAt>0,position:current?[...current]:null,accuracy:lastFixAt?lastReportedAccuracy:Infinity,fixAgeMs:lastFixAt?Date.now()-lastFixAt:Infinity,remainingSeconds:active&&route?route.duration*Math.max(0,total-progress)/total:null,remainingMeters:active&&route?route.distance*Math.max(0,total-progress)/total:null,route};},
+  // Read-only route maneuvers generated from the selected provider's actual
+  // instructions. Distances are from current matched progress, not fabricated
+  // turn guesses from arbitrary OSM polylines.
+  getDirections(){
+   if(!active||!route)return [];
+   const items=maneuvers.filter(m=>Number.isFinite(m.along)&&m.along>progress+12)
+     .map(m=>({action:m.action,distanceMeters:Math.max(0,m.along-progress)}));
+   items.push({action:'Arrive at destination',distanceMeters:Math.max(0,total-progress),arrival:true});
+   return items;
+  },
   applyTrafficRoute(newRoute){if(!active||!newRoute)return false;stop();routes=[newRoute];selectedRoute=0;renderRoutes();start();return true;},
   stop,routeReady(){el('gps-start').classList.remove('hidden');}};
 })();
