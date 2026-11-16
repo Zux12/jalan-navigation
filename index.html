@@ -24,10 +24,12 @@
   <div id="passenger-setup" class="passenger-setup hidden" role="region" aria-label="Passenger routing setup">
     <strong>Routing provider</strong>
     <p>TomTom provides traffic-aware routes using your restricted browser key. Choose OSRM explicitly for a non-traffic demonstration.</p>
-    <label for="passenger-key">TomTom key (optional, never stored by this view)</label>
+    <label for="passenger-key">TomTom API key (required only the first time)</label>
     <input id="passenger-key" type="password" autocomplete="off" spellcheck="false" placeholder="Enter restricted TomTom key" />
+    <label class="passenger-remember-label"><input id="passenger-remember" type="checkbox" /> Remember on this device (not recommended for shared devices)</label>
     <div class="passenger-setup-actions"><button id="passenger-use-tomtom" type="button">Use TomTom</button><button id="passenger-use-osrm" type="button">Use OSRM demo</button></div>
     <div id="passenger-provider-status" role="status">TomTom is preferred when a key is configured.</div>
+    <button id="passenger-forget-key" type="button">Forget saved TomTom key</button>
     <button id="passenger-setup-close" type="button">Close settings</button>
   </div>
   <section id="passenger-overview" class="passenger-overview hidden" aria-label="Choose route">
@@ -238,6 +240,6 @@
   <script src="jalan-kl-preview.js?v=3a1"></script>
   <script src="jalan-kl-3b.js?v=3b1"></script>
   <script src="jalan-kl-3c.js?v=3c2"></script>
-  <script src="passenger-ui.js?v=1"></script>
+  <script src="passenger-ui.js?v=2"></script>
 </body>
 </html>

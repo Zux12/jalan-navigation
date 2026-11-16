@@ -20,21 +20,50 @@
    el('passenger-provider-status').textContent='OSRM manually selected — no live traffic ETA.';
    hideSettings();
  });
+ // The engineering and passenger screens share one browser origin and key policy.
+ // Never copy the key into source code, URLs, logs or a remote database.
+ const sharedKeyInput=el('tt-key'), sharedRemember=el('tt-remember'),
+       passengerRemember=el('passenger-remember');
+ const validKey=value=>/^[\w-]{8,160}$/.test(value);
+ passengerRemember.checked=sharedRemember.checked;
+ if(validKey(sharedKeyInput.value.trim())){
+   el('passenger-provider-status').textContent=sharedRemember.checked?
+     'Saved TomTom key available on this device — no re-entry needed.':
+     'TomTom key available for this open page.';
+ }
  el('passenger-use-tomtom').addEventListener('click',()=>{
-   const input=el('passenger-key'),value=input.value.trim();
-   if(!/^[\w-]{8,160}$/.test(value)){
-     el('passenger-provider-status').textContent='Enter a valid restricted TomTom API key.';
+   const input=el('passenger-key'),entered=input.value.trim();
+   const value=entered||sharedKeyInput.value.trim();
+   if(!validKey(value)){
+     el('passenger-provider-status').textContent='No saved key found. Enter a restricted TomTom key once.';
      return;
    }
-   el('tt-remember').checked=false;
-   const original=el('tt-key');
-   original.value=value;
-   original.dispatchEvent(new Event('input',{bubbles:true}));
+   // A changed key invalidates old provider requests and old browser storage.
+   if(entered&&entered!==sharedKeyInput.value){
+     sharedKeyInput.value=entered;
+     sharedKeyInput.dispatchEvent(new Event('input',{bubbles:true}));
+   }
+   const remember=passengerRemember.checked;
+   sharedRemember.checked=remember;
+   if(remember){
+     localStorage.setItem('jalan-tomtom-key',value);
+   }else{
+     localStorage.removeItem('jalan-tomtom-key');
+     sessionStorage.removeItem('jalan-tomtom-key');
+   }
    const toggle=el('tt-primary');
    if(!toggle.checked){toggle.checked=true;toggle.dispatchEvent(new Event('change',{bubbles:true}));}
-   el('passenger-provider-status').textContent='TomTom selected. Key is kept in page memory only.';
+   el('passenger-provider-status').textContent=remember?
+     'TomTom ready. Key saved on this browser only.':
+     'TomTom ready for this page. Key not saved.';
    input.value='';
    hideSettings();
+ });
+ el('passenger-forget-key').addEventListener('click',()=>{
+   el('tt-remove-key').click();
+   passengerRemember.checked=false;
+   el('passenger-key').value='';
+   el('passenger-provider-status').textContent='Saved TomTom key cleared from this browser.';
  });
  function refreshOverview(){
    routeLabels.clearLayers();
