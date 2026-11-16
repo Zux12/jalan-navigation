@@ -223,7 +223,8 @@
        dependency('link','https://unpkg.com/maplibre-gl@5.15.0/dist/maplibre-gl.css',
          'sha384-mnM9NG1099tBMNxdDQNDKIxYcn/fmqQXFJvbT5l1MsrWvzfxBEffceBsw75/cW2R')]);
      if(stopped)return;
-     if(!maplibregl.supported())return fallback();
+     // MapLibre 5 has no public supported() probe. Its constructor performs
+     // context creation; an unsupported device reaches the guarded fallback.
      const center=map.getCenter();
      gl=new maplibregl.Map({container,style:'https://tiles.openfreemap.org/styles/positron',
        center:[center.lng,center.lat],zoom:map.getZoom()-1,minZoom:2,maxZoom:19,maxPitch:60,
