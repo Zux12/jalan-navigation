@@ -210,8 +210,11 @@ async function main(){
   assert.equal(touchResults.moved,true,'one finger drags tilted map');
   assert.equal(touchResults.zoomChanged,true,'two fingers pinch to zoom tilted map');
   assert.equal(touchResults.bearingChanged,true,'two fingers twist to rotate tilted map');
-  assert.equal(await page.evaluate(()=>getComputedStyle(document.getElementById('passenger-vehicle-screen')).transform.includes('matrix(')),true,
-    'upright vehicle HUD uses its own transform, separate from camera turn');
+  assert.equal(await page.evaluate(()=>{
+    const hud=document.getElementById('passenger-vehicle-screen');
+    return !document.getElementById('map').contains(hud)&&
+      document.getElementById('passenger-navigation').contains(hud);
+  }),true,'vehicle HUD is outside rotating Leaflet map');
   // Slow incremental pinches are common on iOS. The old per-event threshold
   // never accumulated them, so test a full gesture across several small moves.
   const incrementalPinch=await page.evaluate(()=>{
