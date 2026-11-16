@@ -146,14 +146,28 @@ async function main(){
   assert.equal(await page.evaluate(()=>!!locationMarker&&pointLayer.hasLayer(locationMarker)),false,
     'ongoing GPS fixes must not recreate legacy location dot in passenger mode');
   assert.equal(await page.locator('.jalan-vehicle-symbol').getAttribute('data-heading'),
-    'unavailable','slow GPS must not invent road direction');
+    'route','slow GPS uses clearly estimated route direction, not fake compass');
+  assert.equal(await page.locator('.jalan-vehicle-symbol').textContent(),'▲',
+    'triangle appears after a verified GPS match even when stationary');
+  const slowDirection=await page.evaluate(()=>{
+    const symbol=document.querySelector('.jalan-vehicle-symbol');
+    return {map:Number.parseFloat(document.getElementById('map').style.getPropertyValue('--jalan-camera-turn')),
+      marker:Number.parseFloat(symbol.style.getPropertyValue('--jalan-vehicle-heading'))};
+  });
+  assert.ok(Number.isFinite(slowDirection.map)&&
+    Math.abs(slowDirection.map+slowDirection.marker)<0.01,
+    'triangle stays up while map uses estimated route bearing');
   await page.evaluate(()=>{
     window.__offlineGPSWatch({timestamp:Date.now()+2500,coords:{
       latitude:3.1391,longitude:101.6870,accuracy:8,speed:5,heading:90}});
   });
   await page.waitForTimeout(80);
   assert.equal(await page.locator('.jalan-vehicle-symbol').getAttribute('data-heading'),
-    'reliable','moving GPS with heading enables vehicle arrow');
+    'gps','moving GPS uses direction of movement');
+  assert.equal(await page.locator('.jalan-vehicle-symbol').textContent(),'▲',
+    'vehicle is a triangle while moving');
+  assert.equal(await page.evaluate(()=>document.querySelector('.jalan-vehicle-symbol').style.getPropertyValue('--jalan-vehicle-heading')),
+    '90deg','triangle counter-rotates to screen-up while map turns');
   assert.equal(await page.evaluate(()=>document.getElementById('map').style.getPropertyValue('--jalan-camera-turn')),
     '-90deg','moving camera rotates only on a reliable heading');
   await page.locator('#passenger-2d').click();

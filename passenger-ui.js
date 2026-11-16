@@ -23,15 +23,16 @@
  };
  // Vehicle icon is georeferenced. Never show a fixed screen arrow implying
  // a valid position before the GPS predictor has actually matched a route.
- let vehicle=null,lastValidHeading=null;
+ let vehicle=null,lastValidHeading=null,directionSource='unavailable';
  const vehicleIcon=L.divIcon({
    className:'jalan-vehicle-marker',
-   html:'<span class="jalan-vehicle-symbol" data-heading="unavailable">•</span>',
+   html:'<span class="jalan-vehicle-symbol" data-heading="unavailable">▲</span>',
    iconSize:[40,40],iconAnchor:[20,20]
  });
  function discardVehicle(){
    if(vehicle){map.removeLayer(vehicle);vehicle=null;}
    lastValidHeading=null;
+   directionSource='unavailable';
    map.getContainer().style.removeProperty('--jalan-camera-turn');
  }
  function updateVehicle(detail){
@@ -46,22 +47,39 @@
      keyboard:false,zIndexOffset:950}).addTo(map);
    else vehicle.setLatLng(position);
    const heading=detail.heading,speed=detail.speedMps;
-   // Browser headings are often unreliable or absent at low speed. Keep the
-   // map north-up and display a neutral dot until moving direction is known.
-   const headingValid=Number.isFinite(heading)&&heading>=0&&heading<360&&
+   // GPS heading is meaningful only when actually moving. At low speed use
+   // the direction of the selected route segment, explicitly an estimate.
+   const gpsHeadingReliable=Number.isFinite(heading)&&heading>=0&&heading<360&&
      Number.isFinite(speed)&&speed>=2.5;
-   lastValidHeading=headingValid?heading:null;
+   const ahead=routeAheadCenter(position,60);
+   const x=(ahead[1]-position[1])*Math.cos(position[0]*Math.PI/180);
+   const y=ahead[0]-position[0];
+   const alongMeters=Math.hypot(x,y)*111320;
+   const routeBearing=Number.isFinite(alongMeters)&&alongMeters>=12?
+     (Math.atan2(x,y)*180/Math.PI+360)%360:null;
+   if(gpsHeadingReliable){
+     lastValidHeading=heading;
+     directionSource='gps';
+   }else if(routeBearing!==null){
+     lastValidHeading=routeBearing;
+     directionSource='route';
+   }else{
+     lastValidHeading=null;
+     directionSource='unavailable';
+   }
    const symbol=vehicle.getElement()?.querySelector('.jalan-vehicle-symbol');
    if(symbol){
-     symbol.dataset.heading=headingValid?'reliable':'unavailable';
-     symbol.textContent=headingValid?'▲':'•';
+     // Counter-rotate the *georeferenced* triangle against the camera rotation.
+     // The vehicle points up; the map follows available direction instead.
+     symbol.dataset.heading=directionSource;
+     symbol.textContent='▲';
      symbol.style.setProperty('--jalan-vehicle-heading',
-       headingValid?heading+'deg':'0deg');
+       lastValidHeading===null?'0deg':lastValidHeading+'deg');
    }
    const guiding=document.body.classList.contains('passenger-guiding')&&
      !document.body.classList.contains('passenger-map-flat');
    map.getContainer().style.setProperty('--jalan-camera-turn',
-     guiding&&headingValid?(-heading)+'deg':'0deg');
+     guiding&&lastValidHeading!==null?(-lastValidHeading)+'deg':'0deg');
    return true;
  }
  const hideSettings=()=>settings.classList.add('hidden');
@@ -177,8 +195,11 @@
    el('passenger-distance').textContent=el('gps-distance').textContent||'—';
    const state=window.JalanGPS?.getState();
    const matched=state?.matched&&Number.isFinite(state.accuracy)&&state.accuracy<=75&&state.fixAgeMs<10000;
-   el('passenger-fix').textContent=matched?'GPS matched · experimental route preview':
-      'GPS uncertain or unavailable · do not rely on guidance';
+   el('passenger-fix').textContent=!matched?
+     'GPS uncertain or unavailable · vehicle position not verified':
+     directionSource==='gps'?'GPS matched · heading-up experimental preview':
+     directionSource==='route'?'GPS matched · road direction estimated from route':
+     'GPS matched · direction unavailable; north-up preview';
    const speed=fix?.matched&&Number.isFinite(fix.speedMps)&&fix.speedMps>=0?
      Math.round(fix.speedMps*3.6)+' km/h':'— km/h';
    el('passenger-speed').textContent=speed;
