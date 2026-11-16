@@ -104,6 +104,8 @@ async function main(){
   assert.equal(await page.evaluate(()=>document.body.classList.contains('passenger-guiding')),true);
   assert.equal(await page.locator('#passenger-navigation').isVisible(),true);
   assert.equal(await page.locator('#gps-hud').isVisible(),false,'engineering HUD hidden in clean view');
+  assert.equal(await page.locator('.passenger-car-arrow').count(),0,
+    'fixed fake vehicle triangle must be removed');
   const zoomBefore=await page.evaluate(()=>map.getZoom());
   // Unreliable GPS must NEVER silently zoom into an asserted matched road.
   await page.evaluate(()=>{
@@ -113,6 +115,8 @@ async function main(){
   await page.waitForTimeout(100);
   assert.equal(await page.evaluate(()=>map.getZoom()),zoomBefore,
     'uncertain GPS cannot drive passenger camera');
+  assert.equal(await page.locator('.jalan-vehicle-marker').count(),0,
+    'poor GPS must not display a claimed vehicle position');
   await page.evaluate(()=>{
     window.__offlineGPSWatch({timestamp:Date.now()+1000,coords:{
       latitude:3.139,longitude:101.6869,accuracy:8,speed:2,heading:0}});
@@ -126,6 +130,34 @@ async function main(){
   assert.equal(await page.evaluate(()=>document.getElementById('passenger-fix').textContent.includes('GPS matched')),true);
   const forward=await page.evaluate(()=>map.getCenter().lat);
   assert.ok(forward>3.139,'passenger camera should center ahead along validated route');
+  assert.equal(await page.locator('.jalan-vehicle-marker').count(),1,
+    'verified GPS must create one georeferenced marker');
+  assert.equal(await page.locator('.jalan-vehicle-symbol').getAttribute('data-heading'),
+    'unavailable','slow GPS must not invent road direction');
+  await page.evaluate(()=>{
+    window.__offlineGPSWatch({timestamp:Date.now()+2500,coords:{
+      latitude:3.1391,longitude:101.6870,accuracy:8,speed:5,heading:90}});
+  });
+  await page.waitForTimeout(80);
+  assert.equal(await page.locator('.jalan-vehicle-symbol').getAttribute('data-heading'),
+    'reliable','moving GPS with heading enables vehicle arrow');
+  assert.equal(await page.evaluate(()=>document.getElementById('map').style.getPropertyValue('--jalan-camera-turn')),
+    '-90deg','moving camera rotates only on a reliable heading');
+  await page.locator('#passenger-2d').click();
+  assert.equal(await page.evaluate(()=>document.getElementById('map').style.getPropertyValue('--jalan-camera-turn')),
+    '0deg','2D mode stays north-up');
+  await page.locator('#passenger-2d').click();
+  assert.equal(await page.evaluate(()=>document.getElementById('map').style.getPropertyValue('--jalan-camera-turn')),
+    '-90deg','returning to perspective restores heading');
+  await page.evaluate(()=>{
+    window.__offlineGPSWatch({timestamp:Date.now()+4000,coords:{
+      latitude:3.1391,longitude:101.6870,accuracy:180,speed:5,heading:90}});
+  });
+  await page.waitForTimeout(60);
+  assert.equal(await page.locator('.jalan-vehicle-marker').count(),0,
+    'uncertain GPS must hide geolocated arrow rather than freeze it');
+  assert.equal(await page.evaluate(()=>document.getElementById('map').style.getPropertyValue('--jalan-camera-turn')),
+    '','uncertain GPS resets camera to north-up');
   await page.locator('#passenger-2d').click();
   assert.equal(await page.evaluate(()=>document.body.classList.contains('passenger-map-flat')),true);
   await page.locator('#passenger-stop').click();
