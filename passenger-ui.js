@@ -151,17 +151,19 @@
      sharedKeyInput.dispatchEvent(new Event('input',{bubbles:true}));
    }
    const remember=passengerRemember.checked;
-   sharedRemember.checked=remember;
-   if(remember){
-     localStorage.setItem('jalan-tomtom-key',value);
-   }else{
-     localStorage.removeItem('jalan-tomtom-key');
-     sessionStorage.removeItem('jalan-tomtom-key');
-   }
+   // The common TomTom module guards browsers that deny storage access.
+   // A failed remember request must not be presented as a saved key.
+   const storage=window.JalanTomTomKeyStorage;
+   let saved=false;
+   if(remember){saved=storage?.remember(value)===true;}
+   else storage?.forget();
+   sharedRemember.checked=remember&&saved;
+   passengerRemember.checked=remember&&saved;
    const toggle=el('tt-primary');
    if(!toggle.checked){toggle.checked=true;toggle.dispatchEvent(new Event('change',{bubbles:true}));}
-   el('passenger-provider-status').textContent=remember?
+   el('passenger-provider-status').textContent=remember&&saved?
      'TomTom ready. Key saved on this browser only.':
+     remember?'TomTom ready for this page. Browser storage blocked; key not saved.':
      'TomTom ready for this page. Key not saved.';
    input.value='';
    hideSettings();
