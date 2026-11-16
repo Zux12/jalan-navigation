@@ -481,8 +481,13 @@ async function main(){
     '0deg','2D Recenter restores north-up');
   assert.equal(await page.evaluate(()=>map.getZoom()),17,'2D Recenter returns to GPS zoom');
   await page.locator('#passenger-2d').click();
-  assert.equal(await page.evaluate(()=>document.getElementById('map').style.getPropertyValue('--jalan-camera-turn')),
-    '-90deg','returning to perspective restores heading');
+  const headingAfterReturn=await page.evaluate(()=>({
+    camera:Number.parseFloat(document.getElementById('map').style.getPropertyValue('--jalan-camera-turn')),
+    vehicle:Number.parseFloat(document.querySelector('.jalan-vehicle-symbol').style.getPropertyValue('--jalan-vehicle-heading'))
+  }));
+  assert.ok(Number.isFinite(headingAfterReturn.camera)&&
+    Math.abs(headingAfterReturn.camera+headingAfterReturn.vehicle)<0.02,
+    'return to perspective uses last valid GPS or route-estimated heading with upright triangle');
   await page.evaluate(()=>{
     window.__offlineGPSWatch({timestamp:Date.now()+4000,coords:{
       latitude:3.1391,longitude:101.6870,accuracy:180,speed:5,heading:90}});
