@@ -60,7 +60,7 @@ async function main(){
    destination=[3.1478,101.6953];
    const route=(duration,distance)=>({provider:'osrm',duration,distance,
     geometry:{type:'LineString',coordinates:points},
-    legs:[{steps:[{name:'Test segment',distance,maneuver:{type:'turn',modifier:'left'}}]}]});
+    legs:[{steps:[{name:'Test segment',distance,routeOffsetInMeters:125,maneuver:{type:'turn',modifier:'left'}}]}]});
    routes=[route(840,4200),route(600,3200),route(720,3400)];
    selectedRoute=0;renderRoutes();
   });
@@ -120,8 +120,10 @@ async function main(){
   assert.equal(await page.locator('#gps-hud').isVisible(),false,'engineering HUD hidden in clean view');
   assert.equal(await page.locator('#passenger-options').evaluate(x=>x.open),false,
     'Go keeps the menu collapsed, showing only minutes, km and speed');
-  assert.equal(await page.locator('.passenger-turn').isVisible(),false,
-    'large turn banner must be hidden in compact guidance');
+  assert.equal(await page.locator('.passenger-turn').isVisible(),true,
+    'top next-turn guidance must be visible even with compact metrics');
+  assert.equal(await page.locator('#passenger-turn-list').isVisible(),false,
+    'full direction list starts closed');
   assert.equal(await page.locator('.passenger-stats').isVisible(),true);
   assert.equal(await page.locator('#passenger-voice').isVisible(),false,
     'advanced controls remain hidden until opening options');
@@ -220,8 +222,19 @@ async function main(){
     document.getElementById('tt-primary').checked=window.__originalTrafficPrimary;
     document.getElementById('tt-key').value='';
   });
-  const forward=await page.evaluate(()=>map.getCenter().lat);
-  assert.ok(forward>3.139,'passenger camera should center ahead along validated route');
+  const cameraPosition=await page.evaluate(()=>[map.getCenter().lat,map.getCenter().lng]);
+  assert.ok(Math.abs(cameraPosition[0]-3.139)<0.00002&&
+    Math.abs(cameraPosition[1]-101.6869)<0.00002,
+    'follow camera must keep the matched vehicle location in frame');
+  assert.match(await page.locator('#passenger-instruction').innerText(),/left/i,
+    'the banner shows the next maneuver provided by the selected route');
+  await page.locator('#passenger-turn-toggle').click();
+  assert.equal(await page.locator('#passenger-turn-list').isVisible(),true);
+  assert.equal(await page.locator('#passenger-maneuver-list li').count(),2,
+    'list includes the actual next maneuver and destination');
+  assert.match(await page.locator('#passenger-maneuver-list').innerText(),/Test segment|left|destination/i);
+  await page.locator('#passenger-turn-close').click();
+  assert.equal(await page.locator('#passenger-turn-list').isVisible(),false);
   assert.equal(await page.locator('.jalan-vehicle-marker').count(),1,
     'verified GPS must create one georeferenced marker');
   assert.equal(await page.locator('#passenger-vehicle-screen').isVisible(),true,
