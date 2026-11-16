@@ -266,7 +266,51 @@
    rerouteStatus.textContent=String(detail.message||'Route status unavailable.');
  });
  syncNavigationSettings();
-  el('passenger-go').addEventListener('click',()=>{
+ // Expose the EXISTING TomTom checker: no second routing/GPS engine and no
+ // background traffic polling until the passenger opts in.
+ const trafficToggle=el('passenger-traffic-toggle'),
+       trafficStatus=el('passenger-traffic-status'),
+       trafficOffer=el('passenger-traffic-offer');
+ const hideTrafficOffer=()=>trafficOffer.classList.add('hidden');
+ const syncTraffic=()=>{
+   const on=el('proactive-toggle').getAttribute('aria-pressed')==='true';
+   trafficToggle.setAttribute('aria-pressed',String(on));
+   trafficToggle.textContent='5-min checks: '+(on?'On':'Off');
+ };
+ trafficToggle.addEventListener('click',()=>{
+   const state=window.JalanGPS?.getState?.();
+   if(trafficToggle.getAttribute('aria-pressed')!=='true' &&
+      (state?.route?.provider!=='tomtom'||!el('tt-primary')?.checked||
+       !el('tt-key')?.value.trim())){
+     trafficStatus.textContent='Auto traffic checks need an active TomTom route and a restricted key.';
+     return;
+   }
+   el('proactive-toggle').click();
+   syncTraffic();
+ });
+ el('passenger-traffic-check').addEventListener('click',()=>el('proactive-check').click());
+ el('passenger-traffic-accept').addEventListener('click',()=>el('proactive-accept').click());
+ el('passenger-traffic-keep').addEventListener('click',()=>el('proactive-decline').click());
+ window.addEventListener('jalan:traffic-status',event=>{
+   trafficStatus.textContent=String(event.detail?.message||'Traffic check unavailable.');
+   syncTraffic();
+   // Do not leave an old proposal visible after a failed or cancelled check.
+   if(/failed|changed|removed|unavailable|waiting|off|expired|kept|selected/i.test(trafficStatus.textContent))
+     hideTrafficOffer();
+ });
+ window.addEventListener('jalan:route-offer',event=>{
+   if(!document.body.classList.contains('passenger-guiding')||
+      window.JalanGPS?.getState?.()?.route?.provider!=='tomtom')return;
+   const seconds=event.detail?.estimatedSavingSeconds;
+   if(!Number.isFinite(seconds)||seconds<=0)return;
+   el('passenger-traffic-offer-text').textContent=
+     'TomTom suggests saving about '+Math.round(seconds/60)+' min. Confirm before switching.';
+   trafficOffer.classList.remove('hidden');
+ });
+ window.addEventListener('jalan:route-change',hideTrafficOffer);
+ window.addEventListener('jalan:route-decline',hideTrafficOffer);
+ syncTraffic();
+ el('passenger-go').addEventListener('click',()=>{
    if(!routes.length)return;
    hideSettings();
    el('gps-start').click();
@@ -295,6 +339,9 @@
    scheduleScreenVehicle();
  });
  window.addEventListener('jalan:journey-stop',()=>{
+   hideTrafficOffer();
+   if(el('proactive-toggle').getAttribute('aria-pressed')==='true')el('proactive-toggle').click();
+   syncTraffic();
    exploring=false;lastGPSDetail=null;
    discardVehicle();
    document.body.classList.remove('passenger-guiding','passenger-map-flat');

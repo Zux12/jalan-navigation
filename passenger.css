@@ -136,3 +136,10 @@ body.passenger-map-flat .passenger-map-gestures{pointer-events:auto}
 .passenger-reroute-status[data-state="error"]{color:#a33927}
 .passenger-reroute-status[data-state="checking"]{color:#245c9e}
 @media(max-height:650px){.passenger-nav-options button{padding:6px 3px;font-size:10px}}
+
+/* Compact, explicitly opt-in traffic preview; does not change engine state. */
+.passenger-traffic-details{margin:2px 0 8px;border:1px solid #dbe4ee;border-radius:10px;padding:5px 9px;color:#375571;font-size:11px}
+.passenger-traffic-details summary{cursor:pointer;font-weight:750;padding:3px 1px}
+.passenger-traffic-details p{margin:7px 0;line-height:1.35}
+.passenger-traffic-offer{border:1px solid #b9daca;border-radius:9px;padding:7px;background:#f0fff7;margin-bottom:6px}
+.passenger-traffic-offer span{display:block;font-weight:700;margin-bottom:7px}

@@ -4,7 +4,10 @@
  const el=id=>document.getElementById(id);
  const CHECK_MS=5*60*1000,MIN_SAVE=5*60*1000,DECLINE_MS=10*60*1000;
  let enabled=false,lastCheck=0,declinedUntil=0,pending=null,controller=null,requestEpoch=0;
- const status=t=>{el('proactive-status').textContent=t;};
+ const status=t=>{el('proactive-status').textContent=t;
+  // Share only human-readable traffic status with the optional Passenger view.
+  window.dispatchEvent(new CustomEvent('jalan:traffic-status',{detail:{message:t,enabled}}));
+ };
  const offer=el('proactive-offer');
  const hideOffer=()=>{pending=null;offer.classList.add('hidden');};
  const invalidate=()=>{requestEpoch++;controller?.abort();controller=null;hideOffer();};

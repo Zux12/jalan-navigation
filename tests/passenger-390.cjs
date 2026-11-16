@@ -115,6 +115,24 @@ async function main(){
   'start and legacy location circles must not overlap the passenger vehicle marker');
   assert.equal(await page.locator('#passenger-navigation').isVisible(),true);
   assert.equal(await page.locator('#gps-hud').isVisible(),false,'engineering HUD hidden in clean view');
+   assert.equal(await page.locator('#passenger-traffic-toggle').getAttribute('aria-pressed'),'false',
+     'traffic checks do not silently start with Passenger Mode');
+   await page.locator('#passenger-traffic-details summary').click();
+   await page.locator('#passenger-traffic-toggle').click();
+   assert.equal(await page.locator('#passenger-traffic-toggle').getAttribute('aria-pressed'),'false',
+     'no-key / OSRM route cannot enable automatic TomTom checks');
+   assert.match(await page.locator('#passenger-traffic-status').innerText(),/active TomTom route/);
+   await page.locator('#passenger-traffic-check').click();
+   assert.match(await page.locator('#passenger-traffic-status').innerText(),/road-matched GPS/,
+     'manual traffic check must fail closed without road-matched GPS');
+   await page.evaluate(()=>window.dispatchEvent(new CustomEvent('jalan:traffic-status',{
+     detail:{message:'Traffic check failed: TomTom HTTP 503',enabled:false}
+   })));
+   assert.match(await page.locator('#passenger-traffic-status').innerText(),/HTTP 503/,
+     'provider failure is visible in passenger view');
+   assert.equal(await page.locator('#passenger-traffic-offer').isVisible(),false,
+     'a provider failure cannot invent a faster route');
+   assert.equal(await page.locator('#proactive-toggle').getAttribute('aria-pressed'),'false');
   assert.equal(await page.locator('#passenger-auto-reroute').getAttribute('aria-pressed'),'false',
     'Passenger Mode must not automatically opt in to rerouting');
   assert.match(await page.locator('#passenger-voice').innerText(),/Mute/);
@@ -168,6 +186,27 @@ async function main(){
   assert.ok(await page.evaluate(()=>map.getZoom()>=17),
     'passenger follow zoom must persist after delayed route overview settling');
   assert.equal(await page.evaluate(()=>document.getElementById('passenger-fix').textContent.includes('GPS matched')),true);
+  // Actual proactive engine denies missing key and never offers a route
+  // after a blocked TomTom request, even with matched synthetic GPS.
+  await page.evaluate(()=>{
+    window.__originalTrafficPrimary=document.getElementById('tt-primary').checked;
+    routes[selectedRoute].provider='tomtom';
+    document.getElementById('tt-primary').checked=true;
+    document.getElementById('tt-key').value='';
+  });
+  await page.locator('#passenger-traffic-check').click();
+  assert.match(await page.locator('#passenger-traffic-status').innerText(),/Enter TomTom key/,
+    'matched GPS does not bypass absent provider credentials');
+  await page.evaluate(()=>{document.getElementById('tt-key').value='TEST_RESTRICTED_KEY_1234';});
+  await page.locator('#passenger-traffic-check').click();
+  await page.waitForFunction(()=>document.getElementById('passenger-traffic-status').textContent.includes('Traffic check failed'),null,{timeout:4000});
+  assert.equal(await page.locator('#passenger-traffic-offer').isVisible(),false,
+    'failed network request cannot fabricate an alternative');
+  await page.evaluate(()=>{
+    routes[selectedRoute].provider='osrm';
+    document.getElementById('tt-primary').checked=window.__originalTrafficPrimary;
+    document.getElementById('tt-key').value='';
+  });
   const forward=await page.evaluate(()=>map.getCenter().lat);
   assert.ok(forward>3.139,'passenger camera should center ahead along validated route');
   assert.equal(await page.locator('.jalan-vehicle-marker').count(),1,
