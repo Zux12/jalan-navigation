@@ -30,7 +30,9 @@
  function syncCamera(){
    if(!active||syncing)return;
    syncing=true;
-   try{const p=gl.getCenter();original.setView([p.lat,p.lng],gl.getZoom()+1,{animate:false});}
+   // reset:true avoids Leaflet's setView -> this.panBy optimization calling
+   // back into the native camera and applying the movement a second time.
+   try{const p=gl.getCenter();original.setView([p.lat,p.lng],gl.getZoom()+1,{animate:false,reset:true});}
    finally{syncing=false;}
  }
  function fallback(){
@@ -59,7 +61,7 @@
  };
  function installCamera(){
    map.setView=(position,zoom=map.getZoom())=>{
-     if(syncing)return original.setView(position,zoom,{animate:false});
+     if(syncing)return original.setView(position,zoom,{animate:false,reset:true});
      gl.jumpTo({center:lngLat(position),zoom:zoom-1});return map;
    };
    map.panTo=position=>{gl.jumpTo({center:lngLat(position)});return map;};
