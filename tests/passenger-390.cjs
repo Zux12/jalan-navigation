@@ -255,6 +255,36 @@ async function main(){
   });
   assert.equal(await page.locator('#passenger-report-list li').count(),2,
     'confirmed TomTom event is shown beside labeled demo report');
+  const reportCenter=()=>page.evaluate(()=>[map.getCenter().lat,map.getCenter().lng]);
+  const assertReportCenter=async(lat,lng)=>{
+    const center=await reportCenter();
+    assert.ok(Math.abs(center[0]-lat)<0.00002&&Math.abs(center[1]-lng)<0.00002,
+      'report camera centers on the actual reported coordinates');
+    assert.equal(await page.evaluate(()=>map.getZoom()),18,'report opens at street detail');
+  };
+  await page.evaluate(()=>{window.__routeBeforeReport=window.JalanGPS.getState().route;});
+  await page.locator('#passenger-report-list button').first().tap();
+  await assertReportCenter(3.144,101.6917);
+  assert.equal(await page.locator('#passenger-turn-list').isVisible(),false,
+    'tapping a report dismisses the panel so the location is visible');
+  assert.equal(await page.locator('#passenger-turn-toggle').getAttribute('aria-expanded'),'false');
+  assert.equal(await page.locator('.jalan-report-focus-marker').count(),1);
+  assert.match(await page.locator('.jalan-report-focus-label').innerText(),/unverified demo report/);
+  assert.equal(await page.locator('#passenger-recenter-floating').evaluate(x=>x===document.activeElement),true,
+    'focus moves out of the hidden report panel to Recenter');
+  await page.evaluate(()=>window.__offlineGPSWatch({timestamp:Date.now()+1000,coords:{
+    latitude:3.139,longitude:101.6869,accuracy:8,speed:0,heading:0}}));
+  await page.waitForTimeout(100);
+  await assertReportCenter(3.144,101.6917);
+  assert.equal(await page.evaluate(()=>window.JalanGPS.getState().route===window.__routeBeforeReport),true,
+    'viewing a report never changes the selected route');
+  await page.locator('#passenger-recenter-floating').tap();
+  assert.equal(await page.locator('.jalan-report-focus-marker').count(),0,
+    'Recenter clears the report highlight');
+  const returned=await reportCenter();
+  assert.ok(Math.abs(returned[0]-3.139)<0.00002&&Math.abs(returned[1]-101.6869)<0.00002,
+    'Recenter returns to the trusted GPS position');
+  await page.locator('#passenger-turn-toggle').click();
   await page.locator('#passenger-tab-directions').click();
   assert.equal(await page.locator('#passenger-tab-directions').getAttribute('aria-selected'),'true');
   assert.equal(await page.locator('#passenger-maneuver-list li').count(),2,
@@ -581,18 +611,34 @@ async function main(){
   assert.equal(await trafficLayers(),1,'Go starts one traffic colour overlay');
   await page.locator('#passenger-turn-toggle').click();
   assert.match(await page.locator('#passenger-report-list').innerText(),/Fixture roadworks ahead/);
-  await page.locator('#passenger-turn-close').click();
+  // Reports can be inspected immediately after Go, even before GPS matches.
+  const liveReport=page.getByRole('button',{name:/View report on map: TomTom traffic incident/});
+  await liveReport.focus();
+  await liveReport.press('Enter');
+  await assertReportCenter(3.145,101.6925);
+  assert.equal(await page.locator('.jalan-report-focus-marker').count(),1);
+  assert.equal(await page.locator('.jalan-vehicle-marker').count(),0,
+    'a report marker must not impersonate a matched GPS vehicle');
+  assert.equal(await page.locator('#passenger-turn-list').isVisible(),false);
   await page.evaluate(()=>window.__offlineGPSWatch({timestamp:Date.now(),coords:{
     latitude:3.139,longitude:101.6869,accuracy:8,speed:0,heading:0}}));
   await page.waitForFunction(()=>document.getElementById('passenger-live-eta').textContent.includes('10 min'));
+  await assertReportCenter(3.145,101.6925);
+  await page.locator('#passenger-recenter-floating').click();
+  assert.equal(await page.locator('.jalan-report-focus-marker').count(),0);
   assert.equal(trafficRouteRequests,1,'first trusted fix starts the immediate traffic route check');
   await page.evaluate(()=>window.__offlineGPSWatch({timestamp:Date.now()+1000,coords:{
     latitude:3.139,longitude:101.6869,accuracy:8,speed:0,heading:0}}));
   assert.equal(trafficRouteRequests,1,'GPS updates do not repeatedly request traffic routes');
+  await page.locator('#passenger-turn-toggle').click();
+  await page.locator('#passenger-report-list button').tap();
+  await assertReportCenter(3.145,101.6925);
   await page.locator('#passenger-options > summary').click();
   await page.locator('#passenger-traffic-details summary').click();
   await page.locator('#passenger-traffic-toggle').click();
   assert.equal(await trafficLayers(),0,'Live traffic Off removes colour overlay');
+  assert.equal(await page.locator('.jalan-report-focus-marker').count(),0,
+    'Live traffic Off also removes the selected incident highlight');
   assert.equal(await page.locator('#passenger-traffic-summary').getAttribute('data-state'),'off');
   await page.locator('#passenger-turn-toggle').click();
   assert.equal(await page.locator('#passenger-report-list li').count(),0,'Off clears old incident reports');

@@ -197,6 +197,11 @@ body.passenger-guiding .passenger-turn{position:fixed;top:0;left:0;right:0}
 .passenger-turn-list [role="tabpanel"] li{display:flex;gap:12px;align-items:flex-start;border-bottom:1px solid #48566b;padding:10px 3px;font-size:13px}
 .passenger-turn-list [role="tabpanel"] li strong{font-size:14px}
 .passenger-turn-list [role="tabpanel"] li small{display:block;color:#bed6e6;font-size:12px;padding-top:3px}
+#passenger-report-list li{padding:0}
+.passenger-report-button{display:flex;align-items:flex-start;gap:12px;width:100%;min-height:48px;padding:12px 5px;border:0;border-radius:6px;background:transparent;color:inherit;font:inherit;text-align:left;cursor:pointer;touch-action:manipulation}
+.passenger-report-button:active{background:#344b64}
+.passenger-report-button:focus-visible{outline:2px solid #9edbff;outline-offset:-2px;background:#344b64}
+.jalan-report-focus-label{max-width:220px;white-space:normal;text-align:center;border:2px solid #d85800;font-weight:700;color:#3c260f}
 .passenger-recenter-floating{pointer-events:auto;position:fixed;right:14px;bottom:calc(115px + env(safe-area-inset-bottom,0px));z-index:7;width:50px;height:50px;border-radius:50%;border:2px solid #e7eef5;background:#fffffff2;color:#166b9d;font-size:32px;line-height:1;display:grid;place-items:center;box-shadow:0 4px 15px #0a2c5260;touch-action:manipulation}
 .passenger-recenter-floating:active{background:#dceefb}
 @media(max-height:650px){.passenger-recenter-floating{bottom:calc(105px + env(safe-area-inset-bottom,0px))}}

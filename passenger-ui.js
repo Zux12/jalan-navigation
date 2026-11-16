@@ -229,6 +229,31 @@
        reportsPanel=el('passenger-reports-panel'),directionsPanel=el('passenger-directions-panel'),
        reportList=el('passenger-report-list'),reportNote=el('passenger-report-note');
  let activeInfoTab='reports',incidentSnapshot={route:null,incidents:[],checkedAt:0};
+ const reportFocus=L.layerGroup().addTo(map);
+ let focusedReport=null;
+ const clearReportFocus=()=>{reportFocus.clearLayers();focusedReport=null;};
+ const focusReport=(item,route)=>{
+   const state=window.JalanGPS?.getState?.();
+   if(!state?.active||state.route!==route||!Number.isFinite(item.lat)||
+      !Number.isFinite(item.lng)||Math.abs(item.lat)>90||Math.abs(item.lng)>180||
+      !startExplore())return;
+   gesture=null;
+   closeDirections();
+   clearReportFocus();
+   focusedReport={route,source:item.source};
+   const label=document.createElement('span');
+   label.textContent=item.title;
+   L.circleMarker([item.lat,item.lng],{radius:12,color:'#fff',weight:3,
+     fillColor:'#d85800',fillOpacity:1,interactive:false,
+     className:'jalan-report-focus-marker'}).addTo(reportFocus)
+     .bindTooltip(label,{permanent:true,direction:'top',offset:[0,-14],
+       className:'jalan-report-focus-label'});
+   applyCameraAngle(0);
+   map.setView([item.lat,item.lng],18,{animate:false});
+   hint.textContent='Viewing report · tap Recenter to follow GPS again';
+   scheduleScreenVehicle();
+   el('passenger-recenter-floating').focus({preventScroll:true});
+ };
  // Do not call a nearby report "on the route" unless it projects within
  // 300 metres of the selected provider's road geometry.
  const pointOnRoute=(position,coords)=>{
@@ -275,7 +300,8 @@
    }
    const positioned=[];
    for(const item of items){
-     if(!Number.isFinite(item.lat)||!Number.isFinite(item.lng))continue;
+     if(!Number.isFinite(item.lat)||!Number.isFinite(item.lng)||
+        Math.abs(item.lat)>90||Math.abs(item.lng)>180)continue;
      const projected=pointOnRoute([item.lat,item.lng],coords);
      if(!projected||projected.offset>300||(current&&projected.along<current.along-30))continue;
      positioned.push({...item,ahead:current?Math.max(0,projected.along-current.along):null,routeAlong:projected.along,
@@ -283,15 +309,21 @@
    }
    positioned.sort((a,b)=>a.routeAlong-b.routeAlong);
    for(const item of positioned.slice(0,40)){
-     const li=document.createElement('li'),marker=document.createElement('span'),
+     const li=document.createElement('li'),button=document.createElement('button'),
+           marker=document.createElement('span'),
            info=document.createElement('div'),title=document.createElement('strong'),
            distances=document.createElement('small'),detail=document.createElement('small');
      marker.className='turn-list-arrow';marker.textContent=item.source==='demo'?'⚠️':'🚧';
+     marker.setAttribute('aria-hidden','true');
+     button.type='button';button.className='passenger-report-button';
+     button.setAttribute('aria-label','View report on map: '+item.title+' · '+item.detail);
+     button.addEventListener('click',()=>focusReport(item,route));
      title.textContent=item.title;
      distances.textContent=(item.ahead===null?'Distance from you pending GPS':'In '+fmtDist(item.ahead))+
        ' · '+fmtDist(item.fromReportToDestination)+' from report to destination';
      detail.textContent=item.detail;
-     info.append(title,distances,detail);li.append(marker,info);reportList.appendChild(li);
+     info.append(title,distances,detail);button.append(marker,info);
+     li.appendChild(button);reportList.appendChild(li);
    }
    const hasIncidents=incidentSnapshot.route===route&&
      Date.now()-incidentSnapshot.checkedAt<=10*60*1000;
@@ -315,6 +347,7 @@
  directionsTab.addEventListener('click',()=>selectInfoTab('directions'));
  window.addEventListener('jalan:incidents-updated',event=>{
    const detail=event.detail||{};
+   if(focusedReport?.source==='tomtom')clearReportFocus();
    incidentSnapshot={route:detail.route||null,incidents:Array.isArray(detail.incidents)?detail.incidents:[],
      checkedAt:Number(detail.checkedAt)||0};
    if(!turnList.classList.contains('hidden')&&activeInfoTab==='reports')renderReports();
@@ -498,7 +531,8 @@
      'TomTom suggests saving about '+Math.round(seconds/60)+' min. Confirm before switching.';
    trafficOffer.classList.remove('hidden');
  });
- window.addEventListener('jalan:route-change',()=>{hideTrafficOffer();clearLiveEta();});
+ window.addEventListener('jalan:route-change',()=>{hideTrafficOffer();clearLiveEta();clearReportFocus();});
+ window.addEventListener('jalan:route-cleared',clearReportFocus);
  window.addEventListener('jalan:route-decline',hideTrafficOffer);
  syncTraffic();
  el('passenger-go').addEventListener('click',()=>{
@@ -512,6 +546,7 @@
  });
  window.addEventListener('jalan:journey-start',()=>{
    closeDirections();
+   clearReportFocus();
    incidentSnapshot={route:null,incidents:[],checkedAt:0};
    el('passenger-options').open=false;
    clearLiveEta();
@@ -545,6 +580,7 @@
  });
  window.addEventListener('jalan:journey-stop',()=>{
    closeDirections();
+   clearReportFocus();
    el('passenger-options').open=false;
    clearLiveEta();
    el('passenger-signal-alert').classList.add('hidden');
@@ -707,7 +743,7 @@
  // Both 2D and 2.5D views use this gesture surface so rotating the map
  // does not invalidate Leaflet's original hit-testing.
  const recenterPassenger=()=>{
-
+   clearReportFocus();
    gesture=null;exploring=false;
    hint.textContent='Following GPS · drag, pinch or twist to explore';
    const state=window.JalanGPS?.getState();
