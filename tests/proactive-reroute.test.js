@@ -37,6 +37,28 @@ function scene(){
  return {nodes,ctx,state,route,requests,finish,events,
   get applied(){return applied},get aborted(){return aborted}};
 }
+test('Go checker waits for matched GPS, checks immediately, throttles five minutes and stops',async()=>{
+ const s=scene();let now=1000000;s.ctx.Date={now:()=>now};
+ s.state.matched=false;
+ await s.ctx.window.JalanTraffic.start();
+ assert.equal(s.requests.length,0);
+ s.state.matched=true;
+ const first=s.ctx.window.JalanTraffic.check();
+ assert.equal(s.requests.length,1);
+ const noSaving={routes:[{legs:[{points:[{latitude:3.14,longitude:101.68},
+  {latitude:3.145,longitude:101.69}]}],summary:{travelTimeInSeconds:1100,
+  lengthInMeters:2500,trafficDelayInSeconds:30},guidance:{instructions:[]}}]};
+ s.finish(noSaving);await first;
+ now+=299999;await s.ctx.window.JalanTraffic.check();
+ assert.equal(s.requests.length,1);
+ now+=1;const next=s.ctx.window.JalanTraffic.check();
+ assert.equal(s.requests.length,2);
+ s.ctx.window.JalanTraffic.stop();s.finish(noSaving);await next;
+ now+=300000;await s.ctx.window.JalanTraffic.check();
+ assert.equal(s.requests.length,2);
+ assert.equal(s.applied,0);
+ assert.equal(s.nodes['proactive-offer'].classList.contains('hidden'),true);
+});
 test('disabling reroute checks rejects a late TomTom response even when fetch ignores abort',async()=>{
  const s=scene();
  s.nodes['proactive-toggle'].onclick();

@@ -252,13 +252,12 @@
    reportList.replaceChildren();
    const state=window.JalanGPS?.getState?.(),route=state?.route,
          coords=route?.geometry?.coordinates;
-   if(!state?.active||!state.matched||state.fixAgeMs>10000||
-      state.accuracy>75||!Array.isArray(state.position)||!Array.isArray(coords)){
-     reportNote.textContent='Waiting for verified GPS and a selected route to calculate distances to reports.';
+   if(!state?.active||!Array.isArray(coords)){
+     reportNote.textContent='Choose a route to see traffic reports.';
      return;
    }
-   const current=pointOnRoute(state.position,coords);
-   if(!current){reportNote.textContent='Route distances are unavailable.';return;}
+   const current=state.matched&&state.fixAgeMs<=10000&&state.accuracy<=75&&Array.isArray(state.position)?
+     pointOnRoute(state.position,coords):null;
    const items=[];
    // Local community reports are demo records, NOT verified incidents.
    for(const report of (typeof getReports==='function'?getReports():[])){
@@ -278,28 +277,30 @@
    for(const item of items){
      if(!Number.isFinite(item.lat)||!Number.isFinite(item.lng))continue;
      const projected=pointOnRoute([item.lat,item.lng],coords);
-     if(!projected||projected.offset>300||projected.along<current.along-30)continue;
-     positioned.push({...item,ahead:Math.max(0,projected.along-current.along),
+     if(!projected||projected.offset>300||(current&&projected.along<current.along-30))continue;
+     positioned.push({...item,ahead:current?Math.max(0,projected.along-current.along):null,routeAlong:projected.along,
        fromReportToDestination:Math.max(0,projected.total-projected.along)});
    }
-   positioned.sort((a,b)=>a.ahead-b.ahead);
+   positioned.sort((a,b)=>a.routeAlong-b.routeAlong);
    for(const item of positioned.slice(0,40)){
      const li=document.createElement('li'),marker=document.createElement('span'),
            info=document.createElement('div'),title=document.createElement('strong'),
            distances=document.createElement('small'),detail=document.createElement('small');
      marker.className='turn-list-arrow';marker.textContent=item.source==='demo'?'⚠️':'🚧';
      title.textContent=item.title;
-     distances.textContent='In '+fmtDist(item.ahead)+' · '+fmtDist(item.fromReportToDestination)+' from report to destination';
+     distances.textContent=(item.ahead===null?'Distance from you pending GPS':'In '+fmtDist(item.ahead))+
+       ' · '+fmtDist(item.fromReportToDestination)+' from report to destination';
      detail.textContent=item.detail;
      info.append(title,distances,detail);li.append(marker,info);reportList.appendChild(li);
    }
    const hasIncidents=incidentSnapshot.route===route&&
      Date.now()-incidentSnapshot.checkedAt<=10*60*1000;
    reportNote.textContent=positioned.length?
-     'Demo reports are unverified. TomTom incidents reflect the last connected traffic fetch. Distances are approximate along-route values.':
+     'Demo reports are unverified. TomTom incidents reflect the last connected traffic fetch. '+
+       (current?'Distances are approximate along-route values.':'Showing the selected route; distance from you awaits verified GPS.'):
      'No applicable reports ahead on this selected route.'+
        (hasIncidents?' TomTom incident check returned no applicable items.':
-        ' Connect TomTom traffic incidents separately for live traffic reports.');
+        ' '+el('passenger-traffic-summary').textContent);
  };
  const selectInfoTab=tab=>{
    activeInfoTab=tab==='directions'?'directions':'reports';
@@ -408,11 +409,21 @@
    rerouteStatus.textContent=String(detail.message||'Route status unavailable.');
  });
  syncNavigationSettings();
- // Expose the EXISTING TomTom checker: no second routing/GPS engine and no
- // background traffic polling until the passenger opts in.
+ // Go starts the existing traffic layers/checker for this passenger session.
+ // Keep automatic route switching separate from loading traffic information.
  const trafficToggle=el('passenger-traffic-toggle'),
        trafficStatus=el('passenger-traffic-status'),
        trafficOffer=el('passenger-traffic-offer');
+ const trafficSummary=el('passenger-traffic-summary');
+ let trafficOptOut=false;
+ window.addEventListener('jalan:traffic-layer-status',event=>{
+   if(!document.body.classList.contains('passenger-guiding'))return;
+   const detail=event.detail||{},state=window.JalanGPS?.getState?.();
+   if(detail.route&&detail.route!==state?.route)return;
+   trafficSummary.dataset.state=detail.state||'off';
+   trafficSummary.textContent=String(detail.message||'Traffic unavailable');
+   if(!turnList.classList.contains('hidden')&&activeInfoTab==='reports')renderReports();
+ });
  const liveEta=el('passenger-live-eta');
  const clearLiveEta=()=>{
    liveEta.textContent='No recent TomTom estimate. Selected-route minutes remain the active guidance estimate.';
@@ -440,20 +451,33 @@
  const syncTraffic=()=>{
    const on=el('proactive-toggle').getAttribute('aria-pressed')==='true';
    trafficToggle.setAttribute('aria-pressed',String(on));
-   trafficToggle.textContent='5-min checks: '+(on?'On':'Off');
+   trafficToggle.textContent='Live traffic: '+(on?'On':'Off');
+ };
+ const stopPassengerTraffic=()=>{
+   window.JalanTraffic?.stop();
+   window.JalanTomTom?.stopPassengerTraffic();
+   syncTraffic();
+ };
+ const startPassengerTraffic=()=>{
+   if(!window.JalanTomTom?.startPassengerTraffic()){
+     window.JalanTraffic?.stop();
+     trafficStatus.textContent='Auto traffic checks need an active TomTom route and a restricted key.';
+     syncTraffic();return;
+   }
+   window.JalanTraffic?.start();
+   syncTraffic();
  };
  trafficToggle.addEventListener('click',()=>{
-   const state=window.JalanGPS?.getState?.();
-   if(trafficToggle.getAttribute('aria-pressed')!=='true' &&
-      (state?.route?.provider!=='tomtom'||!el('tt-primary')?.checked||
-       !el('tt-key')?.value.trim())){
-     trafficStatus.textContent='Auto traffic checks need an active TomTom route and a restricted key.';
-     return;
-   }
-   el('proactive-toggle').click();
-   syncTraffic();
+   trafficOptOut=trafficToggle.getAttribute('aria-pressed')==='true';
+   if(trafficOptOut)stopPassengerTraffic();else startPassengerTraffic();
  });
- el('passenger-traffic-check').addEventListener('click',()=>el('proactive-check').click());
+ el('passenger-traffic-check').addEventListener('click',()=>{
+   window.JalanTomTom?.refreshRouteIncidents(true);
+   el('proactive-check').click();
+ });
+ window.addEventListener('jalan:gps-fix',()=>{
+   if(document.body.classList.contains('passenger-guiding'))window.JalanTraffic?.check();
+ });
  el('passenger-traffic-accept').addEventListener('click',()=>el('proactive-accept').click());
  el('passenger-traffic-keep').addEventListener('click',()=>el('proactive-decline').click());
  window.addEventListener('jalan:traffic-status',event=>{
@@ -479,6 +503,7 @@
  syncTraffic();
  el('passenger-go').addEventListener('click',()=>{
    if(!routes.length)return;
+   trafficOptOut=false;
    hideSettings();
    el('gps-start').click();
    if(!window.JalanGPS?.getState()?.active){
@@ -516,6 +541,7 @@
    el('passenger-2d').textContent='2D map';
    syncGPS();
    scheduleScreenVehicle();
+   if(!trafficOptOut)startPassengerTraffic();
  });
  window.addEventListener('jalan:journey-stop',()=>{
    closeDirections();
@@ -523,8 +549,7 @@
    clearLiveEta();
    el('passenger-signal-alert').classList.add('hidden');
    hideTrafficOffer();
-   if(el('proactive-toggle').getAttribute('aria-pressed')==='true')el('proactive-toggle').click();
-   syncTraffic();
+   stopPassengerTraffic();
    exploring=false;lastGPSDetail=null;
    discardVehicle();
    document.body.classList.remove('passenger-guiding','passenger-map-flat');

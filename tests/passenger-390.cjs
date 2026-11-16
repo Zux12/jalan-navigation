@@ -131,7 +131,7 @@ async function main(){
   assert.equal(await page.locator('#passenger-voice').isVisible(),true,
     'advanced controls remain accessible when passenger requests them');
    assert.equal(await page.locator('#passenger-traffic-toggle').getAttribute('aria-pressed'),'false',
-     'traffic checks do not silently start with Passenger Mode');
+     'OSRM / no-key Go cannot start TomTom traffic checks');
    await page.locator('#passenger-traffic-details summary').click();
    await page.locator('#passenger-traffic-toggle').click();
    assert.equal(await page.locator('#passenger-traffic-toggle').getAttribute('aria-pressed'),'false',
@@ -533,6 +533,87 @@ async function main(){
   await page.locator('#passenger-forget-key').click();
   assert.equal(await page.evaluate(()=>localStorage.getItem('jalan-tomtom-key')),null);
   assert.equal(await page.evaluate(()=>document.getElementById('tt-key').value),'');
+  // Exercise actual Go -> traffic module -> mocked provider -> Reports flow.
+  // All provider requests remain intercepted; no real key or GPS is sent.
+  let incidentRequests=0,trafficRouteRequests=0,incidentFailure=false;
+  await page.route('https://api.tomtom.com/traffic/map/**',route=>route.fulfill({
+    status:200,contentType:'image/png',body:Buffer.from(
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=','base64')}));
+  await page.route('https://api.tomtom.com/traffic/services/5/incidentDetails?**',route=>{
+    incidentRequests++;
+    return route.fulfill({status:incidentFailure?503:200,contentType:'application/json',body:JSON.stringify({incidents:[{
+      geometry:{type:'Point',coordinates:[101.6925,3.145]},
+      properties:{iconCategory:6,events:[{description:'Fixture roadworks ahead'}]}
+    }]})});
+  });
+  await page.route('https://api.tomtom.com/routing/1/calculateRoute/**',route=>{
+    trafficRouteRequests++;
+    return route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({routes:[{
+      legs:[{points:[{latitude:3.139,longitude:101.6869},{latitude:3.1478,longitude:101.6953}]}],
+      summary:{lengthInMeters:3200,travelTimeInSeconds:600,trafficDelayInSeconds:30},guidance:{instructions:[]}
+    }]})});
+  });
+  await page.goto(base+'/index.html?mode=passenger',{waitUntil:'load'});
+  const setupTrafficRoute=()=>page.evaluate(()=>{
+    document.getElementById('tt-primary').checked=true;
+    document.getElementById('tt-key').value='TEST_RESTRICTED_KEY_1234';
+    document.getElementById('tt-incident-toggle').checked=false;
+    localStorage.removeItem('jalan-demo-reports-v1');
+    setStart([3.139,101.6869],'Fixture start');destination=[3.1478,101.6953];
+    routes=[{provider:'tomtom',duration:600,distance:3200,delay:30,
+      geometry:{type:'LineString',coordinates:[[101.6869,3.139],[101.6953,3.1478]]},legs:[{steps:[]}]}];
+    selectedRoute=0;renderRoutes();
+  });
+  await setupTrafficRoute();
+  assert.equal(incidentRequests,0,'route review does not start traffic fetching');
+  await page.locator('#passenger-go').click();
+  await page.waitForFunction(()=>document.getElementById('passenger-traffic-summary').dataset.state==='ready');
+  assert.equal(incidentRequests,1,'Go fetches incidents without opening options');
+  assert.equal(trafficRouteRequests,0,'GPS-based traffic checks wait for a trusted fix');
+  assert.equal(await page.locator('#passenger-options').evaluate(x=>x.open),false);
+  assert.equal(await page.locator('#passenger-traffic-summary').isVisible(),true);
+  assert.match(await page.locator('#passenger-traffic-summary').innerText(),/1 nearby/);
+  assert.equal(await page.locator('#passenger-traffic-toggle').getAttribute('aria-pressed'),'true');
+  assert.equal(await page.evaluate(()=>document.getElementById('tt-incident-toggle').checked),true);
+  const trafficLayers=()=>page.evaluate(()=>{
+    let n=0;map.eachLayer(layer=>{if(String(layer._url||'').includes('/traffic/map/'))n++;});return n;
+  });
+  assert.equal(await trafficLayers(),1,'Go starts one traffic colour overlay');
+  await page.locator('#passenger-turn-toggle').click();
+  assert.match(await page.locator('#passenger-report-list').innerText(),/Fixture roadworks ahead/);
+  await page.locator('#passenger-turn-close').click();
+  await page.evaluate(()=>window.__offlineGPSWatch({timestamp:Date.now(),coords:{
+    latitude:3.139,longitude:101.6869,accuracy:8,speed:0,heading:0}}));
+  await page.waitForFunction(()=>document.getElementById('passenger-live-eta').textContent.includes('10 min'));
+  assert.equal(trafficRouteRequests,1,'first trusted fix starts the immediate traffic route check');
+  await page.evaluate(()=>window.__offlineGPSWatch({timestamp:Date.now()+1000,coords:{
+    latitude:3.139,longitude:101.6869,accuracy:8,speed:0,heading:0}}));
+  assert.equal(trafficRouteRequests,1,'GPS updates do not repeatedly request traffic routes');
+  await page.locator('#passenger-options > summary').click();
+  await page.locator('#passenger-traffic-details summary').click();
+  await page.locator('#passenger-traffic-toggle').click();
+  assert.equal(await trafficLayers(),0,'Live traffic Off removes colour overlay');
+  assert.equal(await page.locator('#passenger-traffic-summary').getAttribute('data-state'),'off');
+  await page.locator('#passenger-turn-toggle').click();
+  assert.equal(await page.locator('#passenger-report-list li').count(),0,'Off clears old incident reports');
+  await page.locator('#passenger-turn-close').click();
+  incidentFailure=true;
+  await page.locator('#passenger-traffic-toggle').click();
+  await page.waitForFunction(()=>document.getElementById('passenger-traffic-summary').textContent.includes('unavailable'));
+  assert.equal(await page.locator('#passenger-traffic-summary').getAttribute('data-state'),'error');
+  await page.locator('#passenger-stop').click();
+  assert.equal(await trafficLayers(),0,'End preview removes automatic traffic layers');
+  assert.equal(await page.locator('#proactive-toggle').getAttribute('aria-pressed'),'false');
+  // A new Go with a TomTom-shaped route but no key must make no traffic call.
+  await setupTrafficRoute();
+  await page.evaluate(()=>{document.getElementById('tt-key').value='';});
+  const beforeMissingKey=incidentRequests;
+  await page.locator('#passenger-go').click();
+  assert.match(await page.locator('#passenger-traffic-summary').innerText(),/add a TomTom key/);
+  assert.equal(incidentRequests,beforeMissingKey);
+  assert.equal(await trafficLayers(),0);
+  await page.locator('#passenger-options > summary').click();
+  await page.locator('#passenger-stop').click();
   await page.goto(base+'/index.html?mode=engineering',{waitUntil:'load'});
   assert.equal(await page.evaluate(()=>document.body.classList.contains('passenger-mode')),false);
   assert.equal(await page.locator('#info-panel').isVisible(),true,'original engineering dashboard retained');
