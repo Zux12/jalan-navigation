@@ -107,7 +107,9 @@ function renderRoutes(){
    const top=Math.min(200,Math.round(h*0.23));
    const bottom=Math.min(140,Math.round(h*0.17));
    const side=Math.min(50,Math.round(w*0.07));
-   map.fitBounds(bounds,{paddingTopLeft:[side,top],paddingBottomRight:[side,bottom],maxZoom:15,animate:true});
+   // Passenger Go can start immediately after a route is selected. Do not let
+   // an in-flight overview zoom animation override the trusted GPS camera.
+   map.fitBounds(bounds,{paddingTopLeft:[side,top],paddingBottomRight:[side,bottom],maxZoom:15,animate:!passengerMode});
  };
  requestAnimationFrame(()=>requestAnimationFrame(fitSelectedRoute));
  routeEl.innerHTML=`<strong>🚘 ${fmtTime(chosen.duration)} · ${fmtDist(chosen.distance)}</strong><div class="route-warning">${chosen.provider === 'tomtom' ? 'TomTom traffic-aware estimate · route geometry from TomTom. Live traffic can change.' : 'OSRM estimate only — live traffic is not included.'}</div>`;
