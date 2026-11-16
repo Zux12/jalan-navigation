@@ -44,6 +44,9 @@ async function main(){
   await page.goto(base+'/index.html?mode=passenger');
   await page.waitForFunction(()=>window.JalanVectorMap?.active,null,{timeout:25000});
   assert.equal(await page.locator('#map').evaluate(x=>getComputedStyle(x).transform),'none');
+  await page.evaluate(()=>{window.__mapClicks=0;map.on('click',()=>{window.__mapClicks++;});});
+  await page.locator('#jalan-vector-map canvas').click({position:{x:60,y:340}});
+  assert.equal(await page.evaluate(()=>window.__mapClicks),1,'one native map click cannot also trigger a flat Leaflet click');
   const routeFixture=()=>{
    setStart([3.139,101.6869],'Fixture start');destination=[3.1478,101.6953];
    const route=(duration,coordinates)=>({provider:'osrm',duration,distance:3200,

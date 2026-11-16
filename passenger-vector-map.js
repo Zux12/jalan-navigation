@@ -11,6 +11,9 @@
  status.id='jalan-map-status';status.setAttribute('role','status');
  status.textContent='Loading detailed map…';document.body.append(status);
  const container=document.createElement('div');container.id='jalan-vector-map';host.append(container);
+ // Native events belong to MapLibre; the parent Leaflet container would
+ // otherwise emit a second click using its flat, hidden map projection.
+ L.DomEvent.disableClickPropagation(container);L.DomEvent.disableScrollPropagation(container);
  const methods=['setView','panTo','panBy','fitBounds','setZoom','zoomIn','zoomOut',
    'stop','invalidateSize','getBounds','addLayer','removeLayer','hasLayer','eachLayer'];
  methods.forEach(name=>{original[name]=map[name].bind(map);});
