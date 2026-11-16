@@ -37,7 +37,7 @@ body.passenger-mode .passenger-overview{position:fixed;z-index:1300;bottom:calc(
 .passenger-delta-pin{background:#fff;border:2px solid #e2e8f0;border-radius:10px;padding:5px 8px;white-space:nowrap;font:bold 12px system-ui,sans-serif;box-shadow:0 4px 10px #10243c4d;color:#172d45}
 /* Reduce the artificial empty horizon seen in the initial passenger desktop
    preview. This is still a flat Leaflet map with visual perspective ONLY. */
-body.passenger-guiding #map{transform:perspective(1200px) rotateX(29deg) rotateZ(var(--jalan-camera-turn,0deg)) scale(1.85) translateY(-3vh);transform-origin:center center;pointer-events:none!important}
+body.passenger-guiding #map{transform:perspective(1200px) rotateX(43deg) rotateZ(var(--jalan-camera-turn,0deg)) scale(2.1) translateY(-2vh);transform-origin:50% 60%;pointer-events:none!important}
 body.passenger-guiding{background:#dbe4eb}
 body.passenger-guiding.passenger-map-flat #map{transform:rotateZ(var(--jalan-camera-turn,0deg));pointer-events:none!important}
 body.passenger-guiding .topbar,body.passenger-guiding .results,body.passenger-guiding .passenger-overview,body.passenger-guiding .passenger-setup{display:none!important}
@@ -143,3 +143,20 @@ body.passenger-map-flat .passenger-map-gestures{pointer-events:auto}
 .passenger-traffic-details p{margin:7px 0;line-height:1.35}
 .passenger-traffic-offer{border:1px solid #b9daca;border-radius:9px;padding:7px;background:#f0fff7;margin-bottom:6px}
 .passenger-traffic-offer span{display:block;font-weight:700;margin-bottom:7px}
+
+/* Compact metrics-only post-Go HUD; controls live in an accessible ellipsis popover. */
+body.passenger-guiding .passenger-turn,body.passenger-guiding .passenger-heading{display:none}
+body.passenger-guiding .passenger-bottom{left:12px;right:12px;bottom:calc(10px + env(safe-area-inset-bottom,0px));padding:12px 44px 12px 14px;border-radius:20px;background:#fffffff2;box-shadow:0 9px 26px #1934524a}
+body.passenger-guiding .passenger-stats{gap:9px;justify-content:space-between}
+body.passenger-guiding .passenger-stats b{font-size:clamp(23px,5.5vw,31px);white-space:nowrap}
+body.passenger-guiding .passenger-stats span{font-size:clamp(12px,3.3vw,16px);white-space:nowrap}
+.passenger-options{position:absolute;top:0;bottom:0;right:2px;width:40px;pointer-events:none}
+.passenger-options>summary{pointer-events:auto;position:absolute;right:5px;top:7px;list-style:none;display:grid;place-items:center;width:34px;height:40px;border-radius:12px;color:#23455d;font-size:27px;font-weight:900;cursor:pointer;touch-action:manipulation}
+.passenger-options>summary::-webkit-details-marker{display:none}
+.passenger-options[open]>summary{background:#e8f3fc}
+.passenger-options-content{pointer-events:auto;position:absolute;bottom:calc(100% + 10px);right:0;width:min(365px,calc(100vw - 24px));max-height:min(62dvh,470px);overflow:auto;overscroll-behavior:contain;background:#fffffffa;border:1px solid #d4e0ea;box-shadow:0 12px 35px #14294065;border-radius:17px;padding:13px;color:#263d55}
+.passenger-options-content .passenger-traffic-details{margin-bottom:8px}
+.passenger-options-content .passenger-fix{margin:0 0 7px}
+.passenger-options-content .passenger-controls{margin-top:8px}
+.passenger-signal-alert{position:absolute;z-index:4;top:calc(14px + env(safe-area-inset-top,0px));left:12px;right:12px;border-radius:12px;background:#fff5e6eb;color:#784b0f;padding:10px 12px;text-align:center;font:700 12px system-ui,sans-serif}
+.passenger-signal-alert.hidden{display:none!important}
