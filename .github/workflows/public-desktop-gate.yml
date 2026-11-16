@@ -9,6 +9,9 @@ on:
       - 'tests/gps-match-contract.test.js'
       - 'index.html'
       - 'style.css'
+      - 'passenger.css'
+      - 'passenger-ui.js'
+      - 'tests/passenger-390.cjs'
       - 'tests/public-desktop-390.cjs'
       - '.github/workflows/public-desktop-gate.yml'
   push:
@@ -21,6 +24,9 @@ on:
       - 'tests/gps-match-contract.test.js'
       - 'index.html'
       - 'style.css'
+      - 'passenger.css'
+      - 'passenger-ui.js'
+      - 'tests/passenger-390.cjs'
       - 'tests/public-desktop-390.cjs'
       - '.github/workflows/public-desktop-gate.yml'
 permissions:
@@ -39,4 +45,6 @@ jobs:
           npm install --no-save --ignore-scripts --no-audit --no-fund playwright@1.58.2 leaflet@1.9.4 axe-core@4.10.3
           npx playwright install --with-deps chromium
       - name: Run deterministic local Chromium 390px, no outbound network
-        run: node tests/public-desktop-390.cjs
+        run: |
+          node tests/public-desktop-390.cjs
+          node tests/passenger-390.cjs
