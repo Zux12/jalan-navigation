@@ -47,8 +47,11 @@ body.passenger-guiding .interface-switch{display:none}
 .passenger-turn>span{font-size:48px;font-weight:900}.passenger-turn strong{font-size:clamp(19px,4.8vw,26px);display:block}.passenger-turn small{font-size:14px;color:#61d7fc}
 .passenger-heading{position:absolute;top:calc(139px + env(safe-area-inset-top,0px));left:10px;right:10px;text-align:center;color:#273d58;background:#ffffffd9;padding:6px 9px;border-radius:12px;font-size:11px;font-weight:750}
 .jalan-vehicle-marker{border:0;background:transparent;pointer-events:none}
-.jalan-vehicle-marker .jalan-vehicle-symbol{display:grid;place-items:center;width:40px;height:40px;border:3px solid white;border-radius:50%;background:#087fb5;color:white;font:900 26px system-ui,sans-serif;filter:drop-shadow(0 3px 7px #17283e88);transform:rotate(var(--jalan-vehicle-heading,0deg))}
-.jalan-vehicle-marker .jalan-vehicle-symbol[data-heading="unavailable"]{border-radius:50%;background:#617d9b;color:white;font-size:17px}
+/* GPS-anchored vehicle triangle, counter-rotated to remain screen-up while
+   the experimental passenger camera visually turns the map underneath. */
+.jalan-vehicle-marker .jalan-vehicle-symbol{display:grid;place-items:center;width:40px;height:40px;color:#00a1cd;background:transparent;font:900 34px system-ui,sans-serif;text-shadow:-2px -2px 0 white,2px -2px 0 white,-2px 2px 0 white,2px 2px 0 white,0 5px 10px #19324a88;transform:rotate(var(--jalan-vehicle-heading,0deg));transform-origin:center center}
+.jalan-vehicle-marker .jalan-vehicle-symbol[data-heading="route"]{color:#128dc6}
+.jalan-vehicle-marker .jalan-vehicle-symbol[data-heading="unavailable"]{color:#8797a6}
 
 .passenger-bottom{pointer-events:auto;position:absolute;left:0;right:0;bottom:0;background:#fff;border-radius:25px 25px 0 0;padding:22px max(18px,env(safe-area-inset-left,0px)) calc(18px + env(safe-area-inset-bottom,0px));box-shadow:0 -10px 25px #19345240;color:#1c2837}
 .passenger-stats{display:flex;justify-content:space-around;align-items:center;gap:15px}
