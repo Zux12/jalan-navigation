@@ -9,6 +9,18 @@
        list=el('passenger-route-list'),settings=el('passenger-setup'),
        navigation=el('passenger-navigation');
  const routeLabels=L.layerGroup().addTo(map);
+ // Route-planning markers are useful before Go but misleading when a separate
+ // GPS-matched vehicle marker owns passenger guidance.
+ const hidePlannerMarkers=()=>{
+   if(startMarker&&pointLayer.hasLayer(startMarker))pointLayer.removeLayer(startMarker);
+   if(locationMarker&&pointLayer.hasLayer(locationMarker)){
+     pointLayer.removeLayer(locationMarker);
+     locationMarker=null;
+   }
+ };
+ const restorePlannerMarkers=()=>{
+   if(startMarker&&!pointLayer.hasLayer(startMarker))startMarker.addTo(pointLayer);
+ };
  // Vehicle icon is georeferenced. Never show a fixed screen arrow implying
  // a valid position before the GPS predictor has actually matched a route.
  let vehicle=null,lastValidHeading=null;
@@ -184,6 +196,7 @@
  window.addEventListener('jalan:journey-start',()=>{
    discardVehicle();
    if(!routes.length)return;
+   hidePlannerMarkers();
    routeLabels.clearLayers();
    overview.classList.add('hidden');
    navigation.classList.remove('hidden');
@@ -196,6 +209,7 @@
  window.addEventListener('jalan:journey-stop',()=>{
    discardVehicle();
    document.body.classList.remove('passenger-guiding','passenger-map-flat');
+   restorePlannerMarkers();
    navigation.classList.add('hidden');
  });
  // The old passenger view retained the full-route zoom (often 15) after Go,
