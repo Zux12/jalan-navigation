@@ -152,8 +152,62 @@
    document.body.classList.remove('passenger-guiding','passenger-map-flat');
    navigation.classList.add('hidden');
  });
- window.addEventListener('jalan:gps-fix',event=>
-   requestAnimationFrame(()=>syncGPS(event.detail)));
+ // The old passenger view retained the full-route zoom (often 15) after Go,
+ // leaving the vehicle in a distant map overview. Only a predictor-matched,
+ // fresh, bounded-accuracy GPS fix may control the passenger camera.
+ // This follows the route ahead in north-up 2.5D; it DOES NOT rotate to road
+ // bearing or certify lane-level placement/turn legality.
+ const routeAheadCenter=(position,metresAhead=90)=>{
+   const coordinates=routes[selectedRoute]?.geometry?.coordinates;
+   if(!Array.isArray(coordinates)||coordinates.length<2)return position;
+   const sx=111320*Math.cos(position[0]*Math.PI/180),sy=111320;
+   let closest={distance:Infinity,segment:-1,ratio:0};
+   const points=coordinates.filter(p=>Array.isArray(p)&&p.length>=2&&p.every(Number.isFinite))
+     .map(p=>[p[1],p[0]]);
+   for(let i=1;i<points.length;i++){
+     const a=points[i-1],b=points[i],dx=(b[1]-a[1])*sx,dy=(b[0]-a[0])*sy;
+     const ax=(a[1]-position[1])*sx,ay=(a[0]-position[0])*sy;
+     const ratio=Math.max(0,Math.min(1,-(ax*dx+ay*dy)/(dx*dx+dy*dy||1)));
+     const distance=Math.hypot(ax+ratio*dx,ay+ratio*dy);
+     if(distance<closest.distance)closest={distance,segment:i,ratio};
+   }
+   // Don't bias the camera toward an unrelated road if map-matching is unclear.
+   if(closest.segment<0||closest.distance>75)return position;
+   let remaining=metresAhead;
+   for(let i=closest.segment;i<points.length;i++){
+     const a=points[i-1],b=points[i],fraction=i===closest.segment?closest.ratio:0;
+     const length=Math.hypot((b[1]-a[1])*sx,(b[0]-a[0])*sy);
+     const available=length*(1-fraction);
+     if(remaining<=available&&length>0){
+       const t=fraction+remaining/length;
+       return [a[0]+t*(b[0]-a[0]),a[1]+t*(b[1]-a[1])];
+     }
+     remaining-=available;
+   }
+   return points[points.length-1]||position;
+ };
+ const followPassengerGPS=detail=>{
+   if(!document.body.classList.contains('passenger-guiding')||
+      document.body.classList.contains('passenger-map-flat'))return;
+   const state=window.JalanGPS?.getState();
+   if(!state?.active||!state.matched||!Number.isFinite(state.accuracy)||
+      state.accuracy>75||state.fixAgeMs>10000||
+      !detail?.matched||!Array.isArray(detail.matchedPosition)||
+      detail.matchedPosition.length!==2||
+      !detail.matchedPosition.every(Number.isFinite))return;
+   const center=routeAheadCenter(detail.matchedPosition);
+   // A preceding route-overview fitBounds() may still be animating; cancel
+   // it before taking ownership of the passenger camera.
+   map.stop();
+   if(map.getZoom()<17)map.setView(center,17,{animate:false,reset:true});
+   else map.panTo(center,{animate:false});
+ };
+ window.addEventListener('jalan:gps-fix',event=>{
+   // GPS module has already updated its trust state at dispatch. Camera
+   // positioning does not depend on paint and should not be deferred.
+   followPassengerGPS(event.detail);
+   requestAnimationFrame(()=>syncGPS(event.detail));
+ });
  el('passenger-recenter').addEventListener('click',()=>el('gps-recenter').click());
  el('passenger-2d').addEventListener('click',()=>{
    const flat=document.body.classList.toggle('passenger-map-flat');
