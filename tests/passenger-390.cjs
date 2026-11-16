@@ -129,7 +129,7 @@ async function main(){
   }));
   console.log('Offline passenger camera contract: '+JSON.stringify(diagnostic));
   console.log('Offline passenger page exceptions: '+JSON.stringify(errors.slice(0,3)));
-  await page.waitForFunction(()=>map.getZoom()>=17,{timeout:3500});
+  await page.waitForFunction(()=>map.getZoom()>=17,null,{timeout:4000});
   assert.equal(await page.evaluate(()=>document.getElementById('passenger-fix').textContent.includes('GPS matched')),true);
   const forward=await page.evaluate(()=>map.getCenter().lat);
   assert.ok(forward>3.139,'passenger camera should center ahead along validated route');
