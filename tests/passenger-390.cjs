@@ -30,7 +30,7 @@ async function main(){
   await context.addInitScript(()=>{
    Object.defineProperty(navigator,'geolocation',{configurable:true,value:{
     getCurrentPosition(_success,error){error({code:1,message:'Denied in offline fixture'})},
-    watchPosition(_success,error){error({code:1,message:'Denied in offline fixture'});return 1},
+    watchPosition(success,error){window.__offlineGPSWatch=success;error({code:1,message:'Denied in offline fixture'});return 1},
     clearWatch(){}
    }});
   });
@@ -104,6 +104,23 @@ async function main(){
   assert.equal(await page.evaluate(()=>document.body.classList.contains('passenger-guiding')),true);
   assert.equal(await page.locator('#passenger-navigation').isVisible(),true);
   assert.equal(await page.locator('#gps-hud').isVisible(),false,'engineering HUD hidden in clean view');
+  const zoomBefore=await page.evaluate(()=>map.getZoom());
+  // Unreliable GPS must NEVER silently zoom into an asserted matched road.
+  await page.evaluate(()=>{
+    window.__offlineGPSWatch({timestamp:Date.now(),coords:{
+      latitude:3.139,longitude:101.6869,accuracy:180,speed:2,heading:0}});
+  });
+  await page.waitForTimeout(100);
+  assert.equal(await page.evaluate(()=>map.getZoom()),zoomBefore,
+    'uncertain GPS cannot drive passenger camera');
+  await page.evaluate(()=>{
+    window.__offlineGPSWatch({timestamp:Date.now()+1000,coords:{
+      latitude:3.139,longitude:101.6869,accuracy:8,speed:2,heading:0}});
+  });
+  await page.waitForFunction(()=>map.getZoom()>=17);
+  assert.equal(await page.evaluate(()=>document.getElementById('passenger-fix').textContent.includes('GPS matched')),true);
+  const forward=await page.evaluate(()=>map.getCenter().lat);
+  assert.ok(forward>3.139,'passenger camera should center ahead along validated route');
   await page.locator('#passenger-2d').click();
   assert.equal(await page.evaluate(()=>document.body.classList.contains('passenger-map-flat')),true);
   await page.locator('#passenger-stop').click();
