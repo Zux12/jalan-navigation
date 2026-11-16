@@ -590,7 +590,7 @@
    const zoom=map.getZoom();
    const camera=map.getCenter(),dx=(camera.lng-center[1])*111320*Math.cos(center[0]*Math.PI/180),
          dy=(camera.lat-center[0])*111320;
-   if(!Number.isFinite(zoom)||zoom<15)map.setView(center,17,{animate:false});
+   if(!Number.isFinite(zoom)||zoom<17)map.setView(center,17,{animate:false});
    else if(Math.hypot(dx,dy)>8)map.panTo(center,{animate:false});
    scheduleScreenVehicle();
  };
