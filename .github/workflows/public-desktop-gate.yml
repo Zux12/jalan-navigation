@@ -11,6 +11,8 @@ on:
       - 'style.css'
       - 'passenger.css'
       - 'passenger-ui.js'
+      - 'passenger-vector-map.js'
+      - 'tests/passenger-vector-390.cjs'
       - 'tests/passenger-390.cjs'
       - 'tests/public-desktop-390.cjs'
       - '.github/workflows/public-desktop-gate.yml'
@@ -26,6 +28,8 @@ on:
       - 'style.css'
       - 'passenger.css'
       - 'passenger-ui.js'
+      - 'passenger-vector-map.js'
+      - 'tests/passenger-vector-390.cjs'
       - 'tests/passenger-390.cjs'
       - 'tests/public-desktop-390.cjs'
       - '.github/workflows/public-desktop-gate.yml'
@@ -42,9 +46,16 @@ jobs:
           node-version: '24'
       - name: Install pinned browser and Leaflet dependencies in disposable runner
         run: |
-          npm install --no-save --ignore-scripts --no-audit --no-fund playwright@1.58.2 leaflet@1.9.4 axe-core@4.10.3
+          npm install --no-save --ignore-scripts --no-audit --no-fund playwright@1.58.2 leaflet@1.9.4 axe-core@4.10.3 maplibre-gl@5.15.0
           npx playwright install --with-deps chromium
       - name: Run deterministic local Chromium 390px, no outbound network
         run: |
           node tests/public-desktop-390.cjs
           node tests/passenger-390.cjs
+      - name: Verify native vector rendering and public basemap availability
+        run: node tests/passenger-vector-390.cjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: passenger-vector-screenshots
+          path: test-artifacts/*.png
