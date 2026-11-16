@@ -114,7 +114,7 @@
    resetCamera();
    navigation.classList.add('hidden');
  });
- const cameraBanner=el('passenger-heading');
+ const cameraBanner=document.querySelector('.passenger-heading');
  // Heading-up is optional visual orientation, never a legal driving verdict.
  // Without a fresh, accurate, moving matched fix, stay north-up.
  const resetCamera=()=>{
