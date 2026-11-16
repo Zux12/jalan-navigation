@@ -37,12 +37,12 @@
   return {provider:'tomtom',geometry:{type:'LineString',coordinates},duration:r.summary.travelTimeInSeconds,distance:r.summary.lengthInMeters,delay:r.summary.trafficDelayInSeconds||0,legs:[{steps}]};
  };
  async function check(force=false){
+  if(!force&&(!enabled||document.hidden||Date.now()-lastCheck<CHECK_MS||Date.now()<declinedUntil))return;
   const state=window.JalanGPS?.getState?.();
   if(!state?.active){status('Start GPS test first');return;}
   if(!trustedGPS(state)){status('Waiting for road-matched GPS');return;}
   if(!Array.isArray(destination)||destination.length!==2||!destination.every(Number.isFinite)){status('Destination missing');return;}
   if(controller||pending)return;
-  if(!force&&(!enabled||document.hidden||Date.now()-lastCheck<CHECK_MS||Date.now()<declinedUntil))return;
   const apiKey=el('tt-key')?.value.trim();
   if(!apiKey){status('Enter TomTom key');return;}
   if(state.route?.provider!=='tomtom'||!el('tt-primary')?.checked){status('Select TomTom route first');return;}
@@ -106,4 +106,11 @@
  el('tt-primary')?.addEventListener('change',()=>{invalidate();status('Routing provider changed; check again');});
  el('tt-remove-key')?.addEventListener('click',()=>{invalidate();status('TomTom key removed; check again');});
  el('gps-exit').addEventListener('click',()=>setEnabled(false));
+ // Passenger Go starts the existing checker. A trusted GPS event can trigger
+ // its first check immediately; the normal five-minute throttle still applies.
+ window.JalanTraffic={
+  start(){invalidate();lastCheck=0;declinedUntil=0;setEnabled(true);return check(false);},
+  check:()=>check(false),
+  stop:()=>setEnabled(false)
+ };
 })();
