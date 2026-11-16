@@ -122,7 +122,7 @@ async function main(){
   assert.equal(await page.locator('.passenger-stats').isVisible(),true);
   assert.equal(await page.locator('#passenger-voice').isVisible(),false,
     'advanced controls remain hidden until opening options');
-  await page.locator('#passenger-options summary').click();
+  await page.locator('#passenger-options > summary').click();
   assert.equal(await page.locator('#passenger-voice').isVisible(),true,
     'advanced controls remain accessible when passenger requests them');
    assert.equal(await page.locator('#passenger-traffic-toggle').getAttribute('aria-pressed'),'false',
