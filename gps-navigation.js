@@ -18,6 +18,19 @@
  function speak(t){if(voice==='mute'||!('speechSynthesis'in window)||document.hidden||!active)return;const now=Date.now();if(t===lastSpeech&&now-lastSpeechAt<45000)return;lastSpeech=t;lastSpeechAt=now;try{speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(t);u.lang='en-GB';u.rate=0.95;speechSynthesis.speak(u);}catch(e){console.warn('Voice unavailable',e);}}
  function update(fix){
   if(!active)return;
+  const now=Date.now(),sampleTime=Number(fix.timestamp);
+  // A cached/background Safari location must not be advertised as a fresh
+  // route match. Do not feed expired or far-future samples to the predictor.
+  if(Number.isFinite(sampleTime)&&(sampleTime<now-10000||sampleTime>now+5000)){
+   latestMatched=false;lastReportedAccuracy=Infinity;lastFixAt=0;
+   window.dispatchEvent(new CustomEvent('jalan:gps-fix',{detail:{
+    accuracy:Infinity,matched:false,matchedPosition:null,speedMps:null,
+    heading:null,reason:'stale-sample'
+   }}));
+   el('gps-match-status').textContent='Old GPS reading ignored';
+   warn('GPS reading is stale. Waiting for a fresh position; guidance may be inaccurate.');
+   return;
+  }
   const raw=[fix.coords.latitude,fix.coords.longitude],reportedAccuracy=fix.coords.accuracy;
   // Never infer GPS accuracy from rendered text: "Unknown" would parse as 0 m.
   const accuracy=Number.isFinite(reportedAccuracy)&&reportedAccuracy>=0?reportedAccuracy:Infinity;
