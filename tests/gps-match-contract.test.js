@@ -4,7 +4,7 @@
 const test=require('node:test'),assert=require('node:assert/strict');
 const fs=require('node:fs'),path=require('node:path'),vm=require('node:vm');
 const source=fs.readFileSync(path.join(__dirname,'..','gps-navigation.js'),'utf8');
-test('JalanGPS match confidence is cleared on predicted fixes, stop and restart',()=>{
+test('JalanGPS match confidence is cleared on predicted fixes, stop and restart',async()=>{
  const elements=new Map(),get=id=>{
   if(!elements.has(id))elements.set(id,{textContent:'',classList:{add(){},remove(){},toggle(){}},
     setAttribute(){},addEventListener(){},onclick:null});
@@ -74,4 +74,21 @@ test('JalanGPS match confidence is cleared on predicted fixes, stop and restart'
  assert.equal(state().matched,false,'restart must reset match confidence');
  assert.equal(state().position,null);
  assert.equal(state().accuracy,Infinity,'restarted session must not inherit accuracy');
+ // The old reroute path invoked start() while active, so the new route was
+ // calculated but the prior GPS watch and matcher remained attached.
+ let watchStarts=1;
+ ctx.navigator.geolocation.watchPosition=success=>{updateGPS=success;watchStarts++;return watchStarts;};
+ updateGPS(fix());
+ const previousWatchClears=cleared;
+ const previousRoute=state().route;
+ ctx.calculateRoutes=async()=>{ctx.routes=[{...previousRoute,
+   geometry:{type:'LineString',coordinates:[[101.6869,3.139],[101.6955,3.148]]}}];};
+ await get('gps-reroute').onclick();
+ assert.ok(cleared>previousWatchClears,
+   'successful reroute must stop the previous GPS watcher');
+ assert.ok(watchStarts>1,
+   'successful reroute must start a new GPS watcher');
+ assert.equal(state().active,true,'new route GPS session must be active');
+ assert.notEqual(state().route,previousRoute,'new GPS session must hold the new route');
+ assert.equal(state().matched,false,'reroute must not reuse old road-match confidence');
 });
