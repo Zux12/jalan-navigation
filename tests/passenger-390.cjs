@@ -114,6 +114,9 @@ async function main(){
   })),{startVisible:false,locationVisible:false},
   'start and legacy location circles must not overlap the passenger vehicle marker');
   assert.equal(await page.locator('#passenger-navigation').isVisible(),true);
+  const activeStyles=await page.evaluate(()=>routeLayer.getLayers().map(x=>x.options.opacity));
+  assert.equal(activeStyles.filter(x=>x>0.9).length,1,
+    'Go hides unselected alternatives and highlights the chosen road');
   assert.equal(await page.locator('#gps-hud').isVisible(),false,'engineering HUD hidden in clean view');
   assert.equal(await page.locator('#passenger-options').evaluate(x=>x.open),false,
     'Go keeps the menu collapsed, showing only minutes, km and speed');
@@ -250,14 +253,23 @@ async function main(){
     const active=window.JalanGPS.getState().route;
     const before=document.getElementById('passenger-eta').textContent;
     const geometry=routes[selectedRoute].geometry;
-    window.dispatchEvent(new CustomEvent('jalan:traffic-estimate',{detail:{
+    const event=()=>window.dispatchEvent(new CustomEvent('jalan:traffic-estimate',{detail:{
       provider:'tomtom',seconds:360,currentSelectedSeconds:600,
       checkedAt:Date.now(),route:active
     }}));
+    event();
+    const rejected=document.getElementById('passenger-live-eta').textContent;
+    // Synthetic provider authorization, not an actual key or network request.
+    active.provider='tomtom';
+    document.getElementById('tt-primary').checked=true;
+    document.getElementById('tt-key').value='TEST_RESTRICTED_KEY_1234';
+    event();
     return {before,after:document.getElementById('passenger-eta').textContent,
-      text:document.getElementById('passenger-live-eta').textContent,
+      rejected,text:document.getElementById('passenger-live-eta').textContent,
       sameRoute:routes[selectedRoute].geometry===geometry};
   });
+  assert.doesNotMatch(quote.rejected,/6 min/,
+    'OSRM routing without authorized TomTom key cannot claim refreshed traffic');
   assert.match(quote.text,/6 min/);
   assert.equal(quote.after,quote.before,'traffic alternative must not silently change selected-route ETA');
   assert.equal(quote.sameRoute,true,'traffic alternative must not replace selected route');
@@ -415,6 +427,8 @@ async function main(){
   assert.equal(await page.evaluate(()=>document.body.classList.contains('passenger-map-flat')),true);
   await page.locator('#passenger-stop').click();
   assert.equal(await page.evaluate(()=>document.body.classList.contains('passenger-guiding')),false);
+  assert.equal(await page.evaluate(()=>routeLayer.getLayers().filter(x=>x.options.opacity>=0.6).length),3,
+    'End preview restores visible route alternatives');
   assert.equal(await page.evaluate(()=>!!startMarker&&pointLayer.hasLayer(startMarker)),true,
     'route planning start marker returns after ending preview');
   assert.equal(await page.locator('#passenger-overview').isVisible(),true);
