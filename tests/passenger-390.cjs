@@ -114,7 +114,20 @@ async function main(){
   })),{startVisible:false,locationVisible:false},
   'start and legacy location circles must not overlap the passenger vehicle marker');
   assert.equal(await page.locator('#passenger-navigation').isVisible(),true);
+  const activeStyles=await page.evaluate(()=>routeLayer.getLayers().map(x=>x.options.opacity));
+  assert.equal(activeStyles.filter(x=>x>0.9).length,1,
+    'Go hides unselected alternatives and highlights the chosen road');
   assert.equal(await page.locator('#gps-hud').isVisible(),false,'engineering HUD hidden in clean view');
+  assert.equal(await page.locator('#passenger-options').evaluate(x=>x.open),false,
+    'Go keeps the menu collapsed, showing only minutes, km and speed');
+  assert.equal(await page.locator('.passenger-turn').isVisible(),false,
+    'large turn banner must be hidden in compact guidance');
+  assert.equal(await page.locator('.passenger-stats').isVisible(),true);
+  assert.equal(await page.locator('#passenger-voice').isVisible(),false,
+    'advanced controls remain hidden until opening options');
+  await page.locator('#passenger-options > summary').click();
+  assert.equal(await page.locator('#passenger-voice').isVisible(),true,
+    'advanced controls remain accessible when passenger requests them');
    assert.equal(await page.locator('#passenger-traffic-toggle').getAttribute('aria-pressed'),'false',
      'traffic checks do not silently start with Passenger Mode');
    await page.locator('#passenger-traffic-details summary').click();
@@ -234,6 +247,38 @@ async function main(){
   await page.waitForFunction(()=>!!document.querySelector('.jalan-vehicle-marker'),null,{timeout:1500});
   assert.equal(await page.locator('#passenger-vehicle-screen').isVisible(),true,
     'trusted fresh GPS update restores vehicle indicator');
+  // Verified live TomTom query is informational: never replace ETA or road
+  // geometry just because the provider found a faster alternative.
+  const quote=await page.evaluate(()=>{
+    const active=window.JalanGPS.getState().route;
+    const before=document.getElementById('passenger-eta').textContent;
+    const geometry=routes[selectedRoute].geometry;
+    const event=()=>window.dispatchEvent(new CustomEvent('jalan:traffic-estimate',{detail:{
+      provider:'tomtom',seconds:360,currentSelectedSeconds:600,
+      checkedAt:Date.now(),route:active
+    }}));
+    event();
+    const rejected=document.getElementById('passenger-live-eta').textContent;
+    // Synthetic provider authorization, not an actual key or network request.
+    active.provider='tomtom';
+    document.getElementById('tt-primary').checked=true;
+    document.getElementById('tt-key').value='TEST_RESTRICTED_KEY_1234';
+    event();
+    return {before,after:document.getElementById('passenger-eta').textContent,
+      rejected,text:document.getElementById('passenger-live-eta').textContent,
+      sameRoute:routes[selectedRoute].geometry===geometry};
+  });
+  assert.doesNotMatch(quote.rejected,/6 min/,
+    'OSRM routing without authorized TomTom key cannot claim refreshed traffic');
+  assert.match(quote.text,/6 min/);
+  assert.equal(quote.after,quote.before,'traffic alternative must not silently change selected-route ETA');
+  assert.equal(quote.sameRoute,true,'traffic alternative must not replace selected route');
+  await page.evaluate(()=>window.dispatchEvent(new CustomEvent('jalan:traffic-estimate',{
+    detail:{provider:'tomtom',seconds:2,checkedAt:Date.now()-700000,
+      route:window.JalanGPS.getState().route}
+  })));
+  assert.match(await page.locator('#passenger-live-eta').innerText(),/6 min/,
+    'expired estimate message cannot override the last validated quote');
   assert.equal(await page.locator('.jalan-vehicle-symbol').getAttribute('data-heading'),
     'route','slow GPS uses clearly estimated route direction, not fake compass');
   assert.equal(await page.locator('.jalan-vehicle-symbol').textContent(),'▲',
@@ -382,6 +427,8 @@ async function main(){
   assert.equal(await page.evaluate(()=>document.body.classList.contains('passenger-map-flat')),true);
   await page.locator('#passenger-stop').click();
   assert.equal(await page.evaluate(()=>document.body.classList.contains('passenger-guiding')),false);
+  assert.equal(await page.evaluate(()=>routeLayer.getLayers().filter(x=>x.options.opacity>=0.6).length),3,
+    'End preview restores visible route alternatives');
   assert.equal(await page.evaluate(()=>!!startMarker&&pointLayer.hasLayer(startMarker)),true,
     'route planning start marker returns after ending preview');
   assert.equal(await page.locator('#passenger-overview').isVisible(),true);

@@ -71,8 +71,15 @@
    const oldSeconds=now.remainingSeconds;
    if(!Number.isFinite(oldSeconds)||oldSeconds<=0){status('Current ETA unavailable');return;}
    const saving=oldSeconds-best.duration;
-   if(saving*1000<MIN_SAVE){status('Checked: no route saves 5 min');return;}
    if(!current())return;
+   // Informational traffic ETA from TomTom's fastest currently offered route.
+   // This is NOT necessarily the selected road. Never overwrite GPS route
+   // guidance/ETA or switch routes without the existing explicit confirmation.
+   window.dispatchEvent(new CustomEvent('jalan:traffic-estimate',{detail:{
+     provider:'tomtom',seconds:best.duration,currentSelectedSeconds:oldSeconds,
+     checkedAt:Date.now(),route:state.route
+   }}));
+   if(saving*1000<MIN_SAVE){status('Checked: no route saves 5 min');return;}
    pending={route:best,sourceRoute:state.route,sourcePosition,sourceDestination:target,sourceKey:apiKey,created:Date.now(),requestEpoch:id};
    el('proactive-offer-title').textContent='Potentially save '+Math.round(saving/60)+' minutes';
    el('proactive-offer-detail').textContent='Current estimated remaining: '+Math.round(oldSeconds/60)+' min · New TomTom route: '+Math.round(best.duration/60)+' min. Confirm route before switching.';
