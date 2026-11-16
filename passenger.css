@@ -35,7 +35,10 @@ body.passenger-mode .passenger-overview{position:fixed;z-index:1300;bottom:calc(
 .passenger-setup-actions button:first-child{background:#146ce9;color:#fff}
 #passenger-provider-status{font-size:12px;color:#425972;padding:4px 0 10px}
 .passenger-delta-pin{background:#fff;border:2px solid #e2e8f0;border-radius:10px;padding:5px 8px;white-space:nowrap;font:bold 12px system-ui,sans-serif;box-shadow:0 4px 10px #10243c4d;color:#172d45}
-body.passenger-guiding #map{transform:perspective(850px) rotateX(43deg) scale(1.45) translateY(8vh);transform-origin:center 64%;pointer-events:none!important}
+/* Reduce the artificial empty horizon seen in the initial passenger desktop
+   preview. This is still a flat Leaflet map with visual perspective ONLY. */
+body.passenger-guiding #map{transform:perspective(1200px) rotateX(29deg) scale(1.85) translateY(-3vh);transform-origin:center center;pointer-events:none!important}
+body.passenger-guiding{background:#dbe4eb}
 body.passenger-guiding.passenger-map-flat #map{transform:none;pointer-events:none!important}
 body.passenger-guiding .topbar,body.passenger-guiding .results,body.passenger-guiding .passenger-overview,body.passenger-guiding .passenger-setup{display:none!important}
 body.passenger-guiding .interface-switch{display:none}
