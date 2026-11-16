@@ -225,6 +225,9 @@
    el('passenger-distance').textContent=el('gps-distance').textContent||'—';
    const state=window.JalanGPS?.getState();
    const matched=state?.matched&&Number.isFinite(state.accuracy)&&state.accuracy<=75&&state.fixAgeMs<10000;
+   const alert=el('passenger-signal-alert');
+   alert.classList.toggle('hidden',!!matched);
+   alert.textContent=matched?'':'GPS uncertain · wait for a verified position';
    el('passenger-fix').textContent=!matched?
      'GPS uncertain or unavailable · vehicle position not verified':
      directionSource==='gps'?'GPS matched · heading-up experimental preview':
@@ -235,6 +238,7 @@
    el('passenger-speed').textContent=speed;
    const message=el('passenger-instruction').textContent;
    el('passenger-turn-arrow').textContent=/left/i.test(message)?'↰':/right/i.test(message)?'↱':'↑';
+   el('passenger-turn-details').textContent=message;
  };
  // Passenger controls mirror the existing engineering GPS buttons; no
  // duplicate voice engine, no accidental opt-in to automatic rerouting.
@@ -271,6 +275,28 @@
  const trafficToggle=el('passenger-traffic-toggle'),
        trafficStatus=el('passenger-traffic-status'),
        trafficOffer=el('passenger-traffic-offer');
+ const liveEta=el('passenger-live-eta');
+ const clearLiveEta=()=>{
+   liveEta.textContent='No recent TomTom estimate. Selected-route minutes remain the active guidance estimate.';
+   liveEta.removeAttribute('data-checked-at');
+ };
+ window.addEventListener('jalan:traffic-estimate',event=>{
+   const info=event.detail,state=window.JalanGPS?.getState?.();
+   if(!document.body.classList.contains('passenger-guiding')||
+      !state?.active||!state.matched||state.fixAgeMs>10000||
+      info?.provider!=='tomtom'||state.route!==info.route||
+      !Number.isFinite(info.seconds)||info.seconds<=0||
+      !Number.isFinite(info.checkedAt)||Math.abs(Date.now()-info.checkedAt)>30000)return;
+   const minutes=Math.max(1,Math.round(info.seconds/60));
+   const stamp=new Date(info.checkedAt).toLocaleTimeString('en-MY',{hour:'numeric',minute:'2-digit'});
+   liveEta.textContent='TomTom live fastest-route estimate: '+minutes+
+     ' min · checked '+stamp+'. This is an alternative, not a change to your selected road.';
+   liveEta.dataset.checkedAt=String(info.checkedAt);
+ });
+ setInterval(()=>{
+   const checked=Number(liveEta.dataset.checkedAt);
+   if(checked&&Date.now()-checked>10*60*1000)clearLiveEta();
+ },30000);
  const hideTrafficOffer=()=>trafficOffer.classList.add('hidden');
  const syncTraffic=()=>{
    const on=el('proactive-toggle').getAttribute('aria-pressed')==='true';
@@ -307,7 +333,7 @@
      'TomTom suggests saving about '+Math.round(seconds/60)+' min. Confirm before switching.';
    trafficOffer.classList.remove('hidden');
  });
- window.addEventListener('jalan:route-change',hideTrafficOffer);
+ window.addEventListener('jalan:route-change',()=>{hideTrafficOffer();clearLiveEta();});
  window.addEventListener('jalan:route-decline',hideTrafficOffer);
  syncTraffic();
  el('passenger-go').addEventListener('click',()=>{
@@ -319,6 +345,10 @@
    }
  });
  window.addEventListener('jalan:journey-start',()=>{
+   el('passenger-options').open=false;
+   clearLiveEta();
+   el('passenger-signal-alert').classList.remove('hidden');
+   el('passenger-signal-alert').textContent='Waiting for verified GPS';
    syncNavigationSettings();
    rerouteStatus.dataset.state='idle';
    rerouteStatus.textContent=autoControl.getAttribute('aria-pressed')==='true'?
@@ -339,6 +369,9 @@
    scheduleScreenVehicle();
  });
  window.addEventListener('jalan:journey-stop',()=>{
+   el('passenger-options').open=false;
+   clearLiveEta();
+   el('passenger-signal-alert').classList.add('hidden');
    hideTrafficOffer();
    if(el('proactive-toggle').getAttribute('aria-pressed')==='true')el('proactive-toggle').click();
    syncTraffic();
@@ -412,6 +445,9 @@
    if(state?.active&&state.matched&&Number.isFinite(state.fixAgeMs)&&
       state.fixAgeMs<=10000&&!document.hidden)return;
    discardVehicle();
+   el('passenger-signal-alert').classList.remove('hidden');
+   el('passenger-signal-alert').textContent=document.hidden?
+     'Safari backgrounded · position unverified':'GPS signal stale · position unverified';
    el('passenger-fix').textContent=document.hidden?
      'Safari in background · GPS cannot be verified':
      'GPS signal stale or unavailable · waiting for fresh position';
