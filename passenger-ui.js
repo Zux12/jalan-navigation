@@ -200,7 +200,10 @@
       detail.matchedPosition.length!==2||
       !detail.matchedPosition.every(Number.isFinite))return;
    const center=routeAheadCenter(detail.matchedPosition);
-   if(map.getZoom()<17)map.setView(center,17,{animate:false});
+   // A preceding route-overview fitBounds() may still be animating; cancel
+   // it before taking ownership of the passenger camera.
+   map.stop();
+   if(map.getZoom()<17)map.setView(center,17,{animate:false,reset:true});
    else map.panTo(center,{animate:false});
  };
  window.addEventListener('jalan:gps-fix',event=>{
