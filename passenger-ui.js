@@ -230,6 +230,21 @@
        reportList=el('passenger-report-list'),reportNote=el('passenger-report-note');
  let activeInfoTab='reports',incidentSnapshot={route:null,incidents:[],checkedAt:0};
  const reportFocus=L.layerGroup().addTo(map);
+ const passengerDemoReports=L.layerGroup().addTo(map);
+ const refreshDemoReportMarkers=()=>{
+   passengerDemoReports.clearLayers();
+   const coords=window.JalanGPS?.getState?.()?.route?.geometry?.coordinates;
+   if(!coords)return;
+   for(const report of (typeof getReports==='function'?getReports():[])){
+     if(!report||!['accident','flood','hazard','rain'].includes(report.type))continue;
+     const match=window.JalanTomTom?.matchReportGeometry(
+       {type:'Point',coordinates:[Number(report.lng),Number(report.lat)]},coords);
+     if(!match)continue;
+     L.marker([match.lat,match.lng],{icon:L.divIcon({className:'report-marker passenger-demo-report-marker',
+       html:'⚠️',iconSize:[28,28],iconAnchor:[14,14]}),
+       title:report.type.toUpperCase()+' · unverified demo report'}).addTo(passengerDemoReports);
+   }
+ };
  let focusedReport=null;
  const clearReportFocus=()=>{reportFocus.clearLayers();focusedReport=null;};
  const focusReport=(item,route)=>{
@@ -254,25 +269,9 @@
    scheduleScreenVehicle();
    el('passenger-recenter-floating').focus({preventScroll:true});
  };
- // Do not call a nearby report "on the route" unless it projects within
- // 300 metres of the selected provider's road geometry.
- const pointOnRoute=(position,coords)=>{
-   if(!Array.isArray(position)||position.length!==2||!position.every(Number.isFinite)||
-      !Array.isArray(coords)||coords.length<2)return null;
-   const sx=111320*Math.cos(position[0]*Math.PI/180),sy=111320;
-   let best={offset:Infinity,along:0},cumulative=0;
-   for(let i=1;i<coords.length;i++){
-     const a=coords[i-1],b=coords[i];
-     if(!Array.isArray(a)||!Array.isArray(b)||!a.every(Number.isFinite)||!b.every(Number.isFinite))return null;
-     const dx=(b[0]-a[0])*sx,dy=(b[1]-a[1])*sy,segment=Math.hypot(dx,dy);
-     const vx=(a[0]-position[1])*sx,vy=(a[1]-position[0])*sy;
-     const ratio=Math.max(0,Math.min(1,-(vx*dx+vy*dy)/(segment*segment||1)));
-     const offset=Math.hypot(vx+ratio*dx,vy+ratio*dy);
-     if(offset<best.offset)best={offset,along:cumulative+ratio*segment};
-     cumulative+=segment;
-   }
-   return {...best,total:cumulative};
- };
+ // Share the same projection and 25m corridor with provider map pins.
+ const pointOnRoute=(position,coords)=>Array.isArray(position)?
+   window.JalanTomTom?.projectReportPoint([position[1],position[0]],coords):null;
  const renderReports=()=>{
    reportList.replaceChildren();
    const state=window.JalanGPS?.getState?.(),route=state?.route,
@@ -303,7 +302,8 @@
      if(!Number.isFinite(item.lat)||!Number.isFinite(item.lng)||
         Math.abs(item.lat)>90||Math.abs(item.lng)>180)continue;
      const projected=pointOnRoute([item.lat,item.lng],coords);
-     if(!projected||projected.offset>300||(current&&projected.along<current.along-30))continue;
+     if(!projected||projected.offset>window.JalanTomTom.reportRouteTolerance||
+        (current&&projected.along<current.along-30))continue;
      positioned.push({...item,ahead:current?Math.max(0,projected.along-current.along):null,routeAlong:projected.along,
        fromReportToDestination:Math.max(0,projected.total-projected.along)});
    }
@@ -328,7 +328,7 @@
    const hasIncidents=incidentSnapshot.route===route&&
      Date.now()-incidentSnapshot.checkedAt<=10*60*1000;
    reportNote.textContent=positioned.length?
-     'Demo reports are unverified. TomTom incidents reflect the last connected traffic fetch. '+
+     'Reports closely match the blue route. Traffic colours also show surrounding roads. Demo reports are unverified. '+
        (current?'Distances are approximate along-route values.':'Showing the selected route; distance from you awaits verified GPS.'):
      'No applicable reports ahead on this selected route.'+
        (hasIncidents?' TomTom incident check returned no applicable items.':
@@ -531,8 +531,10 @@
      'TomTom suggests saving about '+Math.round(seconds/60)+' min. Confirm before switching.';
    trafficOffer.classList.remove('hidden');
  });
- window.addEventListener('jalan:route-change',()=>{hideTrafficOffer();clearLiveEta();clearReportFocus();});
- window.addEventListener('jalan:route-cleared',clearReportFocus);
+ window.addEventListener('jalan:route-change',()=>{
+   hideTrafficOffer();clearLiveEta();clearReportFocus();refreshDemoReportMarkers();
+ });
+ window.addEventListener('jalan:route-cleared',()=>{clearReportFocus();passengerDemoReports.clearLayers();});
  window.addEventListener('jalan:route-decline',hideTrafficOffer);
  syncTraffic();
  el('passenger-go').addEventListener('click',()=>{
@@ -561,6 +563,8 @@
    discardVehicle();
    if(!routes.length)return;
    hidePlannerMarkers();
+   map.removeLayer(reportLayer);
+   refreshDemoReportMarkers();
    // The selected road remains prominent, while unused grey alternatives
    // are hidden during Go. Route overview regains them after preview exits.
    routeLayer.getLayers().forEach((line,i)=>{
@@ -581,6 +585,8 @@
  window.addEventListener('jalan:journey-stop',()=>{
    closeDirections();
    clearReportFocus();
+   passengerDemoReports.clearLayers();
+   if(!map.hasLayer(reportLayer))reportLayer.addTo(map);
    el('passenger-options').open=false;
    clearLiveEta();
    el('passenger-signal-alert').classList.add('hidden');

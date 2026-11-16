@@ -106,7 +106,20 @@ async function main(){
     startVisible:!!startMarker&&pointLayer.hasLayer(startMarker),
     locationVisible:!!locationMarker&&pointLayer.hasLayer(locationMarker)
   })),{startVisible:true,locationVisible:true},'route-planning indicators visible before Go');
+  await page.evaluate(()=>{
+    const reports=[
+      {type:'flood',lat:3.144,lng:101.6917,time:Date.now()},
+      {type:'rain',lat:3.144,lng:101.6937,time:Date.now()},
+      {type:'hazard',lat:4.0,lng:102.0,time:Date.now()}
+    ];
+    localStorage.setItem('jalan-demo-reports-v1',JSON.stringify(reports));
+    reports.forEach(showReport);
+  });
   await page.locator('#passenger-go').click();
+  assert.equal(await page.evaluate(()=>map.hasLayer(reportLayer)),false,
+    'Go hides the unrestricted area-wide demo marker layer');
+  assert.equal(await page.locator('.passenger-demo-report-marker').count(),1,
+    'only the demo pin close to the selected route appears during navigation');
   assert.equal(await page.evaluate(()=>document.body.classList.contains('passenger-guiding')),true);
   assert.deepEqual(await page.evaluate(()=>({
     startVisible:!!startMarker&&pointLayer.hasLayer(startMarker),
@@ -231,12 +244,6 @@ async function main(){
   // The top banner remains fixed and opening it defaults to available Reports.
   assert.equal(await page.locator('#passenger-turn-toggle').evaluate(x=>getComputedStyle(x).position),
     'fixed','next-turn banner remains locked while the map moves');
-  await page.evaluate(()=>{
-    localStorage.setItem('jalan-demo-reports-v1',JSON.stringify([
-      {type:'flood',lat:3.144,lng:101.6917,time:Date.now()},
-      {type:'hazard',lat:4.0,lng:102.0,time:Date.now()}
-    ]));
-  });
   await page.locator('#passenger-turn-toggle').click();
   assert.equal(await page.locator('#passenger-turn-list').isVisible(),true);
   assert.equal(await page.locator('#passenger-tab-reports').getAttribute('aria-selected'),'true',
@@ -250,11 +257,12 @@ async function main(){
   await page.evaluate(()=>{
     window.dispatchEvent(new CustomEvent('jalan:incidents-updated',{detail:{
       route:window.JalanGPS.getState().route,checkedAt:Date.now(),
-      incidents:[{lat:3.145,lng:101.6925,description:'Reported traffic delay',category:'🚧'}]
+      incidents:[{lat:3.145,lng:101.6925,description:'Reported traffic delay',category:'🚧'},
+        {lat:3.145,lng:101.694,description:'Unrelated nearby road',category:'🚧'}]
     }}));
   });
   assert.equal(await page.locator('#passenger-report-list li').count(),2,
-    'confirmed TomTom event is shown beside labeled demo report');
+    'route incident appears beside the demo, with the nearby-road incident excluded');
   const reportCenter=()=>page.evaluate(()=>[map.getCenter().lat,map.getCenter().lng]);
   const assertReportCenter=async(lat,lng)=>{
     const center=await reportCenter();
@@ -530,6 +538,9 @@ async function main(){
   await page.locator('#passenger-2d').click();
   assert.equal(await page.evaluate(()=>document.body.classList.contains('passenger-map-flat')),true);
   await page.locator('#passenger-stop').click();
+  assert.equal(await page.locator('.passenger-demo-report-marker').count(),0);
+  assert.equal(await page.evaluate(()=>map.hasLayer(reportLayer)),true,
+    'End preview restores the original map demo layer');
   assert.equal(await page.evaluate(()=>document.body.classList.contains('passenger-guiding')),false);
   assert.equal(await page.evaluate(()=>routeLayer.getLayers().filter(x=>x.options.opacity>=0.6).length),3,
     'End preview restores visible route alternatives');
@@ -574,6 +585,15 @@ async function main(){
     return route.fulfill({status:incidentFailure?503:200,contentType:'application/json',body:JSON.stringify({incidents:[{
       geometry:{type:'Point',coordinates:[101.6925,3.145]},
       properties:{iconCategory:6,events:[{description:'Fixture roadworks ahead'}]}
+    },{
+      geometry:{type:'Point',coordinates:[101.694,3.145]},
+      properties:{iconCategory:6,events:[{description:'Unrelated nearby road'}]}
+    },{
+      geometry:{type:'LineString',coordinates:[[101.6889,3.139],[101.6973,3.1478]]},
+      properties:{iconCategory:6,events:[{description:'Unrelated parallel road'}]}
+    },{
+      geometry:{type:'LineString',coordinates:[[101.6827,3.1346],[101.69362,3.14604]]},
+      properties:{iconCategory:6,events:[{description:'Long incident overlapping selected route'}]}
     }]})});
   });
   await page.route('https://api.tomtom.com/routing/1/calculateRoute/**',route=>{
@@ -602,7 +622,9 @@ async function main(){
   assert.equal(trafficRouteRequests,0,'GPS-based traffic checks wait for a trusted fix');
   assert.equal(await page.locator('#passenger-options').evaluate(x=>x.open),false);
   assert.equal(await page.locator('#passenger-traffic-summary').isVisible(),true);
-  assert.match(await page.locator('#passenger-traffic-summary').innerText(),/1 nearby/);
+  assert.match(await page.locator('#passenger-traffic-summary').innerText(),/Route reports: 2/);
+  assert.equal(await page.locator('.report-marker').count(),2,
+    'map pins use the same route filter as the report list');
   assert.equal(await page.locator('#passenger-traffic-toggle').getAttribute('aria-pressed'),'true');
   assert.equal(await page.evaluate(()=>document.getElementById('tt-incident-toggle').checked),true);
   const trafficLayers=()=>page.evaluate(()=>{
@@ -611,8 +633,13 @@ async function main(){
   assert.equal(await trafficLayers(),1,'Go starts one traffic colour overlay');
   await page.locator('#passenger-turn-toggle').click();
   assert.match(await page.locator('#passenger-report-list').innerText(),/Fixture roadworks ahead/);
+  assert.equal(await page.locator('#passenger-report-list li').count(),2);
+  assert.doesNotMatch(await page.locator('#passenger-report-list').innerText(),/Unrelated/);
+  await page.getByRole('button',{name:/Long incident overlapping selected route/}).tap();
+  await assertReportCenter(3.14252,101.69026);
+  await page.locator('#passenger-turn-toggle').click();
   // Reports can be inspected immediately after Go, even before GPS matches.
-  const liveReport=page.getByRole('button',{name:/View report on map: TomTom traffic incident/});
+  const liveReport=page.getByRole('button',{name:/View report on map: TomTom traffic incident.*Fixture roadworks ahead/});
   await liveReport.focus();
   await liveReport.press('Enter');
   await assertReportCenter(3.145,101.6925);
@@ -631,7 +658,7 @@ async function main(){
     latitude:3.139,longitude:101.6869,accuracy:8,speed:0,heading:0}}));
   assert.equal(trafficRouteRequests,1,'GPS updates do not repeatedly request traffic routes');
   await page.locator('#passenger-turn-toggle').click();
-  await page.locator('#passenger-report-list button').tap();
+  await page.getByRole('button',{name:/Fixture roadworks ahead/}).tap();
   await assertReportCenter(3.145,101.6925);
   await page.locator('#passenger-options > summary').click();
   await page.locator('#passenger-traffic-details summary').click();
