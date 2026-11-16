@@ -1,0 +1,11 @@
+{
+  "name": "JALAN — Passenger Preview",
+  "short_name": "JALAN",
+  "description": "Experimental passenger-only navigation preview",
+  "start_url": "./index.html?mode=passenger",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#e5eef7",
+  "theme_color": "#142b4a"
+}
