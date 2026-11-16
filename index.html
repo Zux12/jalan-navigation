@@ -15,7 +15,7 @@
   <title>Jalan — Navigation Prototype V4.7.4 Shared Traffic Pilot</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
   <link rel="stylesheet" href="style.css?v=4-7-1" />
-  <link rel="stylesheet" href="passenger.css?v=8" />
+  <link rel="stylesheet" href="passenger.css?v=9" />
   <link rel="stylesheet" href="jalan-kl-preview.css?v=3a1">
   <link rel="stylesheet" href="jalan-kl-3b.css?v=3b1">
   <link rel="stylesheet" href="jalan-kl-3c.css?v=3c1">
@@ -48,9 +48,13 @@
     <div id="passenger-vehicle-screen" class="passenger-vehicle-screen hidden" aria-hidden="true">▲</div>
     <div id="passenger-map-gestures" class="passenger-map-gestures" aria-label="Pan with one finger; pinch to zoom and twist two fingers to rotate the 2.5D map"></div>
     <button id="passenger-turn-toggle" class="passenger-turn" type="button" aria-expanded="false" aria-controls="passenger-turn-list"><span id="passenger-turn-arrow" aria-hidden="true">↑</span><span class="passenger-turn-copy"><strong id="passenger-instruction">Acquiring GPS…</strong><small id="passenger-next">Following selected route</small></span><span class="passenger-turn-chevron" aria-hidden="true">⌄</span></button>
-    <section id="passenger-turn-list" class="passenger-turn-list hidden" aria-label="Upcoming route directions"><div class="passenger-turn-list-header"><strong>Directions to destination</strong><button type="button" id="passenger-turn-close" aria-label="Close directions">Close</button></div><ol id="passenger-maneuver-list"></ol><p id="passenger-directions-note">Only instructions provided by the selected routing service are shown.</p></section>
+    <section id="passenger-turn-list" class="passenger-turn-list hidden" aria-label="Reports and upcoming route directions"><div class="passenger-turn-list-header"><strong>Along your route</strong><button type="button" id="passenger-turn-close" aria-label="Close reports and directions">Close</button></div>
+      <div class="passenger-turn-tabs" role="tablist" aria-label="Route information"><button type="button" id="passenger-tab-reports" role="tab" aria-controls="passenger-reports-panel" aria-selected="true">Reports</button><button type="button" id="passenger-tab-directions" role="tab" aria-controls="passenger-directions-panel" aria-selected="false">Directions</button></div>
+      <section id="passenger-reports-panel" role="tabpanel" aria-labelledby="passenger-tab-reports"><ol id="passenger-report-list"></ol><p id="passenger-report-note">Showing available reports along your selected route.</p></section>
+      <section id="passenger-directions-panel" role="tabpanel" aria-labelledby="passenger-tab-directions" class="hidden"><ol id="passenger-maneuver-list"></ol><p id="passenger-directions-note">Only instructions provided by the selected routing service are shown.</p></section></section>
     <div class="passenger-heading">PASSENGER PREVIEW · 2.5D map, not true 3D</div>
     <div id="passenger-signal-alert" class="passenger-signal-alert" role="status" aria-live="polite">Waiting for matched GPS</div>
+    <button id="passenger-recenter-floating" class="passenger-recenter-floating" type="button" aria-label="Recenter map on matched GPS position" title="Recenter map">◎</button>
     <div class="passenger-bottom"><div class="passenger-stats"><b id="passenger-eta">—</b><span id="passenger-distance">—</span><span id="passenger-speed">— km/h</span></div>
       <details id="passenger-options" class="passenger-options"><summary aria-label="Open navigation options" title="Navigation options">⋯</summary><div class="passenger-options-content">
       <div id="passenger-turn-details" class="passenger-fix">Acquiring GPS…</div><div id="passenger-fix" class="passenger-fix">Waiting for GPS</div><div id="passenger-gesture-hint" class="passenger-gesture-hint">Drag · pinch · twist to explore · Recenter to resume following</div>
@@ -242,7 +246,7 @@
   <script src="app.js?v=4-7-5"></script>
   <script src="comparison.js?v=4-2"></script>
   <script src="traffic-test.js?v=4-2"></script>
-  <script src="tomtom-live.js?v=4-2"></script>
+  <script src="tomtom-live.js?v=4-3"></script>
   <script src="voice-guidance.js?v=4-5-1"></script>
   <script src="navigation-sim.js?v=4-5-1"></script>
   <script src="predictive-gps.js?v=4-3"></script>
@@ -260,6 +264,6 @@
   <script src="jalan-kl-preview.js?v=3a1"></script>
   <script src="jalan-kl-3b.js?v=3b1"></script>
   <script src="jalan-kl-3c.js?v=3c2"></script>
-  <script src="passenger-ui.js?v=7"></script>
+  <script src="passenger-ui.js?v=8"></script>
 </body>
 </html>
