@@ -236,7 +236,37 @@
    const message=el('passenger-instruction').textContent;
    el('passenger-turn-arrow').textContent=/left/i.test(message)?'↰':/right/i.test(message)?'↱':'↑';
  };
- el('passenger-go').addEventListener('click',()=>{
+ // Passenger controls mirror the existing engineering GPS buttons; no
+ // duplicate voice engine, no accidental opt-in to automatic rerouting.
+ const voiceControl=el('passenger-voice'),autoControl=el('passenger-auto-reroute'),
+       rerouteStatus=el('passenger-reroute-status');
+ const syncNavigationSettings=()=>{
+   const voiceButton=el('gps-voice'),autoButton=el('gps-auto');
+   voiceControl.textContent=voiceButton.textContent;
+   voiceControl.setAttribute('aria-pressed',voiceButton.getAttribute('aria-pressed')||'false');
+   autoControl.textContent=autoButton.textContent;
+   autoControl.setAttribute('aria-pressed',autoButton.getAttribute('aria-pressed')||'false');
+ };
+ voiceControl.addEventListener('click',()=>{el('gps-voice').click();syncNavigationSettings();});
+ autoControl.addEventListener('click',()=>{
+   el('gps-auto').click();syncNavigationSettings();
+   rerouteStatus.dataset.state='idle';
+   rerouteStatus.textContent=autoControl.getAttribute('aria-pressed')==='true'?
+     'Auto rerouting enabled · sustained off-route confirmation required.':
+     'Auto rerouting off · use Recalculate to check manually.';
+ });
+ el('passenger-reroute-now').addEventListener('click',()=>{
+   el('gps-reroute').click();
+ });
+ window.addEventListener('jalan:navigation-settings',syncNavigationSettings);
+ window.addEventListener('jalan:reroute-status',event=>{
+   if(!document.body.classList.contains('passenger-guiding'))return;
+   const detail=event.detail||{};
+   rerouteStatus.dataset.state=detail.state||'idle';
+   rerouteStatus.textContent=String(detail.message||'Route status unavailable.');
+ });
+ syncNavigationSettings();
+  el('passenger-go').addEventListener('click',()=>{
    if(!routes.length)return;
    hideSettings();
    el('gps-start').click();
@@ -245,6 +275,11 @@
    }
  });
  window.addEventListener('jalan:journey-start',()=>{
+   syncNavigationSettings();
+   rerouteStatus.dataset.state='idle';
+   rerouteStatus.textContent=autoControl.getAttribute('aria-pressed')==='true'?
+     'Auto rerouting enabled · watching for sustained deviation.':
+     'Auto rerouting off · manual Recalculate available.';
    exploring=false;lastGPSDetail=null;hint.textContent='Drag · pinch · twist to explore · Recenter to resume following';
    discardVehicle();
    if(!routes.length)return;
