@@ -39,7 +39,7 @@ body.passenger-mode .passenger-overview{position:fixed;z-index:1300;bottom:calc(
    preview. This is still a flat Leaflet map with visual perspective ONLY. */
 body.passenger-guiding #map{transform:perspective(1200px) rotateX(29deg) rotateZ(var(--jalan-camera-turn,0deg)) scale(1.85) translateY(-3vh);transform-origin:center center;pointer-events:none!important}
 body.passenger-guiding{background:#dbe4eb}
-body.passenger-guiding.passenger-map-flat #map{transform:none;pointer-events:none!important}
+body.passenger-guiding.passenger-map-flat #map{transform:none;pointer-events:auto!important}
 body.passenger-guiding .topbar,body.passenger-guiding .results,body.passenger-guiding .passenger-overview,body.passenger-guiding .passenger-setup{display:none!important}
 body.passenger-guiding .interface-switch{display:none}
 .passenger-navigation{position:fixed;inset:0;z-index:1500;pointer-events:none;font-family:system-ui,sans-serif;color:#fff}
@@ -114,3 +114,13 @@ body.passenger-mode .passenger-go{margin-top:4px;min-height:54px}
 @media(max-height:650px){
  body.passenger-mode .passenger-overview{max-height:calc(100dvh - 174px - env(safe-area-inset-top,0px))}
 }
+
+/* The perspective transform invalidates native Leaflet touch hit-testing, so
+   route exploration uses a separate gesture plane. In flat 2D, restore native
+   Leaflet drag/pinch and remove the gesture plane from hit testing. */
+.passenger-map-gestures{position:absolute;z-index:1;top:calc(136px + env(safe-area-inset-top,0px));bottom:185px;left:0;right:0;pointer-events:auto;touch-action:none;cursor:grab}
+.passenger-map-gestures:active{cursor:grabbing}
+body.passenger-map-flat .passenger-map-gestures{pointer-events:none}
+.passenger-turn,.passenger-heading,.passenger-bottom{z-index:3}
+.passenger-gesture-hint{font-size:11px;color:#60748c;text-align:center;margin:2px 0 10px}
+@media(max-height:650px){.passenger-map-gestures{bottom:150px}}
