@@ -87,6 +87,28 @@ async function main(){
   await page.locator('#passenger-use-osrm').click();
   assert.equal(await page.evaluate(()=>document.getElementById('tt-primary').checked),false);
   assert.equal(await page.locator('#passenger-overview').isVisible(),false);
+  // A passenger can explicitly save a restricted key once on the same device.
+  // Tests use a synthetic token; no real credentials or provider requests.
+  await page.locator('#passenger-settings-top').click();
+  await page.locator('#passenger-key').fill('TEST_RESTRICTED_KEY_1234');
+  await page.locator('#passenger-remember').check();
+  await page.locator('#passenger-use-tomtom').click();
+  assert.equal(await page.evaluate(()=>document.getElementById('tt-primary').checked),true);
+  assert.equal(await page.evaluate(()=>!!localStorage.getItem('jalan-tomtom-key')),true,
+    'remember on this device requires explicit checkbox');
+  await page.goto(base+'/index.html?mode=passenger',{waitUntil:'load'});
+  assert.equal(await page.locator('#passenger-remember').isChecked(),true);
+  assert.equal(await page.evaluate(()=>!!document.getElementById('tt-key').value),true,
+    'both interfaces reuse saved browser key');
+  assert.match(await page.locator('#passenger-provider-status').innerText(),/no re-entry needed/);
+  await page.locator('#passenger-settings-top').click();
+  await page.locator('#passenger-use-tomtom').click();
+  assert.equal(await page.evaluate(()=>document.getElementById('tt-primary').checked),true,
+    'reuse existing browser key without entering again');
+  await page.locator('#passenger-settings-top').click();
+  await page.locator('#passenger-forget-key').click();
+  assert.equal(await page.evaluate(()=>localStorage.getItem('jalan-tomtom-key')),null);
+  assert.equal(await page.evaluate(()=>document.getElementById('tt-key').value),'');
   await page.goto(base+'/index.html?mode=engineering',{waitUntil:'load'});
   assert.equal(await page.evaluate(()=>document.body.classList.contains('passenger-mode')),false);
   assert.equal(await page.locator('#info-panel').isVisible(),true,'original engineering dashboard retained');
