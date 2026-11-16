@@ -20,6 +20,7 @@ async function main(){
  await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
  const base='http://127.0.0.1:'+server.address().port;
  const browser=await chromium.launch({headless:true,args:['--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader']});
+ let currentPage;
  try{
   const context=await browser.newContext({viewport:{width:390,height:844},deviceScaleFactor:2,hasTouch:true,isMobile:true});
   await context.addInitScript(()=>{
@@ -35,7 +36,7 @@ async function main(){
      contentType:ext==='js'?'application/javascript':'text/css',body:fs.readFileSync(path.join(root,'node_modules',name,'dist',name+'.'+ext))}));
    }
   }
-  const page=await context.newPage(),errors=[];
+  const page=await context.newPage(),errors=[];currentPage=page;
   page.on('pageerror',e=>errors.push(e.message));
   await page.route('**/*',route=>route.request().url().startsWith(base)?route.continue():route.abort());
   await dependencies(page);
@@ -114,7 +115,7 @@ async function main(){
   await page.close();
   // Live public basemap smoke. Local dependency files, actual provider style,
   // vector tiles, glyphs and sprites. No traffic key or real user's location.
-  const live=await context.newPage(),mapFailures=[],tileResponses=[];
+  const live=await context.newPage(),mapFailures=[],tileResponses=[];currentPage=live;
   await dependencies(live);
   live.on('response',response=>{
    if(response.url().startsWith('https://tiles.openfreemap.org/')){
@@ -129,6 +130,7 @@ async function main(){
   await live.evaluate(fix);
   await live.waitForFunction(()=>map.getZoom()>=17);
   await live.waitForTimeout(5000);
+  await live.evaluate(fix);
   assert.deepEqual(mapFailures,[],'public vector resources must load');
   assert.ok(tileResponses.some(code=>code===200),'actual vector/glyph resources received');
   assert.equal(await live.evaluate(()=>JalanVectorMap.active),true);
@@ -136,6 +138,13 @@ async function main(){
   await live.setViewportSize({width:1280,height:800});
   await live.screenshot({path:path.join(artifacts,'vector-live-kl-desktop.png')});
   console.log('PASS: native WebGL map, GPS projection, gestures, report zoom, traffic lifecycle, fallback and live OpenFreeMap');
+ }catch(error){
+  if(currentPage&&!currentPage.isClosed()){
+   await currentPage.screenshot({path:path.join(artifacts,'vector-failure.png')});
+   console.error('Renderer state:',await currentPage.evaluate(()=>({state:window.JalanVectorMap?.getState(),
+    message:document.getElementById('jalan-map-status')?.textContent})));
+  }
+  throw error;
  }finally{await browser.close();server.close();}
 }
 main().catch(error=>{console.error(error);server.close();process.exitCode=1;});

@@ -721,7 +721,8 @@
  };
  window.addEventListener('jalan:vector-gesture',()=>{startExplore();});
  window.addEventListener('jalan:map-renderer',()=>{
-   applyCameraAngle(lastValidHeading===null?0:-lastValidHeading);
+   applyCameraAngle(focusedReport||document.body.classList.contains('passenger-map-flat')?
+     0:lastValidHeading===null?0:-lastValidHeading);
    el('passenger-2d').textContent=document.body.classList.contains('passenger-map-flat')?
      (window.JalanVectorMap?.active?'3D map':'2.5D preview'):'2D map';
    const heading=document.querySelector('.passenger-heading');
