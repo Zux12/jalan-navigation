@@ -30,12 +30,16 @@
  let pendingOverlay=false;
  const syncScreenVehicle=()=>{
    pendingOverlay=false;
+   const vector=window.JalanVectorMap;
    const anchor=vehicle?.getElement();
-   if(!anchor||!document.body.classList.contains('passenger-guiding')){
+   if(!vehicle||(!vector?.active&&!anchor)||!document.body.classList.contains('passenger-guiding')){
      screenVehicle.classList.add('hidden');return;
    }
-   const bounds=anchor.getBoundingClientRect();
-   const x=bounds.left+bounds.width/2,y=bounds.top+bounds.height/2;
+   const bounds=(vector?.active?map.getContainer():anchor).getBoundingClientRect();
+   const point=vector?.active?vector.project(vehicle.getLatLng()):null;
+   const x=bounds.left+(point?point.x:bounds.width/2),y=bounds.top+(point?point.y:bounds.height/2);
+   screenVehicle.style.setProperty('--jalan-screen-heading',vector?.active?
+     ((lastValidHeading||0)-vector.getBearing())+'deg':'0deg');
    const maxX=window.innerWidth,maxY=window.innerHeight;
    if(!Number.isFinite(x)||!Number.isFinite(y)||x<0||x>maxX||
      y<0||y>maxY){screenVehicle.classList.add('hidden');return;}
@@ -49,7 +53,7 @@
    requestAnimationFrame(syncScreenVehicle);
  };
  map.on('move zoom zoomend moveend resize',scheduleScreenVehicle);
- const currentCameraAngle=()=>Number.parseFloat(map.getContainer().style.getPropertyValue('--jalan-camera-turn'))||0;
+ const currentCameraAngle=()=>window.JalanVectorMap?.active?-window.JalanVectorMap.getBearing():Number.parseFloat(map.getContainer().style.getPropertyValue('--jalan-camera-turn'))||0;
  const applyCameraAngle=degrees=>{
    const angle=((degrees+180)%360+360)%360-180;
    const previous=currentCameraAngle();
@@ -57,6 +61,14 @@
    // Avoid retransforming every raster tile on sub-degree GPS heading jitter.
    if(Math.abs(delta)>=1.2||!map.getContainer().style.getPropertyValue('--jalan-camera-turn'))
      map.getContainer().style.setProperty('--jalan-camera-turn',angle+'deg');
+   const vector=window.JalanVectorMap;
+   if(vector?.active){
+     const guiding=document.body.classList.contains('passenger-guiding');
+     const flat=document.body.classList.contains('passenger-map-flat');
+     vector.setCamera({bearing:-angle,pitch:!guiding||flat||focusedReport?0:exploring?vector.getPitch():48,
+       padding:guiding?{top:Math.round(innerHeight*.34),bottom:90,left:0,right:0}:
+         {top:0,bottom:0,left:0,right:0}});
+   }
    scheduleScreenVehicle();
    const symbol=vehicle?.getElement()?.querySelector('.jalan-vehicle-symbol');
    if(symbol)symbol.style.setProperty('--jalan-vehicle-heading',
@@ -222,6 +234,7 @@
    closeDirections();
    routeLabels.clearLayers();overview.classList.add('hidden');
    document.body.classList.remove('passenger-guiding','passenger-map-flat');
+   window.JalanVectorMap?.setCamera({pitch:0,bearing:0,padding:{top:0,bottom:0,left:0,right:0}});
    navigation.classList.add('hidden');
  });
  const turnToggle=el('passenger-turn-toggle'),
@@ -581,6 +594,7 @@
    el('passenger-2d').setAttribute('aria-pressed','false');
    el('passenger-2d').textContent='2D map';
    syncGPS();
+   applyCameraAngle(0);
    scheduleScreenVehicle();
    if(!trafficOptOut)startPassengerTraffic();
  });
@@ -597,6 +611,7 @@
    exploring=false;lastGPSDetail=null;
    discardVehicle();
    document.body.classList.remove('passenger-guiding','passenger-map-flat');
+   window.JalanVectorMap?.setCamera({pitch:0,bearing:0,padding:{top:0,bottom:0,left:0,right:0}});
    restorePlannerMarkers();
    routeLayer.getLayers().forEach((line,i)=>{
      if(typeof line.setStyle==='function')line.setStyle(i===selectedRoute?
@@ -704,6 +719,16 @@
    hint.textContent='Exploring map · tap Recenter to follow GPS again';
    return true;
  };
+ window.addEventListener('jalan:vector-gesture',()=>{startExplore();});
+ window.addEventListener('jalan:map-renderer',()=>{
+   applyCameraAngle(focusedReport||document.body.classList.contains('passenger-map-flat')?
+     0:lastValidHeading===null?0:-lastValidHeading);
+   el('passenger-2d').textContent=document.body.classList.contains('passenger-map-flat')?
+     (window.JalanVectorMap?.active?'3D map':'2.5D preview'):'2D map';
+   const heading=document.querySelector('.passenger-heading');
+   if(heading)heading.textContent=window.JalanVectorMap?.active?
+     'PASSENGER PREVIEW · 3D map':'PASSENGER PREVIEW · 2.5D map, not true 3D';
+ });
  gestureSurface.addEventListener('touchstart',event=>{
    if(!startExplore())return;
    if(event.cancelable)event.preventDefault();
@@ -776,9 +801,10 @@
    gesture=null;
    const flat=document.body.classList.toggle('passenger-map-flat');
    applyCameraAngle(flat?0:exploring?currentCameraAngle():lastValidHeading===null?0:-lastValidHeading);
+   window.JalanVectorMap?.setCamera({pitch:flat?0:48});
    map.invalidateSize();
    scheduleScreenVehicle();
-   el('passenger-2d').textContent=flat?'2.5D preview':'2D map';
+   el('passenger-2d').textContent=flat?(window.JalanVectorMap?.active?'3D map':'2.5D preview'):'2D map';
    el('passenger-2d').setAttribute('aria-pressed',String(flat));
  });
  el('passenger-stop').addEventListener('click',()=>el('gps-exit').click());

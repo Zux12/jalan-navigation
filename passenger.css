@@ -205,3 +205,21 @@ body.passenger-guiding .passenger-turn{position:fixed;top:0;left:0;right:0}
 .passenger-recenter-floating{pointer-events:auto;position:fixed;right:14px;bottom:calc(115px + env(safe-area-inset-bottom,0px));z-index:7;width:50px;height:50px;border-radius:50%;border:2px solid #e7eef5;background:#fffffff2;color:#166b9d;font-size:32px;line-height:1;display:grid;place-items:center;box-shadow:0 4px 15px #0a2c5260;touch-action:manipulation}
 .passenger-recenter-floating:active{background:#dceefb}
 @media(max-height:650px){.passenger-recenter-floating{bottom:calc(105px + env(safe-area-inset-bottom,0px))}}
+
+/* Native vector camera owns pitch, bearing and hit testing. Keep the Leaflet
+   data model available without drawing or downloading a second basemap. */
+#jalan-vector-map{position:absolute;inset:0;visibility:hidden;z-index:1;background:#f5f3ee}
+body.passenger-vector-active #map{transform:none!important;pointer-events:auto!important}
+body.passenger-vector-active #jalan-vector-map{visibility:visible}
+body.passenger-vector-active #map>.leaflet-pane,
+body.passenger-vector-active #map>.leaflet-control-container{visibility:hidden;pointer-events:none}
+body.passenger-vector-active .passenger-map-gestures{display:none!important}
+body.passenger-vector-active #passenger-vehicle-screen{transform:translate(-50%,-50%) rotate(var(--jalan-screen-heading,0deg))}
+.jalan-vector-pin{cursor:pointer;box-sizing:border-box}
+.jalan-vector-pin .leaflet-marker-icon{display:block}
+.jalan-vector-report-label .maplibregl-popup-content{border:2px solid #d85800;border-radius:12px;padding:10px 13px;font:700 13px system-ui;color:#3c260f;text-align:center}
+#jalan-map-status{position:fixed;z-index:8;left:10px;bottom:1px;font:10px system-ui;color:#4d5963;background:#ffffffe6;border-radius:4px;padding:1px 4px;pointer-events:none}
+#jalan-map-status:empty{display:none}
+body.passenger-vector-active .maplibregl-ctrl-bottom-right{z-index:4;bottom:env(safe-area-inset-bottom,0px)}
+body.passenger-vector-active .maplibregl-ctrl-attrib{margin:0!important;padding:0 4px;font-size:10px;line-height:14px;min-height:0;background:#fffffff0;color:#425364}
+body.passenger-vector-active.passenger-guiding .passenger-bottom{bottom:calc(18px + env(safe-area-inset-bottom,0px))}
