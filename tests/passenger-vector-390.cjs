@@ -147,9 +147,17 @@ async function main(){
   await page.locator('#passenger-2d').click();
   assert.equal(await page.evaluate(()=>JalanVectorMap.getPitch()),48);
   await page.locator('#passenger-options > summary').click();
-  await page.evaluate(()=>window.dispatchEvent(new CustomEvent('jalan:incidents-updated',{detail:{
-   route:JalanGPS.getState().route,checkedAt:Date.now(),incidents:[{lat:3.145,lng:101.6925,description:'Fixture delay',category:'🚧'}]
-  }})));
+  await page.evaluate(()=>{
+    const route=JalanGPS.getState().route;
+    const projected=window.JalanTomTom.projectReportPoint(
+      [101.6925,3.145],route.geometry.coordinates);
+    window.dispatchEvent(new CustomEvent('jalan:incidents-updated',{detail:{
+      route,checkedAt:Date.now(),
+      incidents:[{lat:3.145,lng:101.6925,description:'Fixture route section',
+        roadName:'Fixture road',category:'🚧',
+        routeAlong:projected.along,routeTotal:projected.total}]
+    }}));
+  });
   await page.locator('#passenger-turn-toggle').click();
   await page.locator('#passenger-report-list button').first().tap();
   await page.waitForFunction(()=>document.querySelector('.jalan-vector-report-label'));
