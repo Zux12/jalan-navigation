@@ -117,6 +117,8 @@ test('valid traffic-aware TomTom route remains primary on successful response',a
  await n['tt-route'].onclick();await s.tick();
  assert.equal(s.renders,1);
  assert.equal(s.ctx.routes[0].provider,'tomtom');
+ assert.equal(s.ctx.routes[0].trafficSections,null,
+  'absent provider sections must remain unknown, not be presented as clear roads');
  assert.match(n['tt-eta'].textContent,/Traffic delay/);
  assert.equal(s.calls.length,1);
 });
