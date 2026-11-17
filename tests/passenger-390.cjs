@@ -71,11 +71,14 @@ async function main(){
   assert.match(await page.locator('#jalan-recent-list').textContent(),/during this session/);
   await page.locator('#jalan-sheet-handle').click();
   assert.equal(await sheetState(),'b');
-  await page.locator('#jalan-sheet-handle').click();
-  assert.equal(await sheetState(),'c');
-  await page.locator('#jalan-sheet-handle').click();
-  await page.locator('#jalan-sheet-handle').click();
-  assert.equal(await sheetState(),'a');
+  // Drag down from B to A. Handle taps intentionally alternate B/C,
+  // whereas downward gestures collapse to A.
+  const handleBox=await page.locator('#jalan-sheet-handle').boundingBox();
+  await page.mouse.move(handleBox.x+handleBox.width/2,handleBox.y+10);
+  await page.mouse.down();
+  await page.mouse.move(handleBox.x+handleBox.width/2,handleBox.y+115,{steps:8});
+  await page.mouse.up();
+  assert.equal(await sheetState(),'a','downward drag collapses B to A');
   await page.locator('#destination').tap();
   assert.equal(await sheetState(),'c','search tap opens C directly from A');
   assert.equal(await page.locator('#destination').evaluate(x=>x===document.activeElement),true);
