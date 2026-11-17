@@ -277,6 +277,14 @@ async function main(){
   assert.equal(await page.locator('#passenger-route-content').evaluate(x=>x.inert),true);
   const peek=await page.locator('#passenger-overview').boundingBox();
   assert.ok(peek.y>740&&peek.y<810,'collapsed panel leaves only a small visible bottom strip');
+  const planningControls=await page.evaluate(()=>{
+    const panel=document.getElementById('passenger-overview').getBoundingClientRect();
+    return ['jalan-home-speed','jalan-home-report'].every(id=>{
+      const box=document.getElementById(id).getBoundingClientRect();
+      return box.top>100&&box.bottom<panel.top;
+    });
+  });
+  assert.equal(planningControls,true,'map controls stay on screen above the collapsed route strip');
   await assertChoicePreserved();
   await page.screenshot({path:path.join(root,'test-artifacts/passenger-routes-collapsed.png')});
   await swipeInside('#passenger-route-handle',-100,{cancel:true});

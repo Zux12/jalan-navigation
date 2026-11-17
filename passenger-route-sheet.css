@@ -23,3 +23,6 @@ body.passenger-mode .passenger-overview.passenger-route-dragging{
  transition:none;user-select:none;-webkit-user-select:none;
 }
 @media(prefers-reduced-motion:reduce){body.passenger-mode .passenger-overview{transition:none}}
+
+/* Once search is hidden, its old A/B/C height must not move map buttons. */
+body.passenger-mode:has(.jalan-home-sheet.jalan-sheet-route){--jalan-map-control-bottom:96px}
