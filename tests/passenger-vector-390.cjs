@@ -99,6 +99,22 @@ async function main(){
   await page.locator('#passenger-route-list button').nth(1).click();
   assert.equal(await page.evaluate(()=>selectedRoute),1);
   await page.locator('#passenger-route-list button').first().click();
+  assert.equal(await page.locator('#jalan-route-traffic-legend').count(),0);
+  await page.locator('#passenger-route-handle').click();
+  assert.equal(await page.locator('#passenger-overview').getAttribute('data-collapsed'),'true');
+  await page.waitForTimeout(300);
+  const routeBeforePan=await page.evaluate(()=>{
+    window.__planningRoute=routes[selectedRoute];return [map.getCenter().lat,map.getCenter().lng];
+  });
+  await page.mouse.move(170,400);await page.mouse.down();
+  await page.mouse.move(240,450,{steps:10});await page.mouse.up();
+  await page.waitForTimeout(900);
+  const routeAfterPan=await page.evaluate(()=>[map.getCenter().lat,map.getCenter().lng]);
+  assert.ok(Math.hypot(routeAfterPan[0]-routeBeforePan[0],routeAfterPan[1]-routeBeforePan[1])>0.00001,
+    'native map can be explored with the route panel collapsed');
+  assert.equal(await page.evaluate(()=>routes[selectedRoute]===window.__planningRoute),true);
+  await page.locator('#passenger-route-handle').click();
+  assert.equal(await page.locator('#passenger-route-list button').count(),2);
   await page.locator('#passenger-go').click();
   assert.equal(await page.evaluate(()=>JalanVectorMap.getPitch()),48,'Go uses native pitch');
   for(const height of [844,560]){

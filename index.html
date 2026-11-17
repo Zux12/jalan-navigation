@@ -16,8 +16,8 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
   <link rel="stylesheet" href="style.css?v=4-7-1" />
   <link rel="stylesheet" href="passenger.css?v=16" />
-  <link rel="stylesheet" href="passenger-route-traffic.css?v=1" />
   <link rel="stylesheet" href="passenger-home-sheet.css?v=4" />
+  <link rel="stylesheet" href="passenger-route-sheet.css?v=1" />
   <link rel="stylesheet" href="jalan-kl-preview.css?v=3a1">
   <link rel="stylesheet" href="jalan-kl-3b.css?v=3b1">
   <link rel="stylesheet" href="jalan-kl-3c.css?v=3c1">
@@ -41,11 +41,12 @@
     <button id="passenger-setup-close" type="button">Close settings</button>
   </div>
   <section id="passenger-overview" class="passenger-overview hidden" aria-label="Choose route">
-    <div class="passenger-overview-heading"><div><strong id="passenger-route-title">Choose your route</strong><small id="passenger-route-provider">Routes are estimates</small></div><button id="passenger-settings" type="button">⚙ Route settings</button></div>
+    <button id="passenger-route-handle" class="passenger-route-handle" type="button" aria-label="Collapse route choices" aria-expanded="true" aria-controls="passenger-route-content"><span aria-hidden="true"></span></button>
+    <div class="passenger-overview-heading"><strong id="passenger-route-title">Choose your route</strong></div>
+    <div id="passenger-route-content" class="passenger-route-content">
     <div id="passenger-route-list" class="passenger-route-list" aria-live="polite"></div>
     <button id="passenger-go" class="passenger-go" type="button">Go · Passenger preview</button>
-    <small>Go starts TomTom traffic reports and 5-minute checks when a TomTom key and route are available.</small>
-    <small>Experimental preview, not approved for driving guidance. A passenger may evaluate the interface; the driver must use approved navigation.</small>
+    </div>
   </section>
   <section id="passenger-navigation" class="passenger-navigation hidden" aria-label="Passenger navigation preview">
     <div id="passenger-vehicle-screen" class="passenger-vehicle-screen hidden" aria-hidden="true">▲</div>
@@ -270,9 +271,10 @@
   <script src="jalan-kl-preview.js?v=3a1"></script>
   <script src="jalan-kl-3b.js?v=3b1"></script>
   <script src="jalan-kl-3c.js?v=3c2"></script>
-  <script src="passenger-ui.js?v=20"></script>
-  <script src="passenger-route-traffic.js?v=1"></script>
+  <script src="passenger-ui.js?v=21"></script>
+  <script src="passenger-route-traffic.js?v=2"></script>
   <script src="passenger-home-sheet.js?v=4"></script>
+  <script src="passenger-route-sheet.js?v=1"></script>
   <script src="passenger-vector-map.js?v=2"></script>
 </body>
 </html>
