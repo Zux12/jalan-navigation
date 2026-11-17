@@ -111,7 +111,12 @@
          if(incident&&(!type||priority[incident]>priority[type]))type=incident;
        }
      }
-     if(type)pieces.push({type,coordinates:[interpolated(path,from),interpolated(path,to)]});
+     if(type){
+       const previous=pieces.at(-1);
+       const coordinate=interpolated(path,to);
+       if(previous?.type===type)previous.coordinates.push(coordinate);
+       else pieces.push({type,coordinates:[interpolated(path,from),coordinate]});
+     }
    }
    return pieces;
  }
@@ -119,8 +124,7 @@
    overlay.clearLayers();
    const pieces=classify(route,flowMatches);
    for(const segment of pieces){
-     const point=segment.coordinates;
-     L.polyline([[point[0][1],point[0][0]],[point[1][1],point[1][0]]],{
+     L.polyline(segment.coordinates.map(point=>[point[1],point[0]]),{
        color:palette[segment.type],weight:10,opacity:.94,
        interactive:false,lineCap:'round',lineJoin:'round',
        className:'jalan-selected-traffic-colour'
@@ -181,10 +185,15 @@
  }
  window.addEventListener('jalan:routes-rendered',choose);
  window.addEventListener('jalan:route-change',choose);
+ window.addEventListener('jalan:journey-start',()=>{
+   if(route!==routes?.[selectedRoute])choose();
+ });
  window.addEventListener('jalan:route-cleared',reset);
  window.addEventListener('jalan:journey-stop',()=>{if(route)draw();});
  window.addEventListener('jalan:traffic-layer-status',event=>{
    if(event.detail?.state==='off'){reset();}
+   if(event.detail?.state==='ready'&&!route&&
+      routes?.[selectedRoute]?.provider==='tomtom')choose();
  });
  window.addEventListener('jalan:incidents-updated',()=>{if(route)draw();});
  window.JalanRouteTraffic={
