@@ -102,6 +102,76 @@ async function main(){
   await page.locator('#jalan-search-trigger').tap();
   assert.equal(await sheetState(),'c','search tap opens C directly from B');
   await page.evaluate(()=>document.activeElement?.blur());
+  // Real browser touch input (not dispatched PointerEvents) must work from
+  // sheet descendants without clicking them, and preserve native C scrolling.
+  const sheetTouch=await context.newCDPSession(page);
+  const swipeInside=async(selector,dy,{dx=0,offsetY=null,cancel=false}={})=>{
+    const b=await page.locator(selector).boundingBox();
+    assert.ok(b,`visible swipe target ${selector}`);
+    const x=b.x+b.width/2,y=b.y+(offsetY??Math.min(b.height/2,60));
+    await sheetTouch.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[{x,y,id:1}]});
+    for(let i=1;i<=8;i++){
+      await sheetTouch.send('Input.dispatchTouchEvent',{type:'touchMove',
+        touchPoints:[{x:x+dx*i/8,y:y+dy*i/8,id:1}]});
+      await page.waitForTimeout(16);
+    }
+    await sheetTouch.send('Input.dispatchTouchEvent',{
+      type:cancel?'touchCancel':'touchEnd',touchPoints:[]});
+    await page.waitForTimeout(80);
+  };
+  await page.locator('#jalan-sheet-handle').click(); // C -> B
+  await swipeInside('.jalan-sheet-quick [data-shortcut="new"]',-90);
+  assert.equal(await sheetState(),'c','touching inside quick controls swipes B to C');
+  assert.equal(await page.locator('#destination').evaluate(x=>x===document.activeElement),false,
+    'swiping over New must not also tap it or open the keyboard');
+  await swipeInside('.jalan-sheet-recent h2',80);
+  assert.equal(await sheetState(),'b','downward touch inside C collapses to B');
+  await swipeInside('.jalan-sheet-recent h2',70);
+  assert.equal(await sheetState(),'a','downward touch inside B collapses to A');
+  await swipeInside('#jalan-home-sheet',-80,{offsetY:115});
+  assert.equal(await sheetState(),'b','touch inside collapsed sheet expands A to B');
+  await swipeInside('.jalan-sheet-quick [data-shortcut="home"]',0,{dx:80});
+  assert.equal(await sheetState(),'b','horizontal gestures do not change stage');
+  await swipeInside('.jalan-sheet-quick [data-shortcut="work"]',-70,{cancel:true});
+  assert.equal(await sheetState(),'b','cancelled touch does not change stage');
+  await swipeInside('.jalan-sheet-recent h2',-80);
+  assert.equal(await sheetState(),'c','upward touch inside Recent expands B to C');
+  await page.evaluate(()=>{
+    const list=document.getElementById('jalan-recent-list');
+    window.__recentBeforeSwipeTest=list.innerHTML;window.__recentSwipeClicks=0;
+    list.replaceChildren();
+    for(let i=0;i<30;i++){
+      const li=document.createElement('li'),button=document.createElement('button');
+      button.textContent='Synthetic recent destination '+i;
+      button.addEventListener('click',()=>window.__recentSwipeClicks++);
+      li.append(button);list.append(li);
+    }
+  });
+  await swipeInside('.jalan-sheet-recent',-120,{offsetY:170});
+  assert.equal(await sheetState(),'c','expanded Recent scrolls without collapsing');
+  await page.waitForFunction(()=>document.querySelector('.jalan-sheet-recent').scrollTop>20);
+  await page.waitForTimeout(250);
+  await page.locator('.jalan-sheet-recent').evaluate(x=>x.scrollTop=180);
+  await swipeInside('.jalan-sheet-recent',70,{offsetY:80});
+  assert.equal(await sheetState(),'c','downward swipe within a scrolled list scrolls it first');
+  await page.waitForTimeout(250);
+  await page.locator('.jalan-sheet-recent').evaluate(x=>x.scrollTop=0);
+  await swipeInside('#jalan-recent-list li:first-child button',80);
+  assert.equal(await sheetState(),'b','downward swipe at list top collapses C to B');
+  assert.equal(await page.evaluate(()=>window.__recentSwipeClicks),0,
+    'swiping a recent row never selects a destination');
+  await page.evaluate(()=>{
+    document.getElementById('jalan-recent-list').innerHTML=window.__recentBeforeSwipeTest;
+  });
+  await page.locator('#jalan-search-trigger').tap();
+  assert.equal(await sheetState(),'c','ordinary search tap still opens C after swiping');
+  await page.evaluate(()=>document.activeElement?.blur());
+  // Keyboard activation remains available alongside swiping.
+  await page.locator('#jalan-sheet-handle').focus();await page.keyboard.press('Enter');
+  assert.equal(await sheetState(),'b');
+  await page.keyboard.press('Enter');assert.equal(await sheetState(),'c');
+  await sheetTouch.detach();
+  console.log('PASS sheet touch gestures: A/B/C content swipes, native list scrolling, top collapse, no accidental selection, keyboard and search taps');
   await page.evaluate(()=>{
    // Deliberately out-of-order synthetic provider returns, NOT live roads.
    const points=[[101.6869,3.139],[101.6953,3.1478]];
