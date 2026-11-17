@@ -29,6 +29,8 @@ async function main(){
    isMobile:true,hasTouch:true,reducedMotion:'reduce'});
   await context.addInitScript(()=>{
    window.__testVoices=[];window.__spoken=[];
+   window.__trafficLayerStatus=null;
+   window.addEventListener('jalan:traffic-layer-status',e=>window.__trafficLayerStatus=e.detail);
    const synth=new EventTarget();synth.getVoices=()=>window.__testVoices;
    synth.cancel=()=>{};synth.speak=u=>window.__spoken.push({text:u.text,voice:u.voice?.name,lang:u.lang});
    Object.defineProperty(window,'speechSynthesis',{configurable:true,value:synth});
@@ -64,6 +66,13 @@ async function main(){
   const sheetState=()=>page.locator('#jalan-home-sheet').getAttribute('data-state');
   assert.equal(await sheetState(),'a','Passenger preview opens with collapsed search sheet');
   assert.equal(await page.locator('#jalan-home-menu').isVisible(),true);
+  assert.equal(await page.locator('#passenger-startup-location-status').count(),0,'startup GPS message is removed');
+  assert.equal(await page.locator('#passenger-gps-status').isVisible(),true);
+  assert.equal(await page.locator('#passenger-gps-status').getAttribute('data-quality'),'red','denied location is red');
+  await page.locator('#passenger-gps-status').click();
+  assert.equal(await page.locator('#passenger-gps-status-detail').isVisible(),true);
+  await page.keyboard.press('Escape');
+  assert.equal(await page.locator('#passenger-gps-status-detail').isVisible(),false);
   assert.equal(await page.locator('#jalan-home-report').isVisible(),true);
   assert.equal(await page.locator('#jalan-home-speed-value').textContent(),'—',
     'unverified GPS must never display invented speed');
@@ -428,6 +437,15 @@ async function main(){
   assert.equal(await page.locator('#passenger-turn-list').isVisible(),false,
     'full direction list starts closed');
   assert.equal(await page.locator('.passenger-stats').isVisible(),true);
+  assert.equal(await page.locator('#passenger-traffic-summary').count(),0,'traffic sentence is removed from the bottom');
+  assert.equal(await page.evaluate(()=>{
+    const badge=document.getElementById('passenger-gps-status').getBoundingClientRect();
+    const copy=document.querySelector('.passenger-turn-copy').getBoundingClientRect();
+    const chevron=document.querySelector('.passenger-turn-chevron').getBoundingClientRect();
+    return badge.right<=innerWidth-10&&badge.top>=10&&copy.right<badge.left&&chevron.top>=badge.bottom;
+  }),true,'GPS badge has its own corner without covering turn text or the expand control');
+  assert.equal(await page.evaluate(()=>getComputedStyle(document.getElementById('passenger-distance')).fontSize===
+    getComputedStyle(document.getElementById('passenger-eta')).fontSize),true,'distance and time use the same font size');
   assert.equal(await page.locator('#passenger-voice').isVisible(),false,
     'advanced controls remain hidden until opening options');
   await page.locator('#jalan-home-menu').click();
@@ -514,6 +532,9 @@ async function main(){
   assert.ok(await page.evaluate(()=>map.getZoom()>=17),
     'passenger follow zoom must persist after delayed route overview settling');
   assert.equal(await page.locator('#passenger-speed').textContent(),'7','floating speed still uses the matched GPS fix');
+  assert.equal(await page.locator('#passenger-gps-status').getAttribute('data-quality'),'green');
+  assert.match(await page.locator('#passenger-next').textContent(),/Arrival approx/);
+  assert.doesNotMatch(await page.locator('#passenger-next').textContent(),/GPS matched to selected route/);
   assert.equal(await page.locator('#passenger-speed-floating').getAttribute('aria-label'),'7 kilometres per hour');
   assert.equal(await page.evaluate(()=>document.getElementById('passenger-fix').textContent.includes('GPS matched')),true);
   // Actual proactive engine denies missing key and never offers a route
@@ -936,12 +957,12 @@ async function main(){
   await setupTrafficRoute();
   assert.equal(incidentRequests,0,'no area-wide incident requests before Go');
   await page.locator('#passenger-go').click();
-  await page.waitForFunction(()=>document.getElementById('passenger-traffic-summary').dataset.state==='ready');
+  await page.waitForFunction(()=>window.__trafficLayerStatus?.state==='ready');
   assert.equal(incidentRequests,0,
     'route-linked reports do not fetch unrelated bbox Incident Details');
   assert.equal(trafficRouteRequests,0,'traffic route check waits for a trusted GPS fix');
   assert.equal(await page.locator('#jalan-home-menu-panel').isVisible(),false);
-  assert.match(await page.locator('#passenger-traffic-summary').innerText(),/Route-linked traffic: 2/);
+  assert.match(await page.evaluate(()=>window.__trafficLayerStatus?.message),/Route-linked traffic: 2/);
   assert.equal(await page.locator('.report-marker').count(),2,
     'two provider-defined route sections, not nearby unlinked incidents');
   assert.equal(await page.locator('#passenger-traffic-toggle').getAttribute('aria-pressed'),'true');
@@ -968,13 +989,13 @@ async function main(){
   await menuClick('#passenger-traffic-toggle');
   assert.equal(await trafficLayers(),0,'Off removes traffic colour overlay');
   assert.equal(await page.locator('.jalan-report-focus-marker').count(),0);
-  assert.equal(await page.locator('#passenger-traffic-summary').getAttribute('data-state'),'off');
+  assert.equal(await page.evaluate(()=>window.__trafficLayerStatus?.state),'off');
   await page.locator('#passenger-turn-toggle').click();
   assert.equal(await page.locator('#passenger-report-list li').count(),0);
   await page.locator('#passenger-turn-close').click();
   await page.evaluate(()=>{routes[selectedRoute].trafficSectionsCheckedAt=Date.now()-11*60*1000;});
   await menuClick('#passenger-traffic-toggle');
-  await page.waitForFunction(()=>document.getElementById('passenger-traffic-summary').textContent.includes('Recalculate route'));
+  await page.waitForFunction(()=>window.__trafficLayerStatus?.message.includes('Recalculate route'));
   assert.equal(await page.locator('.report-marker').count(),0,
     'expired route snapshot must not display stale reports');
   await menuClick('#passenger-stop');
@@ -984,7 +1005,7 @@ async function main(){
   await page.evaluate(()=>{document.getElementById('tt-key').value='';});
   const beforeMissingKey=incidentRequests;
   await page.locator('#passenger-go').click();
-  assert.match(await page.locator('#passenger-traffic-summary').innerText(),/add a TomTom key/);
+  assert.match(await page.evaluate(()=>window.__trafficLayerStatus?.message),/add a TomTom key/);
   assert.equal(incidentRequests,beforeMissingKey);
   assert.equal(await trafficLayers(),0);
   await page.locator('#jalan-home-menu').click();

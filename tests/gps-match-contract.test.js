@@ -12,8 +12,9 @@ test('JalanGPS match confidence is cleared on predicted fixes, stop and restart'
  };
  let updateGPS=null,mode='matched',cleared=0;
  const display={panTo(){},removeLayer(){},invalidateSize(){}};
+ const qualityEvents=[];
  const browserWindow={
-  dispatchEvent(){},JalanNavigation:{stop(){}},
+  dispatchEvent(e){if(e.type==='jalan:location-quality')qualityEvents.push(e.detail);},JalanNavigation:{stop(){}},
   JalanVoice:{reset(){},label(){return 'Muted'},nextMode(){return 'mute'},announce(){},alert(){}},
   JalanPredictiveGPS:{create:()=>({feed:({position})=>({mode,position,along:0})})}
  };
@@ -27,7 +28,7 @@ test('JalanGPS match confidence is cleared on predicted fixes, stop and restart'
     geometry:{type:'LineString',coordinates:[[101.6869,3.139],[101.6953,3.1478]]}}],
   selectedRoute:0,destination:[3.1478,101.6953],startPoint:null,renderRoutes(){},
   updateLocation(){},fmtDist:m=>String(m),fmtTime:s=>String(s),
-  statusEl:{textContent:''},CustomEvent:class{constructor(type){this.type=type}},
+  statusEl:{textContent:''},CustomEvent:class{constructor(type,init){this.type=type;this.detail=init?.detail;}},
   Date,Math,AbortController,setTimeout(){},clearTimeout(){},console
  };
  vm.runInNewContext(source,ctx,{filename:'gps-navigation.js'});
@@ -61,6 +62,9 @@ test('JalanGPS match confidence is cleared on predicted fixes, stop and restart'
  assert.equal(state().accuracy,6);
  mode='predicted';updateGPS(fix());
  assert.equal(state().matched,false,'predicted position is not a verified road match');
+ assert.equal(qualityEvents.at(-1).accuracy,6,'display quality retains actual accuracy independently from route match');
+ assert.equal(qualityEvents.at(-1).valid,true);
+ assert.equal('position' in qualityEvents.at(-1),false,'quality event does not publish coordinates');
  mode='matched';updateGPS(fix());
  assert.equal(state().matched,true);
  browserWindow.JalanGPS.stop();
