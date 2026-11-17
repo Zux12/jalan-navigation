@@ -225,3 +225,18 @@ body.passenger-vector-active #passenger-vehicle-screen{transform:translate(-50%,
 body.passenger-vector-active .maplibregl-ctrl-bottom-right{z-index:4;bottom:env(safe-area-inset-bottom,0px)}
 body.passenger-vector-active .maplibregl-ctrl-attrib{margin:0!important;padding:0 4px;font-size:10px;line-height:14px;min-height:0;background:#fffffff0;color:#425364}
 body.passenger-vector-active.passenger-guiding .passenger-bottom{bottom:calc(18px + env(safe-area-inset-bottom,0px))}
+
+/* Stationary/passenger pre-route GPS: position only, never inferred heading. */
+.passenger-startup-pin{background:transparent;border:0;pointer-events:none}
+.passenger-startup-pin span{width:42px;height:42px;display:grid;place-items:center;
+ border:3px solid #fff;border-radius:50%;box-sizing:border-box;
+ background:#087ab8;color:#fff;font:900 24px system-ui,sans-serif;
+ text-shadow:0 1px 3px #123b5b99;box-shadow:0 3px 12px #102d5580}
+#passenger-startup-location-status{position:fixed;z-index:1201;
+ top:calc(142px + env(safe-area-inset-top,0px));left:50%;
+ transform:translateX(-50%);width:max-content;max-width:calc(100vw - 28px);
+ padding:8px 12px;border-radius:12px;background:#ffffffed;color:#1f4767;
+ box-shadow:0 3px 14px #102b4a36;text-align:center;
+ font:700 12px system-ui,sans-serif;pointer-events:none}
+body.passenger-guiding #passenger-startup-location-status,
+#passenger-startup-location-status.hidden{display:none!important}

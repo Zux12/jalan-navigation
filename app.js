@@ -39,7 +39,7 @@ for(const type of Object.keys(reportTypes)){$('report-'+type).addEventListener('
 map.on('click',e=>{if(reportMode){const r={type:reportMode,lat:e.latlng.lat,lng:e.latlng.lng,time:Date.now()};const all=getReports();all.push(r);let stored=false;try{localStorage.setItem(storageKey,JSON.stringify(all));stored=true}catch{}showReport(r);statusEl.textContent=stored?`Demo ${reportMode} report saved in this browser.`:`Demo ${reportMode} report visible for this page only; browser storage unavailable.`;reportMode=null;return}if(chooseStart){chooseStart=false;setStart([e.latlng.lat,e.latlng.lng],'Chosen starting point');if(destination)calculateRoutes();}});
 function setStart(point,label){startPoint=point;if(startMarker)pointLayer.removeLayer(startMarker);startMarker=L.marker(point,{icon:L.divIcon({className:'map-start-pin',html:'🟢',iconSize:[28,28],iconAnchor:[14,24]})}).addTo(pointLayer).bindPopup(label);statusEl.textContent=label+' selected.'}
 function updateLocation(point){userLocation=point;if(locationMarker){pointLayer.removeLayer(locationMarker);locationMarker=null;}if(document.body.classList.contains('passenger-guiding'))return;locationMarker=L.circleMarker(point,{radius:8,color:'#fff',weight:3,fillColor:'#2563eb',fillOpacity:1}).addTo(pointLayer).bindPopup('Your location')}
-function getGPS(center=false){return new Promise((resolve,reject)=>{if(!navigator.geolocation)return reject(new Error('Location is not supported'));navigator.geolocation.getCurrentPosition(p=>{const point=[p.coords.latitude,p.coords.longitude];updateLocation(point);if(center)map.setView(point,15);resolve(point)},()=>reject(new Error('Location unavailable. Allow location access or choose a starting point on the map.')),{enableHighAccuracy:true,timeout:14000})})}
+function getGPS(center=false){return new Promise((resolve,reject)=>{if(!navigator.geolocation)return reject(new Error('Location is not supported'));navigator.geolocation.getCurrentPosition(p=>{const point=[p.coords.latitude,p.coords.longitude];updateLocation(point);if(passengerMode)window.dispatchEvent(new CustomEvent('jalan:initial-location',{detail:{point,accuracy:p.coords.accuracy,timestamp:p.timestamp}}));if(center)map.setView(point,passengerMode?17:15);resolve(point)},()=>reject(new Error('Location unavailable. Allow location access or choose a starting point on the map.')),{enableHighAccuracy:true,timeout:14000})})}
 $('locate').addEventListener('click',async()=>{statusEl.textContent='Finding your location…';try{await getGPS(true);statusEl.textContent='Location found.'}catch(e){statusEl.textContent=e.message}});
 $('start-choice').addEventListener('change',async()=>{if($('start-choice').value==='map'){chooseStart=true;reportMode=null;statusEl.textContent='Tap the map to choose a starting point.'}else{chooseStart=false;statusEl.textContent='Using your current location as the starting point.'}});
 function clearRoute(clearDestination=false){manual2D=false;cancelOSRMPending();window.JalanNavigation?.stop();window.JalanGPS?.stop();window.JalanTomTom?.routeCleared();routeLayer.clearLayers();routes=[];passengerLastRoutes=null;window.dispatchEvent(new Event('jalan:route-cleared'));setPerspective(false);routeEl.classList.add('hidden');$('route-options').classList.add('hidden');$('route-steps').classList.add('hidden');$('start-guidance').classList.add('hidden');$('clear-route').classList.add('hidden');if(watchId!==null){navigator.geolocation.clearWatch(watchId);watchId=null;$('start-guidance').textContent='Follow my location'}if(clearDestination){destination=null;if(destinationMarker){pointLayer.removeLayer(destinationMarker);destinationMarker=null}}}
@@ -131,10 +131,15 @@ window.addEventListener('load',()=>{
   setTimeout(()=>map.invalidateSize(),150);
   getGPS(false).then(point=>{
     if(!destination && !routes.length && !chooseStart && !reportMode){
-      map.setView(point,15);
+      if(passengerMode&&!window.JalanPassengerStartup?.ready){
+        statusEl.textContent='GPS accuracy is not sufficient to show a verified passenger position.';
+        return;
+      }
+      map.setView(point,passengerMode?17:15,{animate:false});
       statusEl.textContent='Showing your current location. Search for a destination.';
     }
   }).catch(()=>{
+    if(passengerMode)window.dispatchEvent(new Event('jalan:initial-location-error'));
     if(!destination && !routes.length)statusEl.textContent='Allow location access to start at your position, or choose a starting point on the map.';
   });
 });

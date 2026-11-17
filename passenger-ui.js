@@ -9,6 +9,50 @@
        list=el('passenger-route-list'),settings=el('passenger-setup'),
        navigation=el('passenger-navigation');
  const routeLabels=L.layerGroup().addTo(map);
+ // Reuse the existing opt-in page-load one-shot geolocation. A pre-route
+ // location triangle represents a measured position, never inferred heading
+ // or route-matched driving accuracy.
+ const startupStatus=document.createElement('div');
+ startupStatus.id='passenger-startup-location-status';
+ startupStatus.setAttribute('role','status');
+ startupStatus.textContent='Finding location · allow browser GPS to centre the map';
+ document.body.append(startupStatus);
+ const startupPosition={ready:false};
+ window.JalanPassengerStartup=startupPosition;
+ let startupMarker=null,locationPending=true;
+ const clearStartupMarker=()=>{
+   if(startupMarker){map.removeLayer(startupMarker);startupMarker=null;}
+ };
+ const locationConfidence=detail=>Array.isArray(detail?.point)&&detail.point.length===2&&
+   detail.point.every(Number.isFinite)&&Number.isFinite(detail.accuracy)&&
+   detail.accuracy>=0&&detail.accuracy<=75&&
+   Number.isFinite(detail.timestamp)&&Math.abs(Date.now()-detail.timestamp)<=15000;
+ window.addEventListener('jalan:initial-location',event=>{
+   const detail=event.detail;
+   if(document.body.classList.contains('passenger-guiding')||destination||routes.length)return;
+   locationPending=false;
+   clearStartupMarker();
+   startupPosition.ready=locationConfidence(detail);
+   // The original public location circle cannot masquerade as a trusted fix.
+   if(locationMarker){pointLayer.removeLayer(locationMarker);locationMarker=null;}
+   if(!startupPosition.ready){
+     startupStatus.textContent='GPS position uncertain · enable precise location or tap Locate';
+     return;
+   }
+   const icon=L.divIcon({className:'passenger-startup-pin',
+     html:'<span aria-hidden="true">▲</span>',iconSize:[42,42],iconAnchor:[21,21]});
+   startupMarker=L.marker(detail.point,{icon,interactive:false,keyboard:false,
+     title:'GPS location measured; direction not yet verified'}).addTo(map);
+   startupStatus.textContent='GPS location found · triangle shows position, not heading';
+ });
+ window.addEventListener('jalan:initial-location-error',()=>{
+   if(!locationPending)return;
+   locationPending=false;
+   startupStatus.textContent='Location unavailable · grant permission or use Locate';
+ });
+ window.addEventListener('jalan:routes-rendered',()=>{
+   clearStartupMarker();startupStatus.classList.add('hidden');
+ });
  // Route-planning markers are useful before Go but misleading when a separate
  // GPS-matched vehicle marker owns passenger guidance.
  const hidePlannerMarkers=()=>{

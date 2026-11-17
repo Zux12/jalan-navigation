@@ -176,6 +176,52 @@ async function main(){
   assert.match(await page.locator('#jalan-map-status').textContent(),/Basic map/);
   assert.deepEqual(errors,[]);
   await page.close();
+  // Real browser geolocation (fixture coordinates only) on fresh Passenger
+  // Preview opening. No destination is selected and GPS navigation is NOT on.
+  const startupContext=await browser.newContext({viewport:{width:390,height:844},
+    deviceScaleFactor:2,isMobile:true,hasTouch:true});
+  await startupContext.grantPermissions(['geolocation']);
+  await startupContext.setGeolocation({latitude:3.139,longitude:101.6869,accuracy:8});
+  const startup=await startupContext.newPage();currentPage=startup;
+  await startup.route('**/*',route=>route.request().url().startsWith(base)?route.continue():route.abort());
+  await dependencies(startup);
+  await startup.route('https://tiles.openfreemap.org/styles/positron',route=>route.fulfill({json:style}));
+  await startup.goto(base+'/index.html?mode=passenger');
+  await startup.waitForFunction(()=>window.JalanVectorMap?.active&&window.JalanPassengerStartup?.ready,null,{timeout:12000});
+  console.log('STARTUP MARKER DIAGNOSTIC',JSON.stringify(await startup.evaluate(()=>({
+    ready:window.JalanPassengerStartup?.ready,
+    markers:window.JalanVectorMap?.getState().markers,
+    vectorPinHtml:[...document.querySelectorAll('.jalan-vector-pin')].map(node=>node.innerHTML.slice(0,260)),
+    iconClasses:[...document.querySelectorAll('.leaflet-marker-icon')].map(node=>node.className),
+    layerIcons:Object.values(map._layers).filter(layer=>layer instanceof L.Marker).map(layer=>layer.options.icon?.options.className)
+  }))));
+  await startup.waitForFunction(()=>[...document.querySelectorAll('.jalan-vector-pin')]
+    .some(node=>node.textContent?.includes('▲')),null,{timeout:8000});
+  assert.equal(await startup.evaluate(()=>Math.round(map.getZoom())),17,
+    'accurate permission-granted startup position zooms to street scale');
+  assert.ok(await startup.evaluate(()=>Math.abs(map.getCenter().lat-3.139)<.00001&&
+    Math.abs(map.getCenter().lng-101.6869)<.00001));
+  assert.equal(await startup.evaluate(()=>routes.length),0,'no route is invented at startup');
+  assert.equal(await startup.evaluate(()=>JalanGPS.getState().active),false,
+    'a one-shot location does not start GPS journey tracking');
+  assert.match(await startup.locator('#passenger-startup-location-status').innerText(),/position, not heading/);
+  await startup.close();await startupContext.close();
+  // Inaccurate geolocation must not display a false current-position arrow or
+  // auto-zoom, and browser permission denial must remain usable.
+  const weakContext=await browser.newContext({viewport:{width:390,height:844},isMobile:true,hasTouch:true});
+  await weakContext.grantPermissions(['geolocation']);
+  await weakContext.setGeolocation({latitude:3.139,longitude:101.6869,accuracy:180});
+  const weak=await weakContext.newPage();currentPage=weak;
+  await weak.route('**/*',route=>route.request().url().startsWith(base)?route.continue():route.abort());
+  await dependencies(weak);
+  await weak.route('https://tiles.openfreemap.org/styles/positron',route=>route.fulfill({json:style}));
+  await weak.goto(base+'/index.html?mode=passenger');
+  await weak.waitForFunction(()=>window.JalanVectorMap?.active&&
+    document.getElementById('passenger-startup-location-status')?.textContent.includes('uncertain'),null,{timeout:12000});
+  assert.equal(await weak.locator('.passenger-startup-pin').count(),0);
+  assert.equal(await weak.evaluate(()=>Math.round(map.getZoom())),12);
+  await weak.close();await weakContext.close();
+  currentPage=null;
   // Sustained post-style-load vector tile outage: the live provider smoke
   // above/below cannot establish this recovery behavior on its own.
   const outage=await context.newPage();currentPage=outage;
