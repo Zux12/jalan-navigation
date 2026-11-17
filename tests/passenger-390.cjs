@@ -82,6 +82,8 @@ async function main(){
   await page.locator('#passenger-voice-preview').click();
   assert.equal(await page.evaluate(()=>window.__spoken.at(-1).voice),'Test English US');
   assert.match(await page.locator('#gps-voice').textContent(),/Mute/,'sample does not enable navigation speech');
+  fs.mkdirSync(path.join(root,'test-artifacts'),{recursive:true});
+  await page.screenshot({path:path.join(root,'test-artifacts/passenger-voice-menu.png')});
   await page.keyboard.press('Escape');
   assert.equal(await page.locator('#jalan-home-menu-panel').isVisible(),false);
   assert.equal(await page.locator('#jalan-home-menu').getAttribute('aria-expanded'),'false');
@@ -364,6 +366,12 @@ async function main(){
   await page.locator('#jalan-home-menu').click();
   assert.equal(await page.locator('#passenger-voice').isVisible(),true,
     'advanced controls remain accessible when passenger requests them');
+  await page.screenshot({path:path.join(root,'test-artifacts/passenger-guidance-menu.png')});
+  await page.locator('#jalan-home-menu-panel [data-menu=settings]').click();
+  assert.equal(await page.locator('#passenger-setup').isVisible(),true,'Routing settings can open during guidance');
+  assert.equal(await page.evaluate(()=>JalanGPS.getState().active),true,'opening settings preserves the journey');
+  await page.locator('#passenger-setup-close').click();
+  await page.locator('#jalan-home-menu').click();
    assert.equal(await page.locator('#passenger-traffic-toggle').getAttribute('aria-pressed'),'false',
      'OSRM / no-key Go cannot start TomTom traffic checks');
    await page.locator('#passenger-traffic-details summary').click();

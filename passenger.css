@@ -42,7 +42,7 @@ body.passenger-mode .passenger-overview{position:fixed;z-index:1300;bottom:calc(
 body.passenger-guiding #map{transform:perspective(1200px) rotateX(17deg) rotateZ(var(--jalan-camera-turn,0deg)) scale(1.35) translateY(0);transform-origin:50% 50%;pointer-events:none!important}
 body.passenger-guiding{background:#dbe4eb}
 body.passenger-guiding.passenger-map-flat #map{transform:rotateZ(var(--jalan-camera-turn,0deg));pointer-events:none!important}
-body.passenger-guiding .topbar,body.passenger-guiding .results,body.passenger-guiding .passenger-overview,body.passenger-guiding .passenger-setup{display:none!important}
+body.passenger-guiding .topbar,body.passenger-guiding .results,body.passenger-guiding .passenger-overview{display:none!important}
 body.passenger-guiding .interface-switch{display:none}
 .passenger-navigation{position:fixed;inset:0;z-index:1500;pointer-events:none;font-family:system-ui,sans-serif;color:#fff}
 .passenger-turn{position:absolute;top:0;left:0;right:0;padding:calc(20px + env(safe-area-inset-top,0px)) 18px 22px;background:#090d16;display:flex;align-items:center;gap:16px;min-height:112px}
@@ -59,7 +59,7 @@ body.passenger-guiding .interface-switch{display:none}
 .passenger-bottom{pointer-events:auto;position:absolute;left:0;right:0;bottom:0;background:#fff;border-radius:25px 25px 0 0;padding:22px max(18px,env(safe-area-inset-left,0px)) calc(18px + env(safe-area-inset-bottom,0px));box-shadow:0 -10px 25px #19345240;color:#1c2837}
 .passenger-stats{display:flex;justify-content:space-around;align-items:center;gap:15px}
 .passenger-stats b{font-size:29px}.passenger-stats span{font-size:16px;font-weight:700}
-.passenger-traffic-summary{font-size:11px;line-height:1.3;text-align:center;color:#456278;margin:5px 22px 0 0}
+.passenger-traffic-summary{font-size:11px;line-height:1.3;text-align:center;color:#456278;margin:5px 0 0}
 .passenger-traffic-summary[data-state="ready"]{color:#18724b}
 .passenger-traffic-summary[data-state="error"]{color:#a54b21}
 .passenger-fix{text-align:center;font-size:11px;color:#607087;margin:10px 0}
@@ -149,7 +149,7 @@ body.passenger-map-flat .passenger-map-gestures{pointer-events:auto}
 .passenger-traffic-offer{border:1px solid #b9daca;border-radius:9px;padding:7px;background:#f0fff7;margin-bottom:6px}
 .passenger-traffic-offer span{display:block;font-weight:700;margin-bottom:7px}
 
-/* Compact metrics-only post-Go HUD; controls live in an accessible ellipsis popover. */
+/* Compact metrics-only post-Go HUD; controls live in the shared hamburger menu. */
 body.passenger-guiding .passenger-heading{display:none}
 body.passenger-guiding .passenger-turn{display:flex}
 body.passenger-guiding .passenger-bottom{left:12px;right:12px;bottom:calc(10px + env(safe-area-inset-bottom,0px));padding:12px 14px;border-radius:20px;background:#fffffff2;box-shadow:0 9px 26px #1934524a}
