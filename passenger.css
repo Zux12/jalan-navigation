@@ -219,7 +219,7 @@ body.passenger-vector-active.passenger-guiding .passenger-bottom{bottom:calc(32p
 .passenger-startup-pin{background:transparent;border:0;pointer-events:none}
 .passenger-startup-pin span{width:84px;height:84px;display:grid;place-items:center;
  border:3px solid #fff;border-radius:50%;box-sizing:border-box;
- background:rgba(125,211,252,.25);color:#fff;font:900 48px system-ui,sans-serif;
+ background:rgba(125,211,252,.25);color:#087ab8;font:900 48px system-ui,sans-serif;
  text-shadow:0 1px 3px #123b5b99;box-shadow:0 3px 12px #102d5580}
 
 /* Search replaces speed in the bottom metrics. Speed mirrors right Recenter. */
