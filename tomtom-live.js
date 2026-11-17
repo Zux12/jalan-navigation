@@ -3,23 +3,27 @@
 'use strict';
 const el=id=>document.getElementById(id), input=el('tt-key');
 const status=s=>el('tt-status').textContent=s;
-// Default is page-memory only: do not silently keep an unchecked key across
-// reloads in sessionStorage. Clear previously persisted legacy session values.
-// Some Safari/private and enterprise contexts deny storage getter access outright.
-// The TomTom key must remain usable in this page, but never claim persistence
-// when the browser refuses it. No key values are logged or sent to JALAN.
-const STORAGE_KEY='jalan-tomtom-key';
+// A saved device key overrides the optional public site key. Storage can be
+// denied, so configured and entered keys must still work for the open page.
+const STORAGE_KEY='jalan-tomtom-key',DISABLED_KEY='jalan-tomtom-config-disabled';
 const keyStorage={
  read(){try{return localStorage.getItem(STORAGE_KEY)||''}catch{return ''}},
- remember(value){try{localStorage.setItem(STORAGE_KEY,value);return true}catch{return false}},
+ remember(value){try{localStorage.setItem(STORAGE_KEY,value);localStorage.removeItem(DISABLED_KEY);return true}catch{return false}},
  forget(){try{localStorage.removeItem(STORAGE_KEY)}catch{};
-  try{sessionStorage.removeItem(STORAGE_KEY)}catch{}}
+  try{sessionStorage.removeItem(STORAGE_KEY)}catch{}},
+ disableConfigured(){try{localStorage.setItem(DISABLED_KEY,'1');return true}catch{return false}}
 };
 try{sessionStorage.removeItem(STORAGE_KEY)}catch{}
+let configDisabled=false;
+try{configDisabled=localStorage.getItem(DISABLED_KEY)==='1';}catch{}
+const configuredKey=String(window.JalanPublicConfig?.tomtomBrowserKey||'').trim();
+const validKey=value=>/^[\w-]{8,160}$/.test(value);
 const rememberedKey=keyStorage.read();
-window.JalanTomTomKeyStorage=Object.freeze({remember:keyStorage.remember,forget:keyStorage.forget});
-input.value=rememberedKey;
-el('tt-remember').checked=!!rememberedKey;
+const usableConfiguredKey=!configDisabled&&validKey(configuredKey)?configuredKey:'';
+input.value=validKey(rememberedKey)?rememberedKey:usableConfiguredKey;
+el('tt-remember').checked=validKey(rememberedKey);
+window.JalanTomTomKeyStorage=Object.freeze({remember:keyStorage.remember,forget:keyStorage.forget,
+ configured:!!usableConfiguredKey});
 const enabled=()=>el('tt-primary').checked && !!input.value.trim();
 let keyEdited=false;
 function key(){const k=input.value.trim();if(!/^[\w-]{8,160}$/.test(k))throw Error('Enter a valid TomTom key.');if(el('tt-remember').checked){
@@ -262,7 +266,7 @@ input.addEventListener('input',()=>{
  status('Key changed. Old stored key removed; reconnect to use live traffic.');
 });
 el('tt-remember').onchange=()=>{if(!el('tt-remember').checked){keyStorage.forget();status('Key will be kept only for this open page.');}};
-el('tt-connect').onclick=connect;el('tt-hide').onclick=()=>{hide();status('Traffic overlay hidden.');};el('tt-route').onclick=calculate;el('tt-primary').onchange=()=>{routeCleared();clearRoute(false);status(enabled()?'TomTom routing selected. Search again to apply.':'OSRM routing selected. Search again to apply.');};el('tt-incident-toggle').onchange=()=>{if(!el('tt-incident-toggle').checked)invalidateIncidents();else refreshRouteIncidents(true);};el('tt-toggle-key').onclick=()=>{const show=input.type==='password';input.type=show?'text':'password';el('tt-toggle-key').textContent=show?'Hide':'Show';};el('tt-remove-key').onclick=()=>{routeCleared();hide();clearRoute(false);input.value='';keyStorage.forget();el('tt-remember').checked=false;status('Key cleared from browser. Active route and pending TomTom requests cancelled.');};
+el('tt-connect').onclick=connect;el('tt-hide').onclick=()=>{hide();status('Traffic overlay hidden.');};el('tt-route').onclick=calculate;el('tt-primary').onchange=()=>{routeCleared();clearRoute(false);status(enabled()?'TomTom routing selected. Search again to apply.':'OSRM routing selected. Search again to apply.');};el('tt-incident-toggle').onchange=()=>{if(!el('tt-incident-toggle').checked)invalidateIncidents();else refreshRouteIncidents(true);};el('tt-toggle-key').onclick=()=>{const show=input.type==='password';input.type=show?'text':'password';el('tt-toggle-key').textContent=show?'Hide':'Show';};el('tt-remove-key').onclick=()=>{routeCleared();hide();clearRoute(false);input.value='';keyStorage.forget();const disabled=keyStorage.disableConfigured();el('tt-remember').checked=false;status(disabled?'Key cleared from browser. Site key disabled here; pending TomTom requests cancelled.':'Key cleared for this page. Browser storage blocked; a configured site key may return on reload.');};
 function startPassengerTraffic(){
  if(!el('tt-primary').checked||routes[selectedRoute]?.provider!=='tomtom'){
   trafficState('error','Live traffic unavailable · OSRM route');return false;

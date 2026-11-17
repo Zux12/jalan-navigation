@@ -24,7 +24,8 @@
  recent.innerHTML='<h2>Recent</h2><ol id="jalan-recent-list"></ol>';
  sheet.append(handle,searchTrigger,header,results,quick,recent);document.body.append(sheet);
  const menu=document.createElement('button');menu.id='jalan-home-menu';menu.type='button';
- menu.setAttribute('aria-label','Open user menu');menu.textContent='☰';
+ menu.setAttribute('aria-label','Open JALAN menu');menu.setAttribute('aria-controls','jalan-home-menu-panel');
+ menu.setAttribute('aria-expanded','false');menu.textContent='☰';
  const speed=document.createElement('div');speed.id='jalan-home-speed';
  speed.setAttribute('aria-label','Speed unavailable until reliable GPS');
  speed.innerHTML='<strong id="jalan-home-speed-value">—</strong><small>km/h</small>';
@@ -37,11 +38,36 @@
  menuPanel.className='hidden';menuPanel.setAttribute('aria-label','User menu');
  menuPanel.innerHTML='<div class="jalan-home-menu-head"><strong>JALAN menu</strong>'+
   '<button type="button" id="jalan-home-menu-close" aria-label="Close user menu">✕</button></div>'+
-  '<button type="button" data-menu="profile">User profile · Coming soon</button>'+
   '<button type="button" data-menu="settings">Routing settings</button>'+
-  '<button type="button" data-menu="help">Help · Coming soon</button>'+
-  '<p>Passenger preview only. No account profile is connected.</p>';
+  '<section class="jalan-voice-settings" aria-label="Navigation voice"><h2>Navigation voice</h2>'+
+  '<label for="passenger-voice-choice">Voice</label><select id="passenger-voice-choice" aria-describedby="passenger-voice-status"></select>'+
+  '<button type="button" id="passenger-voice-preview">Play sample</button>'+
+  '<p id="passenger-voice-status" role="status"></p></section>';
+ menuPanel.append($('passenger-journey-options'));
  document.body.append(menu,speed,report,notice,menuPanel);
+ const voiceChoice=$('passenger-voice-choice'),voicePreview=$('passenger-voice-preview'),voiceStatus=$('passenger-voice-status');
+ const renderVoices=()=>{
+   const state=window.JalanVoice?.getState();
+   voiceChoice.replaceChildren(new Option('Automatic · device default',''));
+   for(const v of state?.voices||[])voiceChoice.add(new Option(v.name+' · '+v.lang,v.id));
+   voiceChoice.value=state?.selected||'';
+   voiceChoice.disabled=!state?.supported;voicePreview.disabled=!state?.supported;
+   voiceStatus.textContent=!state?.supported?'Voice playback is unavailable in this browser.':
+     state.unavailable?'Saved voice is unavailable here. Using the device default.':
+     !state.voices.length?'Using the device default. Additional English voices may appear when the device loads them.':
+     !state.saved?'Voice selected for this visit. Browser storage is blocked.':
+     'English voices available on this device. Your choice is saved for future visits.';
+ };
+ voiceChoice.addEventListener('change',()=>window.JalanVoice?.choose(voiceChoice.value));
+ voicePreview.addEventListener('click',()=>{
+   voiceStatus.textContent=window.JalanVoice?.preview()?'Playing sample…':'Could not play a sample in this browser.';
+ });
+ window.addEventListener('jalan:voices-changed',renderVoices);
+ window.addEventListener('jalan:voice-preview',e=>{
+   if(e.detail?.state==='error')voiceStatus.textContent='Sample could not play. Try another available voice.';
+   else renderVoices();
+ });
+ renderVoices();
  const input=$('destination'),form=$('search-form'),list=$('jalan-recent-list');
  const recentNames=[];
  const routeSearchButton=$('passenger-search'),navigation=$('passenger-navigation');
@@ -95,7 +121,7 @@
    if(routeSearch||!document.body.classList.contains('passenger-guiding')||!routes[selectedRoute])return;
    routeSearch={inputValue:input.value};
    input.value='';results.replaceChildren();results.classList.add('hidden');
-   $('passenger-options').open=false;
+   toggleMenu(false);
    sheet.classList.remove('jalan-sheet-route');
    document.body.classList.add('passenger-route-search');
    routeSearchButton.setAttribute('aria-expanded','true');
@@ -192,9 +218,20 @@
    if(shortcut==='new'){setState('c');input.focus();}
    else showNotice((shortcut==='home'?'Home':'Work')+' shortcut is a placeholder. Address setup comes later.');
  });
- const toggleMenu=visible=>menuPanel.classList.toggle('hidden',!visible);
+ const toggleMenu=visible=>{
+   if(visible)$('passenger-turn-close').click();
+   menuPanel.classList.toggle('hidden',!visible);
+   menu.setAttribute('aria-expanded',String(visible));
+   if(visible){menuPanel.scrollTop=0;$('jalan-home-menu-close').focus({preventScroll:true});}
+ };
+ window.JalanPassengerMenu={close:()=>toggleMenu(false)};
+ document.addEventListener('keydown',e=>{
+   if(e.key==='Escape'&&!menuPanel.classList.contains('hidden')){
+     e.preventDefault();toggleMenu(false);menu.focus({preventScroll:true});
+   }
+ });
  menu.addEventListener('click',()=>toggleMenu(menuPanel.classList.contains('hidden')));
- $('jalan-home-menu-close').addEventListener('click',()=>toggleMenu(false));
+ $('jalan-home-menu-close').addEventListener('click',()=>{toggleMenu(false);menu.focus({preventScroll:true});});
  menuPanel.addEventListener('click',e=>{
    const action=e.target.closest('button[data-menu]')?.dataset.menu;
    if(action==='settings'){$('passenger-settings-top').click();toggleMenu(false);}
@@ -216,7 +253,7 @@
  window.addEventListener('jalan:routes-rendered',()=>{closeRouteSearch(false,false);cancelGesture();sheet.classList.add('jalan-sheet-route');input.blur();});
  window.addEventListener('jalan:route-cleared',()=>{closeRouteSearch(false,false);cancelGesture();sheet.classList.remove('jalan-sheet-route');setState('a');});
  window.addEventListener('jalan:journey-start',()=>{closeRouteSearch(false,false);sheet.classList.add('jalan-sheet-route');toggleMenu(false);});
- window.addEventListener('jalan:journey-stop',()=>{closeRouteSearch(false,false);sheet.classList.toggle('jalan-sheet-route',routes.length>0);});
+ window.addEventListener('jalan:journey-stop',()=>{toggleMenu(false);closeRouteSearch(false,false);sheet.classList.toggle('jalan-sheet-route',routes.length>0);});
  window.addEventListener('jalan:gps-fix',e=>{
    const d=e.detail,valid=d?.matched&&Number.isFinite(d.speedMps)&&d.speedMps>=0&&
      Number.isFinite(d.accuracy)&&d.accuracy<=75;

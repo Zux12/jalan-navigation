@@ -15,9 +15,9 @@
   <title>Jalan — Navigation Prototype V4.7.4 Shared Traffic Pilot</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
   <link rel="stylesheet" href="style.css?v=4-7-1" />
-  <link rel="stylesheet" href="passenger.css?v=15" />
+  <link rel="stylesheet" href="passenger.css?v=16" />
   <link rel="stylesheet" href="passenger-route-traffic.css?v=1" />
-  <link rel="stylesheet" href="passenger-home-sheet.css?v=3" />
+  <link rel="stylesheet" href="passenger-home-sheet.css?v=4" />
   <link rel="stylesheet" href="jalan-kl-preview.css?v=3a1">
   <link rel="stylesheet" href="jalan-kl-3b.css?v=3b1">
   <link rel="stylesheet" href="jalan-kl-3c.css?v=3c1">
@@ -31,10 +31,10 @@
   </nav>
   <div id="passenger-setup" class="passenger-setup hidden" role="region" aria-label="Passenger routing setup">
     <strong>Routing provider</strong>
-    <p>TomTom provides traffic-aware routes using your restricted browser key. Choose OSRM explicitly for a non-traffic demonstration.</p>
-    <label for="passenger-key">TomTom API key (required only the first time)</label>
-    <input id="passenger-key" type="password" autocomplete="off" spellcheck="false" placeholder="Enter restricted TomTom key" />
-    <label class="passenger-remember-label"><input id="passenger-remember" type="checkbox" /> Remember on this device (not recommended for shared devices)</label>
+    <p>TomTom provides traffic-aware routes using the configured browser key. Choose OSRM explicitly for a non-traffic demonstration.</p>
+    <label for="passenger-key">TomTom API key (only if no key is configured)</label>
+    <input id="passenger-key" type="password" autocomplete="off" spellcheck="false" placeholder="Paste TomTom browser key once" />
+    <label class="passenger-remember-label"><input id="passenger-remember" type="checkbox" checked /> Save for future visits</label>
     <div class="passenger-setup-actions"><button id="passenger-use-tomtom" type="button">Use TomTom</button><button id="passenger-use-osrm" type="button">Use OSRM demo</button></div>
     <div id="passenger-provider-status" role="status">TomTom is preferred when a key is configured.</div>
     <button id="passenger-forget-key" type="button">Forget saved TomTom key</button>
@@ -61,7 +61,7 @@
     <div id="passenger-speed-floating" class="passenger-speed-floating" role="img" aria-label="Speed unavailable"><strong id="passenger-speed">—</strong><small>km/h</small></div>
     <div class="passenger-bottom"><div class="passenger-stats"><b id="passenger-eta">—</b><span id="passenger-distance">—</span><button id="passenger-search" class="passenger-search" type="button" aria-label="Search destination" aria-controls="jalan-home-sheet" aria-expanded="false" title="Search destination"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m15.5 15.5 5 5"/></svg></button></div>
       <div id="passenger-traffic-summary" class="passenger-traffic-summary" role="status" aria-live="polite" data-state="off">Traffic starts with Go</div>
-      <details id="passenger-options" class="passenger-options"><summary aria-label="Open navigation options" title="Navigation options">⋯</summary><div class="passenger-options-content">
+      <section id="passenger-journey-options" class="passenger-journey-options" aria-label="Current journey"><h2>Current journey</h2>
       <div id="passenger-turn-details" class="passenger-fix">Acquiring GPS…</div><div id="passenger-fix" class="passenger-fix">Waiting for GPS</div><div id="passenger-gesture-hint" class="passenger-gesture-hint">Drag · pinch · twist to explore · Recenter to resume following</div>
       <div id="passenger-reroute-status" class="passenger-reroute-status" role="status" aria-live="polite">Rerouting is off until you enable it.</div>
       <details id="passenger-traffic-details" class="passenger-traffic-details"><summary>TomTom traffic &amp; ETA checks</summary>
@@ -72,7 +72,7 @@
       </details>
       <div class="passenger-nav-options"><button id="passenger-voice" type="button" aria-pressed="false">Voice: Mute</button><button id="passenger-auto-reroute" type="button" aria-pressed="false">Auto reroute: Off</button><button id="passenger-reroute-now" type="button">Recalculate</button></div>
       <div class="passenger-controls"><button id="passenger-2d" type="button" aria-pressed="false">2D map</button><button id="passenger-recenter" type="button">Recenter</button><button id="passenger-stop" type="button">End preview</button></div>
-      </div></details>
+      </section>
     </div>
   </section>
   <div id="perspective-note" class="perspective-note hidden" role="status">3D-style perspective preview · not real 3D terrain · return to 2D to interact with the map</div>
@@ -251,8 +251,9 @@
   <script src="app.js?v=4-7-8"></script>
   <script src="comparison.js?v=4-2"></script>
   <script src="traffic-test.js?v=4-2"></script>
-  <script src="tomtom-live.js?v=4-10"></script>
-  <script src="voice-guidance.js?v=4-5-1"></script>
+  <script src="jalan-config.js?v=1"></script>
+  <script src="tomtom-live.js?v=4-11"></script>
+  <script src="voice-guidance.js?v=4-6"></script>
   <script src="navigation-sim.js?v=4-5-1"></script>
   <script src="predictive-gps.js?v=4-4"></script>
   <script src="gps-navigation.js?v=4-9"></script>
@@ -269,9 +270,9 @@
   <script src="jalan-kl-preview.js?v=3a1"></script>
   <script src="jalan-kl-3b.js?v=3b1"></script>
   <script src="jalan-kl-3c.js?v=3c2"></script>
-  <script src="passenger-ui.js?v=19"></script>
+  <script src="passenger-ui.js?v=20"></script>
   <script src="passenger-route-traffic.js?v=1"></script>
-  <script src="passenger-home-sheet.js?v=3"></script>
+  <script src="passenger-home-sheet.js?v=4"></script>
   <script src="passenger-vector-map.js?v=2"></script>
 </body>
 </html>

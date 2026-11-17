@@ -2,8 +2,8 @@
 const test=require('node:test'),assert=require('node:assert/strict');
 const fs=require('node:fs'),path=require('node:path'),vm=require('node:vm');
 const code=fs.readFileSync(path.join(__dirname,'..','tomtom-live.js'),'utf8');
-function scene({defer=false,response=null}={}){
- const nodes={},store=new Map(),sessions=new Map();
+function scene({defer=false,response=null,configKey='',stored=new Map(),userKey='testKey12345'}={}){
+ const nodes={},store=stored,sessions=new Map();
  for(const id of ['tt-key','tt-remember','tt-primary','tt-status','tt-route','tt-connect','tt-hide',
   'tt-incident-toggle','tt-eta','tt-toggle-key','tt-remove-key']){
   nodes[id]={value:'',checked:false,textContent:'',onclick:null,onchange:null,
@@ -28,7 +28,7 @@ function scene({defer=false,response=null}={}){
  };
  const layer={addTo(){return this},clearLayers(){},removeLayer(){}};
  const L={layerGroup:()=>layer,latLngBounds:()=>({pad(){return this},getWest(){return 101},getEast(){return 102},getNorth(){return 4},getSouth(){return 3}})};
- let ctx={window:{},document:{getElementById:id=>nodes[id]},map:{removeLayer(){}},L,
+ let ctx={window:{JalanPublicConfig:{tomtomBrowserKey:configKey}},document:{getElementById:id=>nodes[id]},map:{removeLayer(){}},L,
   localStorage:objects.localStorage,sessionStorage:objects.sessionStorage,
   startPoint:[3.14,101.68],destination:[3.141,101.681],
   routes:[],selectedRoute:0,routeEl:{textContent:'',classList:{add(){},remove(){}}},
@@ -38,7 +38,7 @@ function scene({defer=false,response=null}={}){
  vm.runInNewContext(code,ctx,{filename:'tomtom-live.js'});
  // The actual UI is populated after module initialization or from storage.
  // Set our user-entered key AFTER initialization, which itself loads storage.
- nodes['tt-key'].value='testKey12345';
+ if(userKey!==null)nodes['tt-key'].value=userKey;
  const tick=async()=>{await new Promise(r=>setImmediate(r));await new Promise(r=>setImmediate(r))};
  return {nodes,ctx,store,sessions,calls,tick,get renders(){return renders},get aborted(){return aborted},
   get clears(){return clearCount},resolve:()=>pendingResolve?.()};
@@ -228,4 +228,31 @@ test('invalid or degenerate incident and route geometry cannot produce a report 
   assert.equal(api.matchReportGeometry(geometry,straightRoute),null);
  assert.equal(api.matchReportGeometry({type:'Point',coordinates:coordinate(10,0)},[coordinate(0,0),coordinate(0,0)]),null);
  assert.equal(api.projectReportPoint(coordinate(10,0),[[101,3],[181,3]]),null);
+});
+
+test('public configured key routes without entry; saved device override wins',async()=>{
+ const configured=scene({configKey:'CONFIGURED_TEST_KEY_1234',userKey:null});
+ assert.equal(configured.nodes['tt-key'].value,'CONFIGURED_TEST_KEY_1234');
+ assert.equal(configured.ctx.window.JalanTomTom.enabled(),true);
+ await configured.nodes['tt-route'].onclick();await configured.tick();
+ assert.equal(new URL(configured.calls[0].url).searchParams.get('key'),'CONFIGURED_TEST_KEY_1234');
+ const stored=new Map([['jalan-tomtom-key','DEVICE_TEST_KEY_5678']]);
+ const override=scene({configKey:'CONFIGURED_TEST_KEY_1234',stored,userKey:null});
+ assert.equal(override.nodes['tt-key'].value,'DEVICE_TEST_KEY_5678');
+ assert.equal(override.nodes['tt-remember'].checked,true);
+});
+test('forget suppresses public configured key on reload; a saved replacement re-enables it',()=>{
+ const configKey='CONFIGURED_TEST_KEY_1234',s=scene({configKey,userKey:null});
+ s.nodes['tt-remove-key'].onclick();
+ assert.equal(s.nodes['tt-key'].value,'');
+ const after=scene({configKey,stored:s.store,userKey:null});
+ assert.equal(after.nodes['tt-key'].value,'');assert.equal(after.ctx.window.JalanTomTom.enabled(),false);
+ after.ctx.window.JalanTomTomKeyStorage.remember('DEVICE_TEST_KEY_5678');
+ const next=scene({configKey,stored:s.store,userKey:null});
+ assert.equal(next.nodes['tt-key'].value,'DEVICE_TEST_KEY_5678');
+ assert.equal(s.store.has('jalan-tomtom-config-disabled'),false);
+});
+test('invalid configured key is not injected into routing',()=>{
+ const s=scene({configKey:'invalid key value',userKey:null});
+ assert.equal(s.nodes['tt-key'].value,'');assert.equal(s.ctx.window.JalanTomTom.enabled(),false);
 });

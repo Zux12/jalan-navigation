@@ -197,12 +197,12 @@ async function main(){
   await page.evaluate(fix);
   await page.locator('#passenger-recenter-floating').click();
   assert.equal(await page.evaluate(()=>Math.round(map.getZoom())),17);
-  await page.locator('#passenger-options > summary').click();
+  await page.locator('#jalan-home-menu').click();
   await page.locator('#passenger-2d').click();
   assert.equal(await page.evaluate(()=>JalanVectorMap.getPitch()),0);
   await page.locator('#passenger-2d').click();
   assert.equal(await page.evaluate(()=>JalanVectorMap.getPitch()),48);
-  await page.locator('#passenger-options > summary').click();
+  await page.locator('#jalan-home-menu').click();
   await page.evaluate(()=>{
     const route=JalanGPS.getState().route;
     const projected=window.JalanTomTom.projectReportPoint(
