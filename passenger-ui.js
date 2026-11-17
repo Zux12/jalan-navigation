@@ -650,6 +650,8 @@
    trafficOffer.classList.remove('hidden');
  });
  window.addEventListener('jalan:route-change',()=>{
+   routeLineMuted=false;
+   setRouteMuted(!window.JalanGPS?.getState()?.matched);
    hideTrafficOffer();clearLiveEta();clearReportFocus();refreshDemoReportMarkers();
  });
  window.addEventListener('jalan:route-cleared',()=>{clearReportFocus();passengerDemoReports.clearLayers();});
