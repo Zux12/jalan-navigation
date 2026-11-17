@@ -17,7 +17,7 @@
   <link rel="stylesheet" href="style.css?v=4-7-1" />
   <link rel="stylesheet" href="passenger.css?v=17" />
   <link rel="stylesheet" href="passenger-home-sheet.css?v=5" />
-  <link rel="stylesheet" href="passenger-route-sheet.css?v=1" />
+  <link rel="stylesheet" href="passenger-route-sheet.css?v=2" />
   <link rel="stylesheet" href="passenger-journey-sheet.css?v=1" />
   <link rel="stylesheet" href="jalan-kl-preview.css?v=3a1">
   <link rel="stylesheet" href="jalan-kl-3b.css?v=3b1">
@@ -46,7 +46,10 @@
     <div class="passenger-overview-heading"><strong id="passenger-route-title">Choose your route</strong></div>
     <div id="passenger-route-content" class="passenger-route-content">
     <div id="passenger-route-list" class="passenger-route-list" aria-live="polite"></div>
-    <button id="passenger-go" class="passenger-go" type="button">Go · Passenger preview</button>
+    <div class="passenger-route-actions">
+      <button id="passenger-go" class="passenger-go" type="button" aria-description="Starts after seven seconds without interaction. Interacting resets the wait."><span id="passenger-go-fill" aria-hidden="true"></span><span class="passenger-go-label">Go</span></button>
+      <button id="passenger-route-cancel" type="button">Cancel</button>
+    </div>
     </div>
   </section>
   <section id="passenger-navigation" class="passenger-navigation hidden" aria-label="Passenger navigation preview">
@@ -286,6 +289,7 @@
   <script src="passenger-gps-status.js?v=1"></script>
   <script src="passenger-journey-model.js?v=1"></script>
   <script src="passenger-journey-sheet.js?v=2"></script>
-<script src="passenger-vector-map.js?v=5"></script>
+  <script src="passenger-route-start.js?v=1"></script>
+  <script src="passenger-vector-map.js?v=5"></script>
 </body>
 </html>
