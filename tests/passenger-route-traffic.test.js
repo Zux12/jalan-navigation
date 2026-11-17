@@ -55,6 +55,26 @@ test('light yellow, moderate orange, heavy red and closure on exact provider rou
  assert.equal(s.api.severity({simpleCategory:'OTHER',magnitudeOfDelay:4}),null,
   'undefined delay is not necessarily a road closure');
 });
+test('coloured section uses exact original route vertices through bends and never an offset line',()=>{
+ const s=scene();
+ const bent=[point(0,0),point(130,0),point(130,90),point(250,90),point(280,120)];
+ const path=s.api.makePath(bent);
+ const coords=s.api.originalSubpath(path,20,path.total-15);
+ assert.ok(coords.length>=5,'internal bend vertices are preserved');
+ for(const original of bent.slice(1,-1)){
+  assert.ok(coords.some(p=>Math.abs(p[0]-original[0])<1e-12&&
+    Math.abs(p[1]-original[1])<1e-12),
+   'every original TomTom route vertex is retained, not replaced by 20m straight chords');
+ }
+ const r={provider:'tomtom',geometry:{type:'LineString',coordinates:bent},
+  trafficSectionsCheckedAt:Date.now(),trafficSections:[
+   {sectionType:'TRAFFIC',startPointIndex:0,endPointIndex:4,magnitudeOfDelay:1}]};
+ const yellow=s.api.classify(r).filter(p=>p.type==='light');
+ assert.equal(yellow.length,1,'continuous affected segment stays continuous');
+ assert.ok(yellow[0].coordinates.some(p=>Math.abs(p[0]-bent[2][0])<1e-12&&
+   Math.abs(p[1]-bent[2][1])<1e-12),
+  'classification overlays exactly the authoritative route geometry through bends');
+});
 test('unclassified route gaps stay blue, never connected by same-colour overlay',()=>{
  const s=scene(),r=route([section(0,1,1),section(2,3,1)]);
  const pieces=s.api.classify(r);
