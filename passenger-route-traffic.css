@@ -1,0 +1,21 @@
+/* Selected-route traffic severity legend. The blue route is unclassified,
+   NOT proof of free-flow traffic. Colours are route-only, not nearby tiles. */
+#jalan-route-traffic-legend{
+ position:fixed;z-index:1560;top:calc(174px + env(safe-area-inset-top,0px));
+ left:50%;transform:translateX(-50%);width:max-content;
+ max-width:calc(100vw - 28px);padding:7px 12px;border-radius:13px;
+ background:#ffffffec;border:1px solid #d8e0e7;box-shadow:0 3px 12px #1c335044;
+ color:#273d51;font:700 11px/1.4 system-ui,sans-serif;text-align:center;
+ pointer-events:none;
+}
+body.passenger-mode:not(.passenger-guiding) #jalan-route-traffic-legend{
+ top:calc(85px + env(safe-area-inset-top,0px));
+}
+body.passenger-mode:not(.passenger-guiding):has(.jalan-home-sheet:not(.jalan-sheet-route))
+ #jalan-route-traffic-legend{display:none}
+body:not(.passenger-mode) #jalan-route-traffic-legend{display:none}
+@media(max-height:650px){
+ body.passenger-guiding #jalan-route-traffic-legend{
+  top:calc(123px + env(safe-area-inset-top,0px));
+ }
+}

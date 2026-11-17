@@ -57,6 +57,31 @@ async function main(){
    selectedRoute=0;renderRoutes();
   };
   await page.evaluate(routeFixture);
+  // Coloured traffic is drawn only on TomTom-selected route pieces, from the
+  // same route points mirrored into native MapLibre. No live traffic key used.
+  const colours=await page.evaluate(()=>{
+    const first=routes[0],prior=first.geometry;
+    first.provider='tomtom';
+    first.geometry={type:'LineString',coordinates:[[101.6869,3.139],
+      [101.6880,3.1403],[101.6900,3.143],[101.6953,3.1478]]};
+    first.trafficSectionsCheckedAt=Date.now();
+    first.trafficSections=[
+      {sectionType:'TRAFFIC',startPointIndex:0,endPointIndex:1,magnitudeOfDelay:1},
+      {sectionType:'TRAFFIC',startPointIndex:1,endPointIndex:2,magnitudeOfDelay:2},
+      {sectionType:'TRAFFIC',startPointIndex:2,endPointIndex:3,magnitudeOfDelay:3}
+    ];
+    window.dispatchEvent(new Event('jalan:routes-rendered'));
+    const overlays=[];map.eachLayer(x=>{
+      if(x?.options?.className==='jalan-selected-traffic-colour')overlays.push(x.options.color);
+    });
+    first.provider='osrm';first.geometry=prior;delete first.trafficSections;
+    window.dispatchEvent(new Event('jalan:routes-rendered'));
+    return {overlays,after:JalanRouteTraffic.getState().overlayCount};
+  });
+  assert.ok(colours.overlays.includes('#ffe68a'),'light traffic must be light yellow');
+  assert.ok(colours.overlays.includes('#f59b24'),'moderate traffic must be orange');
+  assert.ok(colours.overlays.includes('#de3d35'),'heavy traffic must be red');
+  assert.equal(colours.after,0,'no TomTom colours survive OSRM selection');
   await page.locator('.jalan-vector-pin').first().press('Enter');
   assert.match(await page.locator('.maplibregl-popup-content').first().textContent(),/Fixture start/);
   await page.locator('.maplibregl-popup-close-button').click();

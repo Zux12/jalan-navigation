@@ -12,6 +12,9 @@ on:
       - 'passenger.css'
       - 'passenger-ui.js'
       - 'passenger-vector-map.js'
+      - 'passenger-route-traffic.js'
+      - 'passenger-route-traffic.css'
+      - 'tests/passenger-route-traffic.test.js'
       - 'tests/passenger-vector-390.cjs'
       - 'tests/passenger-390.cjs'
       - 'tests/public-desktop-390.cjs'
@@ -29,6 +32,9 @@ on:
       - 'passenger.css'
       - 'passenger-ui.js'
       - 'passenger-vector-map.js'
+      - 'passenger-route-traffic.js'
+      - 'passenger-route-traffic.css'
+      - 'tests/passenger-route-traffic.test.js'
       - 'tests/passenger-vector-390.cjs'
       - 'tests/passenger-390.cjs'
       - 'tests/public-desktop-390.cjs'
@@ -50,6 +56,7 @@ jobs:
           npx playwright install --with-deps chromium
       - name: Run deterministic local Chromium 390px, no outbound network
         run: |
+          node --test tests/passenger-route-traffic.test.js
           node tests/public-desktop-390.cjs
           node tests/passenger-390.cjs
       - name: Verify native vector rendering and public basemap availability
