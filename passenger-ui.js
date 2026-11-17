@@ -464,8 +464,13 @@
    const state=window.JalanGPS?.getState();
    const matched=state?.matched&&Number.isFinite(state.accuracy)&&state.accuracy<=75&&state.fixAgeMs<10000;
    const alert=el('passenger-signal-alert');
+   const offRoute=state?.deviationConfirmed;
    alert.classList.toggle('hidden',!!matched);
-   alert.textContent=matched?'':'GPS uncertain · wait for a verified position';
+   alert.textContent=matched?'':offRoute?
+     (state.rerouting?'Recalculating route from your current location…':
+      rerouteStatus.dataset.state==='error'?rerouteStatus.textContent:
+      autoControl.getAttribute('aria-pressed')==='true'?'Off route · waiting for the next route check':
+      'Off route · auto rerouting is off'):'GPS uncertain · wait for a verified position';
    el('passenger-fix').textContent=!matched?
      'GPS uncertain or unavailable · vehicle position not verified':
      directionSource==='gps'?'GPS matched · heading-up experimental preview':
@@ -484,7 +489,7 @@
    el('passenger-turn-details').textContent=message;
  };
  // Passenger controls mirror the existing engineering GPS buttons; no
- // duplicate voice engine, no accidental opt-in to automatic rerouting.
+ // duplicate voice engine. Explicit Go enables off-route recovery for the trip.
  const voiceControl=el('passenger-voice'),autoControl=el('passenger-auto-reroute'),
        rerouteStatus=el('passenger-reroute-status');
  const syncNavigationSettings=()=>{
@@ -511,6 +516,10 @@
    const detail=event.detail||{};
    rerouteStatus.dataset.state=detail.state||'idle';
    rerouteStatus.textContent=String(detail.message||'Route status unavailable.');
+   if(window.JalanGPS?.getState()?.deviationConfirmed){
+     const alert=el('passenger-signal-alert');alert.classList.remove('hidden');
+     alert.textContent=rerouteStatus.textContent;
+   }
  });
  syncNavigationSettings();
  // Go starts the existing traffic layers/checker for this passenger session.
@@ -612,6 +621,10 @@
    if(!routes.length)return;
    trafficOptOut=false;
    hideSettings();
+   // The owner's explicit Go starts normal detour recovery. The menu can
+   // disable it during this journey; internal GPS restarts never re-enable it.
+   if(el('gps-auto').getAttribute('aria-pressed')!=='true')el('gps-auto').click();
+   syncNavigationSettings();
    el('gps-start').click();
    if(!window.JalanGPS?.getState()?.active){
      el('passenger-route-provider').textContent='GPS preview could not start. Check browser permissions or use Engineering tests.';

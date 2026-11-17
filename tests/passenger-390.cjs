@@ -360,8 +360,8 @@ async function main(){
    assert.equal(await page.locator('#passenger-traffic-offer').isVisible(),false,
      'a provider failure cannot invent a faster route');
    assert.equal(await page.locator('#proactive-toggle').getAttribute('aria-pressed'),'false');
-  assert.equal(await page.locator('#passenger-auto-reroute').getAttribute('aria-pressed'),'false',
-    'Passenger Mode must not automatically opt in to rerouting');
+  assert.equal(await page.locator('#passenger-auto-reroute').getAttribute('aria-pressed'),'true',
+    'explicit Go enables sustained off-route recovery for this journey');
   assert.match(await page.locator('#passenger-voice').innerText(),/Mute/);
   await page.locator('#passenger-voice').click();
   assert.match(await page.locator('#passenger-voice').innerText(),/Full guidance/,
@@ -372,6 +372,8 @@ async function main(){
   await page.locator('#passenger-voice').click();
   assert.match(await page.locator('#passenger-voice').innerText(),/Mute/,
     'passenger voice control can mute without leaving navigation');
+  await page.locator('#passenger-auto-reroute').click();
+  assert.equal(await page.locator('#passenger-auto-reroute').getAttribute('aria-pressed'),'false');
   await page.locator('#passenger-auto-reroute').click();
   assert.equal(await page.locator('#passenger-auto-reroute').getAttribute('aria-pressed'),'true');
   assert.equal(await page.locator('#gps-auto').getAttribute('aria-pressed'),'true');
@@ -883,6 +885,50 @@ async function main(){
   assert.equal(await trafficLayers(),0);
   await page.locator('#passenger-options > summary').click();
   await page.locator('#passenger-stop').click();
+  // Real browser integration of Go -> sustained detour -> provider response.
+  // GPS, routes and time are controlled fixtures; every external request is intercepted.
+  await page.goto(base+'/index.html?mode=passenger',{waitUntil:'load'});
+  let detourRequest=null,detourRequests=0;
+  await page.route('https://router.project-osrm.org/route/v1/driving/**',request=>{
+    detourRequests++;detourRequest=request;
+  });
+  await page.evaluate(()=>{
+    document.getElementById('tt-primary').checked=false;
+    window.__detourNow=Date.now();Date.now=()=>window.__detourNow;
+    setStart([3,101.6],'Synthetic detour start');destination=[3,101.61];
+    destinationMarker=L.marker(destination).addTo(pointLayer);
+    routes=[{provider:'osrm',duration:600,distance:1110,legs:[],
+      geometry:{type:'LineString',coordinates:[[101.6,3],[101.61,3]]}}];
+    selectedRoute=0;renderRoutes();
+    window.__detourOriginal={route:routes[0],destination,marker:destinationMarker};
+  });
+  await page.locator('#passenger-go').click();
+  assert.equal(await page.locator('#passenger-auto-reroute').getAttribute('aria-pressed'),'true');
+  await page.evaluate(()=>{
+    const send=(latitude,longitude,advance)=>{
+      window.__detourNow+=advance;
+      window.__offlineGPSWatch({timestamp:Date.now(),coords:{latitude,longitude,accuracy:8,speed:5,heading:90}});
+    };
+    send(3,101.6,0);
+    for(let i=1;i<=6;i++)send(3.0008,101.6+i*.0001,3000);
+  });
+  await page.waitForFunction(()=>document.getElementById('passenger-signal-alert').textContent.includes('Recalculating route'));
+  assert.equal(detourRequests,1,'Go automatically requests one route after a sustained detour');
+  assert.equal(await page.locator('#passenger-signal-alert').isVisible(),true,
+    'recalculation feedback is visible without opening the options menu');
+  assert.equal(await page.evaluate(()=>JalanGPS.getState().active&&routes[0]===window.__detourOriginal.route),true,
+    'existing journey stays active while the replacement request is pending');
+  const origin=new URL(detourRequest.request().url()).pathname.split('/driving/')[1].split(';')[0].split(',').map(Number);
+  assert.equal(origin[1],3.0008,'request starts at actual off-route latitude, not the snapped old road');
+  await detourRequest.fulfill({status:200,contentType:'application/json',body:JSON.stringify({code:'Ok',routes:[{
+    duration:400,distance:1250,legs:[],geometry:{type:'LineString',coordinates:[origin,[101.61,3]]}
+  }]})});
+  await page.waitForFunction(()=>JalanGPS.getState().active&&JalanGPS.getState().route!==window.__detourOriginal.route);
+  assert.equal(await page.evaluate(()=>destination===window.__detourOriginal.destination&&destinationMarker===window.__detourOriginal.marker),true);
+  assert.equal(await page.locator('#passenger-navigation').isVisible(),true);
+  assert.equal(await page.locator('#passenger-go').isVisible(),false,'new route resumes guidance without another Go');
+  assert.match(await page.locator('#passenger-reroute-status').textContent(),/Route updated/);
+  console.log('PASS off-route recovery: Go enables auto, sustained detour requests from real GPS, pending route retained, same destination, guidance resumes');
   await page.goto(base+'/index.html?mode=engineering',{waitUntil:'load'});
   assert.equal(await page.evaluate(()=>document.body.classList.contains('passenger-mode')),false);
   assert.equal(await page.locator('#info-panel').isVisible(),true,'original engineering dashboard retained');

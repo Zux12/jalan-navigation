@@ -47,6 +47,21 @@ $('clear-route').addEventListener('click',()=>{setPanelCollapsed(false);clearRou
 $('reset').addEventListener('click',()=>{setPanelCollapsed(false);clearRoute(true);map.setView(KL,12);statusEl.textContent='Map reset to Kuala Lumpur.'});
 const fmtDist=m=>m>=1000?(m/1000).toFixed(1)+' km':Math.round(m)+' m';
 const fmtTime=s=>{const min=Math.max(1,Math.round(s/60));return min>=60?`${Math.floor(min/60)} hr ${min%60} min`:`${min} min`};
+// Fetch replacements without discarding the route/GPS session. The caller
+// decides whether a response still belongs to the current journey.
+async function requestDrivingRoutes(from,to,{signal}={}){
+ if($('tt-primary').checked){
+  if(!window.JalanTomTom?.enabled())throw Error('TomTom key unavailable');
+  return window.JalanTomTom.requestRoutes(from,to,{signal});
+ }
+ const [a,b]=[from,to].map(p=>`${p[1]},${p[0]}`);
+ const url=`https://router.project-osrm.org/route/v1/driving/${a};${b}?overview=full&geometries=geojson&steps=true&alternatives=true`;
+ const response=await fetch(url,{signal,cache:'no-store'});
+ if(!response.ok)throw Error('Routing service unavailable');
+ const data=await response.json();
+ if(data.code!=='Ok'||!data.routes?.length)throw Error('No driving route found between these points');
+ return data.routes;
+}
 async function calculateRoutes(){
  if(!destination||!startPoint)return;
  // A selected TomTom primary provider must not silently fall through to OSRM
@@ -69,15 +84,9 @@ async function calculateRoutes(){
  statusEl.textContent='Calculating driving routes…';
  routeEl.textContent='Calculating…';routeEl.classList.remove('hidden');
  try{
-  const [a,b]=[from,to].map(p=>`${p[1]},${p[0]}`);
-  const url=`https://router.project-osrm.org/route/v1/driving/${a};${b}?overview=full&geometries=geojson&steps=true&alternatives=true`;
-  const response=await fetch(url,{signal:controller.signal,cache:'no-store'});
+  const candidates=await requestDrivingRoutes(from,to,{signal:controller.signal});
   if(!current())return;
-  if(!response.ok)throw Error('Routing service unavailable');
-  const data=await response.json();
-  if(!current())return;
-  if(data.code!=='Ok'||!data.routes?.length)throw Error('No driving route found between these points');
-  routes=data.routes;selectedRoute=0;setPanelCollapsed(true);renderRoutes();
+  routes=candidates;selectedRoute=0;setPanelCollapsed(true);renderRoutes();
   statusEl.textContent=`Found ${routes.length} driving route${routes.length===1?'':'s'}.`;
  }catch(e){
   if(!current()||e.name==='AbortError')return;
