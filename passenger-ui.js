@@ -364,8 +364,11 @@
      // A provider TRAFFIC section is associated with this exact TomTom route.
      // Never re-filter that section with the old 25m corridor.
      // The local unverified demo reports retain their own proximity check.
-     const projected=item.source==='tomtom'&&Number.isFinite(item.routeAlong)&&
-       Number.isFinite(item.routeTotal)?{along:item.routeAlong,total:item.routeTotal,offset:0}:
+     if(item.source==='tomtom'&&!(Number.isFinite(item.routeAlong)&&
+        Number.isFinite(item.routeTotal)&&item.routeTotal>0&&
+        item.routeAlong>=0&&item.routeAlong<=item.routeTotal))continue;
+     const projected=item.source==='tomtom'?
+       {along:item.routeAlong,total:item.routeTotal,offset:0}:
        pointOnRoute([item.lat,item.lng],coords);
      if(!projected||(item.source!=='tomtom'&&
         projected.offset>window.JalanTomTom.reportRouteTolerance)||
