@@ -86,3 +86,14 @@ body.passenger-guiding #jalan-home-notice{display:none!important}
  body.passenger-mode .jalan-home-sheet[data-state="c"]{--sheet-height:90dvh}
 }
 @media(prefers-reduced-motion:reduce){body.passenger-mode .jalan-home-sheet{transition:none}}
+
+/* A/B search is a stable button. C exposes the original real search form. */
+#jalan-search-trigger{position:absolute;top:37px;left:16px;right:16px;z-index:2;
+ display:flex;align-items:center;gap:13px;min-height:60px;
+ padding:9px 18px;background:#f1f3f6;border:0;border-radius:31px;
+ color:#818b95;cursor:pointer;text-align:left}
+#jalan-search-trigger span{font:42px system-ui;line-height:1}
+#jalan-search-trigger strong{font:400 18px system-ui}
+body.passenger-mode .jalan-home-sheet:not([data-state="c"]) .topbar{
+ opacity:0;pointer-events:none}
+body.passenger-mode .jalan-home-sheet[data-state="c"] #jalan-search-trigger{display:none}
