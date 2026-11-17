@@ -24,7 +24,7 @@ function scene({tomtom=true,auto=true}={}){
   navigator:{geolocation:{watchPosition(success,error){watch=success;watchError=error;return ++watchStarts},clearWatch(){watchClears++}}},
   L:{circleMarker:()=>layer,layerGroup:()=>layer},map:{panTo(){},removeLayer(){},invalidateSize(){}},
   routes:[original],selectedRoute:0,startPoint:[3,101.6],destination,
-  renderRoutes(){renders++;context.window.JalanGPS.stop()},
+  renderRoutes({preserveGPS=false}={}){renders++;if(!preserveGPS)context.window.JalanGPS.stop()}, 
   clearRoute(){clears++;context.window.JalanGPS?.stop();context.window.JalanTomTom?.routeCleared();context.routes=[]},
   updateLocation(){},fmtDist:String,fmtTime:String,statusEl:{textContent:''},setPanelCollapsed(){},
   localStorage:{getItem(){return null},removeItem(){},setItem(){}},
@@ -81,7 +81,9 @@ for(const tomtom of [true,false])test(`sustained detour replaces ${tomtom?'TomTo
  await s.finish();
  assert.notEqual(s.state().route,s.original);assert.equal(s.state().route.duration,200);
  assert.equal(s.context.destination,s.destination);assert.equal(s.state().active,true);
- assert.equal(s.watches,2);assert.equal(s.renders,1);assert.equal(s.clears,0);
+ assert.equal(s.watches,1,'detour replacement must retain the original geolocation watch');
+ assert.equal(s.watchClears,0,'successful route swap does not clear GPS');
+ assert.equal(s.renders,1);assert.equal(s.clears,0);
  assert.equal(s.events.filter(e=>e.type==='jalan:route-change').length,1);
 });
 test('first accurate GPS already away from the planned road can recover without an initial route match',async()=>{
