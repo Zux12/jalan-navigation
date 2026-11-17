@@ -37,8 +37,11 @@ test('JalanGPS match confidence is cleared on predicted fixes, stop and restart'
  get('gps-start').onclick();
  assert.equal(state().active,true);
  assert.equal(state().matched,false,'starting GPS must not borrow an old fix');
+ // Browser geolocation callbacks normally carry fresh, monotonic timestamps;
+ // separate a true older-sample replay from many synthetic callbacks in one ms.
+ let lastFixtureTime=0;
  const fix=()=>({coords:{latitude:3.139,longitude:101.6869,accuracy:6,
-   speed:0,heading:0},timestamp:Date.now()});
+   speed:0,heading:0},timestamp:(lastFixtureTime=Math.max(Date.now(),lastFixtureTime+1))});
  updateGPS(fix());
  assert.equal(state().matched,true,'verified predictor match permits proactive checks');
  // The predictor may call an impossible point 'matched'; measured GPS must
