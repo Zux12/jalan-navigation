@@ -568,6 +568,7 @@ async function main(){
     'stale Safari GPS retains one frozen georeferenced triangle');
   assert.equal(await page.locator('#passenger-vehicle-screen').isVisible(),true,
     'upright grey last-known triangle stays visible');
+  await page.waitForFunction(()=>document.getElementById('passenger-fix').textContent.includes('last known position'),null,{timeout:1500});
   assert.match(await page.locator('#passenger-fix').innerText(),/last known position/i);
   await page.evaluate(()=>{
     window.__offlineGPSWatch({timestamp:Date.now()+2000,coords:{
