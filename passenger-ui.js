@@ -499,7 +499,7 @@
    const measured=state?.active&&fix?.gpsReliable&&Number.isFinite(fix.gpsAccuracy)&&fix.gpsAccuracy<=65;
    const alert=el('passenger-signal-alert');
    const offRoute=state?.deviationConfirmed;
-   alert.classList.toggle('hidden',!!matched);
+   alert.classList.toggle('hidden',!!matched&&!!measured);
    alert.textContent=matched?'':offRoute?
      (state.rerouting?'Recalculating route from your current location…':
       rerouteStatus.dataset.state==='error'?rerouteStatus.textContent:
