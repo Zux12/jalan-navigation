@@ -79,7 +79,6 @@
  function update(fix){
   if(!active)return;
   const now=Date.now(),sampleTime=Number(fix.timestamp);
-  if(Number.isFinite(sampleTime)&&sampleTime<=lastAcceptedSampleTime)return;
   // A cached/background Safari location must not be advertised as a fresh
   // route match. Do not feed expired or far-future samples to the predictor.
   if(Number.isFinite(sampleTime)&&(sampleTime<now-10000||sampleTime>now+5000)){
@@ -93,6 +92,9 @@
    warn('GPS reading is stale. Waiting for a fresh position; guidance may be inaccurate.');
    return;
   }
+  // Expired callbacks still revoke trust; only nonexpired duplicates/older
+  // callbacks are ignored without corrupting the last accepted GPS position.
+  if(Number.isFinite(sampleTime)&&sampleTime<=lastAcceptedSampleTime)return;
   const raw=[fix.coords.latitude,fix.coords.longitude],reportedAccuracy=fix.coords.accuracy;
   // Never infer GPS accuracy from rendered text: "Unknown" would parse as 0 m.
   const accuracy=Number.isFinite(reportedAccuracy)&&reportedAccuracy>=0?reportedAccuracy:Infinity;

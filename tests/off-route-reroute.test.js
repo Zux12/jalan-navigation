@@ -126,7 +126,7 @@ test('out-of-order fresh-looking GPS callbacks never rewind the measured vehicle
  assert.equal(s.requests.length,0,'out-of-order callbacks cannot create a detour request');
  assert.equal(s.state().gpsReliable,true,'replayed callback should not revoke fresh accepted position');
  s.feed([3,101.60016],1000);
- assert.deepEqual(s.state().gpsPosition,[3,101.60016],
+ assert.deepEqual(Array.from(s.state().gpsPosition),[3,101.60016],
   'the next genuinely fresh fix still advances measured position');
  assert.equal(s.watches,1,'one uninterrupted geolocation watcher');
 });
