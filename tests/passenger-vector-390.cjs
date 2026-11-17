@@ -74,14 +74,25 @@ async function main(){
     const overlays=[];map.eachLayer(x=>{
       if(x?.options?.className==='jalan-selected-traffic-colour')overlays.push(x.options.color);
     });
-    first.provider='osrm';first.geometry=prior;delete first.trafficSections;
-    window.dispatchEvent(new Event('jalan:routes-rendered'));
-    return {overlays,after:JalanRouteTraffic.getState().overlayCount};
+    return {overlays};
   });
+  await page.waitForFunction(()=>JalanVectorMap.getState().selectedTrafficSegments>=3);
+  const colouredState=await page.evaluate(()=>JalanVectorMap.getState());
+  assert.equal(colouredState.trafficAboveRoute,true,
+    'selected-route traffic must render in a separate MapLibre layer ABOVE the blue route');
+  assert.ok(colouredState.selectedTrafficSegments>=3,'native map receives traffic segments');
   assert.ok(colours.overlays.includes('#ffe68a'),'light traffic must be light yellow');
   assert.ok(colours.overlays.includes('#f59b24'),'moderate traffic must be orange');
   assert.ok(colours.overlays.includes('#de3d35'),'heavy traffic must be red');
-  assert.equal(colours.after,0,'no TomTom colours survive OSRM selection');
+  await page.evaluate(()=>{
+    const first=routes[0];first.provider='osrm';
+    first.geometry={type:'LineString',coordinates:[[101.6869,3.139],[101.6953,3.1478]]};
+    delete first.trafficSections;
+    window.dispatchEvent(new Event('jalan:routes-rendered'));
+  });
+  await page.waitForFunction(()=>JalanVectorMap.getState().selectedTrafficSegments===0);
+  assert.equal(await page.evaluate(()=>JalanRouteTraffic.getState().overlayCount),0,
+    'no TomTom colours survive OSRM selection');
   await page.locator('.jalan-vector-pin').first().press('Enter');
   assert.match(await page.locator('.maplibregl-popup-content').first().textContent(),/Fixture start/);
   await page.locator('.maplibregl-popup-close-button').click();

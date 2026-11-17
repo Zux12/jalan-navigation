@@ -689,7 +689,8 @@ async function main(){
   const trafficLayers=()=>page.evaluate(()=>{
     let n=0;map.eachLayer(layer=>{if(String(layer._url||'').includes('/traffic/map/'))n++;});return n;
   });
-  assert.equal(await trafficLayers(),1,'Go enables one traffic colour overlay');
+  assert.equal(await trafficLayers(),0,
+    'Passenger Preview hides all-road TomTom traffic tiles; coloured route lines remain separate');
   await page.locator('#passenger-turn-toggle').click();
   assert.match(await page.locator('#passenger-report-list').innerText(),/Fixture second road/);
   assert.equal(await page.locator('#passenger-report-list li').count(),2);

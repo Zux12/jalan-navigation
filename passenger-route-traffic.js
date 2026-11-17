@@ -10,7 +10,7 @@
  });
  const maxSamples=6, flowTTL=5*60*1000, incidentTTL=10*60*1000;
  const windowMeters=80, maxOffsetMeters=16;
- let route=null,epoch=0,aborters=[],flowAt=0,refreshId=null,flowMatches=[],
+ let route=null,epoch=0,aborters=[],flowAt=0,lastRequestAt=0,refreshId=null,flowMatches=[],
      overlay=L.layerGroup().addTo(map),hasFlow=false;
  const status=document.createElement('div');
  status.id='jalan-route-traffic-legend';
@@ -40,6 +40,18 @@
    const f=(distance-start)/span,a=path.coords[i-1],b=path.coords[i];
    return [a[0]+(b[0]-a[0])*f,a[1]+(b[1]-a[1])*f];
  }
+ // Exact route subpath: include every original TomTom geometry vertex between
+ // the two along-route distances. Never replace a bend with one long chord.
+ function originalSubpath(path,start,end){
+   if(!(end>start))return [];
+   const coords=[interpolated(path,start)];
+   for(let i=1;i<path.distance.length-1;i++){
+     if(path.distance[i]>start+1e-6&&path.distance[i]<end-1e-6)
+       coords.push(path.coords[i].slice());
+   }
+   coords.push(interpolated(path,end));
+   return coords;
+ }
  function closest(point,line){
    let best=Infinity;
    const origin=point,scale=111320*Math.cos(origin[1]*degrees);
@@ -58,7 +70,7 @@
  function makeFlowMatch(path,sample,data){
    const speed=data?.currentSpeed,free=data?.freeFlowSpeed;
    if(!Number.isFinite(speed)||!Number.isFinite(free)||free<=0||speed<0||
-      (Number.isFinite(data.confidence)&&data.confidence<.5))return null;
+      !Number.isFinite(data.confidence)||data.confidence<.5)return null;
    const line=data.coordinates?.coordinate;
    if(!Array.isArray(line)||line.length<2)return null;
    const geometry=line.map(p=>[p.longitude,p.latitude]);
@@ -80,7 +92,8 @@
      Number.isFinite(data.confidence)?data.confidence:null};
  }
  function severity(section){
-   if(section?.simpleCategory==='ROAD_CLOSURE'||section?.magnitudeOfDelay===4)return 'closed';
+   if(section?.simpleCategory==='ROAD_CLOSURE')return 'closed';
+   // TomTom magnitude=4 also means other indefinite delays, not proof of closure.
    return section?.magnitudeOfDelay===1?'light':
      section?.magnitudeOfDelay===2?'moderate':
      section?.magnitudeOfDelay===3?'heavy':null;
@@ -114,13 +127,13 @@
      }
      if(type){
        const previous=pieces.at(-1);
-       const coordinate=interpolated(path,to);
-       if(previous?.type===type&&Math.abs(previous.end-from)<.01){
-         previous.coordinates.push(coordinate);previous.end=to;
-       }else pieces.push({type,end:to,coordinates:[interpolated(path,from),coordinate]});
+       if(previous?.type===type&&Math.abs(previous.end-from)<.01)
+         previous.end=to;
+       else pieces.push({type,start:from,end:to});
      }
    }
-   return pieces;
+   return pieces.map(piece=>({...piece,
+     coordinates:originalSubpath(path,piece.start,piece.end)}));
  }
  function draw(){
    overlay.clearLayers();
@@ -137,7 +150,7 @@
        hasFlow?'No classified congestion on sampled road stretches':'Traffic: blue = unclassified · awaiting trusted TomTom data';
  }
  function reset(){
-   epoch++;aborters.forEach(a=>a.abort());aborters=[];flowMatches=[];flowAt=0;hasFlow=false;
+   epoch++;aborters.forEach(a=>a.abort());aborters=[];flowMatches=[];flowAt=0;lastRequestAt=0;hasFlow=false;
    if(refreshId){clearInterval(refreshId);refreshId=null;}
    overlay.clearLayers();route=null;
    status.textContent='Traffic: blue = unclassified';
@@ -152,6 +165,7 @@
    const secret=key?.value?.trim();
    if(!/^[\w-]{8,160}$/.test(secret))return;
    const id=++epoch;
+   lastRequestAt=Date.now();
    aborters.forEach(a=>a.abort());aborters=[];flowMatches=[];hasFlow=false;flowAt=0;
    draw();
    const positions=samplesFor(path);
@@ -180,11 +194,15 @@
    if(candidate!==route){reset();route=candidate;draw();}
    // Bounded point-by-point flow queries only on selected TomTom route and only
    // with an explicitly entered browser-held TomTom key.
-   sampleFlow(candidate);
+   if(!lastRequestAt||Date.now()-lastRequestAt>=flowTTL)sampleFlow(candidate);
    if(!refreshId)refreshId=setInterval(()=>{
      if(!document.hidden&&route===routes?.[selectedRoute])sampleFlow(route);
    },flowTTL);
  }
+ // A revoked/replaced browser-held key must invalidate even an abort-ignoring
+ // provider response before it can draw stale colours on the selected route.
+ key?.addEventListener('input',reset);
+ key?.addEventListener('change',reset);
  window.addEventListener('jalan:routes-rendered',choose);
  window.addEventListener('jalan:route-change',choose);
  window.addEventListener('jalan:journey-start',()=>{
@@ -200,6 +218,6 @@
  window.addEventListener('jalan:incidents-updated',()=>{if(route)draw();});
  window.JalanRouteTraffic={
    getState:()=>({active:!!route,sampledFlow:hasFlow,overlayCount:overlay.getLayers().length}),
-   classify,makeFlowMatch,makePath,samplesFor,severity,reset
+   classify,makeFlowMatch,makePath,originalSubpath,samplesFor,severity,reset
  };
 })();
