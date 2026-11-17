@@ -90,6 +90,9 @@ async function main(){
   await page.mouse.move(240,430,{steps:12});await page.mouse.up();
   await page.waitForTimeout(250);
   assert.match(await page.locator('#passenger-gesture-hint').textContent(),/Exploring map/);
+  // MapLibre drag inertia legitimately continues after pointer-up. Allow it
+  // to settle before asserting that a subsequent GPS fix leaves explore intact.
+  await page.waitForTimeout(900);
   const draggedCenter=await page.evaluate(()=>[map.getCenter().lat,map.getCenter().lng]);
   assert.ok(Math.hypot(draggedCenter[0]-initialCenter[0],draggedCenter[1]-initialCenter[1])>0.00001,
     'native mouse drag must move the actual map center');
