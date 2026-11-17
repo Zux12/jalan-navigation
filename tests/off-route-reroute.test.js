@@ -100,6 +100,19 @@ test('single jump, poor accuracy, stale readings and auto Off cannot trigger rou
   await s.flush();assert.equal(s.requests.length,0,scenario);assert.equal(s.state().route,s.original);
  }
 });
+test('repeated impossible GPS teleports never relocate the vehicle or trigger a route request',async()=>{
+ const s=scene();s.feed([3,101.6],0);
+ const accepted=s.state().gpsPosition;
+ // Several good-accuracy samples at a location >10km away in seconds
+ // must not become a trusted measured position or a reroute origin.
+ for(let i=0;i<8;i++)s.feed([3.02,101.7],3000);
+ await s.flush();
+ assert.deepEqual(s.state().gpsPosition,accepted);
+ assert.equal(s.requests.length,0,'no TomTom request from rejected teleport');
+ assert.equal(s.state().route,s.original);
+ assert.equal(s.state().active,true);
+ assert.equal(s.watches,1);
+});
 test('HTTP and invalid-route failures retain the route/GPS, throttle retries, then recover',async()=>{
  for(const failure of [{ok:false},{invalid:true}]){
   const s=scene();s.detour();await s.finish(failure);
