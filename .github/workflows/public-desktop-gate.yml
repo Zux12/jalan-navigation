@@ -15,6 +15,8 @@ on:
       - 'style.css'
       - 'passenger.css'
       - 'passenger-ui.js'
+      - 'passenger-gps-status.js'
+      - 'tests/passenger-gps-status.test.js'
       - 'passenger-home-sheet.js'
       - 'passenger-home-sheet.css'
       - 'passenger-route-sheet.js'
@@ -43,6 +45,8 @@ on:
       - 'style.css'
       - 'passenger.css'
       - 'passenger-ui.js'
+      - 'passenger-gps-status.js'
+      - 'tests/passenger-gps-status.test.js'
       - 'passenger-home-sheet.js'
       - 'passenger-home-sheet.css'
       - 'passenger-route-sheet.js'
@@ -72,7 +76,7 @@ jobs:
           npx playwright install --with-deps chromium
       - name: Run deterministic local Chromium 390px, no outbound network
         run: |
-          node --test tests/passenger-route-traffic.test.js tests/voice-guidance.test.js
+          node --test tests/passenger-route-traffic.test.js tests/voice-guidance.test.js tests/passenger-gps-status.test.js
           node tests/public-desktop-390.cjs
           node tests/passenger-390.cjs
       - name: Verify native vector rendering and public basemap availability

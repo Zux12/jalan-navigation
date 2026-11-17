@@ -19,8 +19,19 @@
    maneuvers.push({along,action});}
   maneuvers.sort((a,b)=>a.along-b.along);return true;}
  function speak(t){if(voice==='mute'||!('speechSynthesis'in window)||document.hidden||!active)return;const now=Date.now();if(t===lastSpeech&&now-lastSpeechAt<45000)return;lastSpeech=t;lastSpeechAt=now;try{speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(t);u.lang='en-GB';u.rate=0.95;speechSynthesis.speak(u);}catch(e){console.warn('Voice unavailable',e);}}
+ // Location-quality UI gets measured accuracy/time, independent of route matching.
+ // No coordinates or route authority are exposed by this display-only event.
+ function publishQuality(fix,error=false){
+  const c=fix?.coords;
+  window.dispatchEvent(new CustomEvent('jalan:location-quality',{detail:error?{error:true}:{
+   accuracy:c?.accuracy,timestamp:fix?.timestamp,
+   valid:!!c&&Number.isFinite(c.latitude)&&Number.isFinite(c.longitude)&&
+     Math.abs(c.latitude)<=90&&Math.abs(c.longitude)<=180
+  }}));
+ }
  function update(fix){
   if(!active)return;
+  publishQuality(fix);
   const now=Date.now(),sampleTime=Number(fix.timestamp);
   // A cached/background Safari location must not be advertised as a fresh
   // route match. Do not feed expired or far-future samples to the predictor.
@@ -72,6 +83,7 @@
  function start(){if(active)return;if(!build()){statusEl.textContent='Calculate a route before starting GPS test.';return;}if(!navigator.geolocation){statusEl.textContent='Geolocation unavailable';return;}
   window.JalanNavigation?.stop();current=null;lastFixAt=0;lastReportedAccuracy=Infinity;latestMatched=false;latestMode='waiting';rerouteFix=null;predictor=window.JalanPredictiveGPS.create(route.geometry.coordinates);active=true;window.dispatchEvent(new CustomEvent('jalan:journey-start',{detail:{provider:route?.provider||'osrm',predictedSeconds:route?.duration||null,distanceMeters:route?.distance||null}}));progress=0;offCount=0;lastSpeech='';destinationAnnounced=false;window.JalanVoice.reset();document.body.classList.add('nav-active');el('gps-hud').classList.remove('hidden');el('gps-instruction').textContent='Acquiring GPS…';warn('Experimental guidance only. Test stationary or as a passenger.');marker=L.circleMarker(points[0],{radius:10,color:'#fff',weight:3,fillColor:'#0e9f6e',fillOpacity:document.body.classList.contains('passenger-mode')?0:1,opacity:document.body.classList.contains('passenger-mode')?0:1}).addTo(map);
   watch=navigator.geolocation.watchPosition(update,e=>{
+   publishQuality(null,true);
    latestMatched=false;lastReportedAccuracy=Infinity;lastFixAt=0;latestMode='waiting';rerouteFix=null;cancelReroute();
    warn('GPS unavailable: '+e.message);
    window.dispatchEvent(new CustomEvent('jalan:gps-fix',{detail:{accuracy:Infinity,
