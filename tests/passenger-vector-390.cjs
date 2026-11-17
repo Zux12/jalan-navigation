@@ -133,6 +133,9 @@ async function main(){
   assert.ok(Math.abs(await page.evaluate(()=>JalanVectorMap.getBearing())-twistBefore)>3,
     'native two-finger twist must rotate the vector map on mobile');
   await cdp.detach();
+  // The longer mobile gesture test can exceed the five-second trusted GPS
+  // window. Recenter should require a fresh fix rather than bypassing it.
+  await page.evaluate(fix);
   await page.locator('#passenger-recenter-floating').click();
   assert.equal(await page.evaluate(()=>Math.round(map.getZoom())),17);
   await page.locator('#passenger-options > summary').click();
