@@ -80,7 +80,7 @@
  handle.addEventListener('pointerup',end);
  handle.addEventListener('pointercancel',()=>{dragStart=null;});
  // Search always opens C, regardless of A/B/C, before the keyboard appears.
- input.addEventListener('pointerdown',()=>setState('c'));
+ input.addEventListener('pointerdown',()=>{setState('c');input.focus({preventScroll:true});});
  input.addEventListener('focus',()=>setState('c'));
  form.addEventListener('submit',()=>setState('c'));
  sheet.addEventListener('pointerdown',e=>{
