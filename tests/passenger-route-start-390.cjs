@@ -45,7 +45,10 @@ module.exports=async(browser,base,root)=>{
   await page.clock.runFor(1100);assert.equal(await starts(),1,'idle automatically starts once after seven seconds');
   assert.equal(await page.evaluate(()=>JalanGPS.getState().route.duration),720,'starts the latest selected alternative');
   await page.clock.runFor(8000);assert.equal(await starts(),1,'no duplicate journey start');
-  await fixture();await page.locator('#passenger-route-cancel').click();
+  await fixture();
+  // Cancel before the route's two queued animation frames fit its old bounds.
+  await page.evaluate(()=>document.getElementById('passenger-route-cancel').click());
+  await page.clock.runFor(200);
   assert.equal(await page.evaluate(()=>!destination&&!routes.length&&!JalanGPS.getState().active),true);
   assert.equal(await page.locator('#jalan-home-sheet').getAttribute('data-state'),'a');
   assert.equal(await page.evaluate(()=>Math.abs(map.getCenter().lat-3.139)<.00001),true);
