@@ -785,7 +785,7 @@
  };
  const startExplore=(stopCamera=true)=>{
    if(!document.body.classList.contains('passenger-guiding'))return false;
-   cancelAutoReturn();exploring=true;syncMapAction();
+   cancelAutoReturn();clearReportFocus();exploring=true;syncMapAction();
    // A MapLibre gesture is already underway when its start event fires.
    // Calling gl.stop() here would interrupt drag, pinch or rotation.
    if(stopCamera)map.stop();
