@@ -294,7 +294,7 @@ async function main(){
   assert.equal(await page.locator('#destination').evaluate(x=>x===document.activeElement),true);
   assert.equal(await page.locator('#passenger-navigation').evaluate(x=>x.inert),true);
   await assertJourneyPreserved();
-  await page.evaluate(()=>document.activeElement?.blur());
+  // Swipe while the empty search input still has focus; dismissal must blur it.
   await swipeInside('.jalan-sheet-recent h2',90);
   assert.equal(await page.locator('#jalan-home-sheet').isVisible(),false,
     'one downward swipe with no query returns directly to the existing map');
