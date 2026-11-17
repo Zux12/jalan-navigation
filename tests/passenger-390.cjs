@@ -77,7 +77,7 @@ async function main(){
   assert.equal(await page.locator('#jalan-home-speed-value').textContent(),'—',
     'unverified GPS must never display invented speed');
   await page.locator('#jalan-home-report').click();
-  assert.match(await page.locator('#jalan-home-notice').textContent(),/No report was submitted/);
+  assert.equal(await page.locator('#jalan-home-notice').isVisible(),false,'report placeholder popup is removed');
   await page.locator('#jalan-home-menu').click();
   assert.equal(await page.locator('#jalan-home-menu-panel').isVisible(),true);
   assert.equal(await page.locator('#jalan-home-notice').isVisible(),false,'old notices do not obscure the menu');
@@ -138,7 +138,7 @@ async function main(){
   await page.evaluate(()=>document.activeElement?.blur());
   // Real browser touch input (not dispatched PointerEvents) must work from
   // sheet descendants without clicking them, and preserve native C scrolling.
-  const sheetTouch=await context.newCDPSession(page);
+  let sheetTouch=await context.newCDPSession(page);
   const swipeInside=async(selector,dy,{dx=0,offsetY=null,cancel=false}={})=>{
     const b=await page.locator(selector).boundingBox();
     assert.ok(b,`visible swipe target ${selector}`);
@@ -881,11 +881,9 @@ async function main(){
   assert.equal(await page.evaluate(()=>map.hasLayer(reportLayer)),true,
     'End preview restores the original map demo layer');
   assert.equal(await page.evaluate(()=>document.body.classList.contains('passenger-guiding')),false);
-  assert.equal(await page.evaluate(()=>routeLayer.getLayers().filter(x=>x.options.opacity>=0.6).length),3,
-    'End preview restores visible route alternatives');
-  assert.equal(await page.evaluate(()=>!!startMarker&&pointLayer.hasLayer(startMarker)),true,
-    'route planning start marker returns after ending preview');
-  assert.equal(await page.locator('#passenger-overview').isVisible(),true);
+  assert.equal(await page.evaluate(()=>routes.length),0,'Stop clears the route');
+  assert.equal(await page.evaluate(()=>startMarker===null),true,'Stop removes the old start marker');
+  assert.equal(await page.locator('#passenger-overview').isVisible(),false);
   await page.locator('#jalan-home-menu').click();
    await page.locator('#jalan-home-menu-panel [data-menu=settings]').click();
   assert.equal(await page.locator('#passenger-setup').isVisible(),true);
@@ -1078,6 +1076,109 @@ async function main(){
   assert.equal(await page.locator('#passenger-go').isVisible(),false,'new route resumes guidance without another Go');
   assert.match(await page.locator('#passenger-reroute-status').textContent(),/Route updated/);
   console.log('PASS off-route recovery: Go enables auto, sustained detour requests from real GPS, pending route retained, same destination, guidance resumes');
+  sheetTouch=await context.newCDPSession(page);
+  // Active journey sheet: genuine pointer/touch gestures, read-only traffic
+  // presentation, Resume continuity and Stop clearing the entire journey.
+  await page.goto(base+'/index.html?mode=passenger',{waitUntil:'load'});
+  await page.evaluate(()=>{
+    document.getElementById('tt-primary').checked=true;
+    document.getElementById('tt-key').value='TEST_RESTRICTED_KEY_1234';
+    setStart([3,101.6],'Journey fixture start');destination=[3,101.61];destinationName='KLCC';
+    destinationMarker=L.marker(destination).addTo(pointLayer);
+    routes=[{provider:'tomtom',duration:600,distance:1000,
+      geometry:{type:'LineString',coordinates:[[101.6,3],[101.6025,3],[101.605,3],[101.6075,3],[101.61,3]]},
+      roadGuidance:[{street:'Maju Expressway',routeOffsetInMeters:0},
+        {street:'Jalan Ampang',routeOffsetInMeters:800},{street:'KLCC',routeOffsetInMeters:1000,maneuver:'ARRIVE'}],
+      legs:[{steps:[]}],trafficSectionsCheckedAt:Date.now(),trafficSections:[
+        {sectionType:'TRAFFIC',startPointIndex:1,endPointIndex:2,magnitudeOfDelay:2},
+        {sectionType:'TRAFFIC',startPointIndex:3,endPointIndex:4,magnitudeOfDelay:3}]}];
+    selectedRoute=0;renderRoutes();
+  });
+  await page.locator('#passenger-go').click();
+  await page.waitForFunction(()=>document.getElementById('passenger-journey-sheet').offsetHeight>60);
+  const journeyState=()=>page.locator('#passenger-journey-sheet').getAttribute('data-expanded');
+  const beforeJourney=await page.evaluate(()=>{
+    window.__journeyBefore={route:JalanGPS.getState().route,watch:window.__offlineGPSWatch,destination,marker:destinationMarker};
+    return document.getElementById('passenger-journey-sheet').getBoundingClientRect().height;
+  });
+  assert.equal(await journeyState(),'false');
+  assert.equal(await page.locator('#passenger-journey-content').isVisible(),false);
+  assert.equal(await page.locator('#passenger-journey-content').evaluate(x=>x.inert),true);
+  const journeyHandle=await page.locator('#passenger-journey-handle').boundingBox();
+  await page.mouse.move(journeyHandle.x+80,journeyHandle.y+12);await page.mouse.down();
+  await page.mouse.move(journeyHandle.x+80,journeyHandle.y-50,{steps:6});
+  assert.ok(await page.locator('#passenger-journey-sheet').evaluate(x=>x.getBoundingClientRect().height)>beforeJourney+40,
+    'journey sheet follows the pointer before release');
+  await page.mouse.up();
+  assert.equal(await journeyState(),'true');
+  assert.equal(await page.locator('#passenger-journey-destination').textContent(),'Destination: KLCC');
+  assert.equal(await page.locator('#passenger-journey-via').textContent(),'Via Maju Expressway');
+  assert.equal(await page.locator('#passenger-journey-line [data-traffic="moderate"]').count(),1);
+  const bars=await page.locator('#passenger-journey-line span').evaluateAll(nodes=>nodes.map(x=>({
+    type:x.dataset.traffic,left:parseFloat(x.style.left),width:parseFloat(x.style.width)})));
+  assert.ok(bars[0].left>=23&&bars[0].left<=26&&bars[0].width>=24&&bars[0].width<=28,'moderate traffic near first quarter, proportional length');
+  assert.ok(bars[1].left>=73&&bars[1].left<=76,'heavy traffic near last quarter');
+  assert.equal(await page.locator('#passenger-recenter-floating').isVisible(),false,'map controls cannot overlap the expanded sheet');
+  const actionBoxes=await page.locator('.passenger-journey-actions button').evaluateAll(nodes=>nodes.map(x=>{const r=x.getBoundingClientRect();return {left:r.left,right:r.right,top:r.top,bottom:r.bottom}}));
+  assert.ok(actionBoxes[0].right<actionBoxes[1].left&&actionBoxes[0].top===actionBoxes[1].top&&actionBoxes[1].bottom<844);
+  await page.screenshot({path:path.join(root,'test-artifacts/passenger-journey-expanded.png')});
+  await page.waitForTimeout(750);
+  await page.locator('#passenger-journey-resume').click();
+  assert.equal(await journeyState(),'false');
+  assert.equal(await page.evaluate(()=>{
+    const b=window.__journeyBefore;
+    return JalanGPS.getState().active&&JalanGPS.getState().route===b.route&&window.__offlineGPSWatch===b.watch&&destination===b.destination&&destinationMarker===b.marker;
+  }),true,'Resume keeps the exact GPS session, route and destination');
+  await swipeInside('#passenger-distance',-120);
+  assert.equal(await journeyState(),'true','swipe on time/km expands details');
+  await swipeInside('#passenger-journey-handle',110,{cancel:true});
+  assert.equal(await journeyState(),'true','cancelled drag keeps expanded state');
+  await swipeInside('#passenger-journey-handle',110);
+  assert.equal(await journeyState(),'false','drag down returns to map');
+  await page.waitForTimeout(750);
+  await page.locator('#passenger-journey-handle').focus();await page.keyboard.press('Enter');
+  assert.equal(await journeyState(),'true','keyboard handle expands');
+  await page.keyboard.press('Escape');assert.equal(await journeyState(),'false');
+  await page.locator('#passenger-journey-handle').click();
+  // Explicitly stub only displayed matched progress, without moving the real
+  // vehicle: verify bar clipping and stale trust independently of geolocation.
+  await page.evaluate(()=>{
+    window.__journeyGetState=JalanGPS.getState;
+    JalanGPS.getState=()=>({...window.__journeyGetState(),matched:true,fixAgeMs:0,accuracy:8,remainingMeters:500});
+    window.dispatchEvent(new CustomEvent('jalan:gps-fix',{detail:{matched:false}}));
+  });
+  await page.waitForFunction(()=>document.getElementById('passenger-journey-origin').textContent==='You');
+  const clipped=await page.locator('#passenger-journey-line [data-traffic="heavy"]').evaluate(x=>parseFloat(x.style.left));
+  assert.ok(clipped>=46&&clipped<=53,'traffic repositions relative to remaining route');
+  await page.evaluate(()=>{JalanGPS.getState=window.__journeyGetState;});
+  await page.waitForFunction(()=>document.getElementById('passenger-journey-origin').textContent==='Last route position');
+  // Long names on short screens keep real scrolling and the actions reachable.
+  await page.setViewportSize({width:390,height:568});
+  await page.evaluate(()=>{destinationName='Very long destination name '.repeat(18);});
+  await page.waitForFunction(()=>document.getElementById('passenger-journey-destination').textContent.length>200);
+  await swipeInside('#passenger-journey-content',-80,{offsetY:40});
+  assert.equal(await journeyState(),'true','upward content gesture scrolls instead of collapsing');
+  assert.ok(await page.locator('#passenger-journey-content').evaluate(x=>x.scrollTop)>0);
+  await page.locator('#passenger-journey-resume').click();
+  await page.setViewportSize({width:390,height:844});
+  await page.evaluate(()=>{destinationName='KLCC';});
+  await page.locator('#passenger-journey-handle').click();
+  await page.locator('#passenger-search').click();
+  assert.equal(await journeyState(),'false','search closes details and opens C');
+  assert.equal(await sheetState(),'c');await page.keyboard.press('Escape');
+  await page.locator('#passenger-journey-handle').click();
+  await page.evaluate(()=>{document.getElementById('passenger-traffic-toggle').click();});
+  await page.waitForFunction(()=>document.querySelectorAll('#passenger-journey-line span').length===0);
+  assert.match(await page.locator('#passenger-journey-traffic-note').textContent(),/unavailable/);
+  await page.locator('#passenger-journey-stop').click();
+  assert.equal(await page.evaluate(()=>JalanGPS.getState().active),false);
+  assert.equal(await page.evaluate(()=>routes.length===0&&destination===null&&destinationMarker===null&&destinationName===''),true);
+  assert.equal(await page.locator('#destination').inputValue(),'');
+  assert.equal(await sheetState(),'a');
+  assert.equal(await page.locator('#passenger-navigation').isVisible(),false);
+  assert.equal(await page.locator('#passenger-overview').isVisible(),false);
+  console.log('PASS active journey sheet: drag/touch/keyboard, longest-road label, proportional remaining traffic, scroll, Resume continuity and Stop reset');
+  await require('./passenger-follow-390.cjs')(page,context,base);
   await page.goto(base+'/index.html?mode=engineering',{waitUntil:'load'});
   assert.equal(await page.evaluate(()=>document.body.classList.contains('passenger-mode')),false);
   assert.equal(await page.locator('#info-panel').isVisible(),true,'original engineering dashboard retained');

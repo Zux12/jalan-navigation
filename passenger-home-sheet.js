@@ -69,7 +69,7 @@
  });
  renderVoices();
  const input=$('destination'),form=$('search-form'),list=$('jalan-recent-list');
- const recentNames=[];
+ const recentPlaces=[];
  const routeSearchButton=$('passenger-search'),navigation=$('passenger-navigation');
  let routeSearch=null;
  const showNotice=message=>{
@@ -77,16 +77,17 @@
  };
  const renderRecent=()=>{
    list.replaceChildren();
-   if(!recentNames.length){
+   if(!recentPlaces.length){
      const empty=document.createElement('li');
      empty.className='jalan-recent-empty';
      empty.textContent='Your recently selected destinations will appear here during this session.';
      list.append(empty);return;
    }
-   for(const name of recentNames){
+   for(const place of recentPlaces){
      const li=document.createElement('li'),btn=document.createElement('button');
-     btn.type='button';btn.textContent=name;
-     btn.addEventListener('click',()=>{setState('c');input.value=name;input.focus();form.requestSubmit();});
+     btn.type='button';btn.textContent=place.label;
+     btn.addEventListener('click',()=>{closeRouteSearch(false,false);input.blur();
+       selectDestinationPlace({lat:place.point[0],lon:place.point[1],name:place.name,display_name:place.label});});
      li.append(btn);list.append(li);
    }
  };
@@ -237,19 +238,16 @@
    if(action==='settings'){$('passenger-settings-top').click();toggleMenu(false);}
    else if(action)showNotice((action==='profile'?'User profile':'Help')+' is coming soon.');
  });
- report.addEventListener('click',()=>showNotice('Road reporting button is a placeholder. No report was submitted.'));
- results.addEventListener('click',e=>{
-   const button=e.target.closest('button');
-   if(!button)return;
-   const name=button.textContent?.trim();
-   if(!name)return;
-   recentNames.unshift(name);
-   const unique=[...new Set(recentNames)].slice(0,7);
-   recentNames.splice(0,recentNames.length,...unique);
-   renderRecent();
-   // A deliberate result selection keeps the new query and uses normal routing.
-   closeRouteSearch(false,false);
- },true);
+ // Reporting remains an unfinished control; no placeholder popup or submission.
+ window.addEventListener('jalan:destination-selected',event=>{
+   const place=event.detail;
+   if(!Array.isArray(place?.point)||place.point.length!==2||!place.point.every(Number.isFinite))return;
+   const duplicate=recentPlaces.findIndex(p=>p.point[0]===place.point[0]&&p.point[1]===place.point[1]);
+   if(duplicate>=0)recentPlaces.splice(duplicate,1);
+   recentPlaces.unshift({point:[...place.point],name:String(place.name),label:String(place.label)});
+   recentPlaces.length=Math.min(7,recentPlaces.length);
+   renderRecent();closeRouteSearch(false,false);
+ });
  window.addEventListener('jalan:routes-rendered',()=>{closeRouteSearch(false,false);cancelGesture();sheet.classList.add('jalan-sheet-route');input.blur();});
  window.addEventListener('jalan:route-cleared',()=>{closeRouteSearch(false,false);cancelGesture();sheet.classList.remove('jalan-sheet-route');setState('a');});
  window.addEventListener('jalan:journey-start',()=>{closeRouteSearch(false,false);sheet.classList.add('jalan-sheet-route');toggleMenu(false);});

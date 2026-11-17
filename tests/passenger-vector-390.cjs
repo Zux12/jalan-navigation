@@ -213,6 +213,19 @@ async function main(){
   await page.evaluate(fix);
   await page.locator('#passenger-recenter-floating').click();
   assert.equal(await page.evaluate(()=>Math.round(map.getZoom())),17);
+  await page.waitForFunction(()=>document.body.classList.contains('passenger-following-location'));
+  assert.equal(await page.locator('#jalan-home-report').isVisible(),true);
+  await page.mouse.move(180,360);await page.mouse.down();await page.mouse.move(270,415,{steps:8});
+  await page.evaluate(fix);await page.waitForTimeout(3200);
+  assert.equal(await page.locator('#passenger-recenter-floating').isVisible(),true,'native held drag never auto-returns');
+  assert.equal(await page.locator('#jalan-home-report').isVisible(),false);
+  await page.mouse.up();await page.evaluate(fix);await page.waitForTimeout(1800);
+  assert.equal(await page.locator('#passenger-recenter-floating').isVisible(),true,'native return waits after release');
+  await page.evaluate(fix);
+  await page.waitForFunction(()=>document.body.classList.contains('passenger-following-location'),null,{timeout:2500});
+  assert.equal(await page.locator('#jalan-home-report').isVisible(),true);
+  await page.screenshot({path:path.join(artifacts,'vector-report-follow-control.png')});
+  console.log('PASS native map: held drag, three-second return after release and report/Recenter swap');
   await page.locator('#jalan-home-menu').click();
   await page.locator('#passenger-2d').click();
   assert.equal(await page.evaluate(()=>JalanVectorMap.getPitch()),0);
@@ -380,8 +393,10 @@ async function main(){
   assert.doesNotMatch(await live.locator('#passenger-next').textContent(),/GPS matched to selected route/);
   const creditControl=live.locator('.maplibregl-ctrl-attrib');
   assert.equal(await creditControl.evaluate(x=>x.classList.contains('maplibregl-compact')),true);
-  if(!await creditControl.evaluate(x=>x.classList.contains('maplibregl-compact-show')))
-    await live.locator('.maplibregl-ctrl-attrib-button').click();
+  // Wait for the existing 5.5 s automatic collapse before toggling. Testing
+  // across that timer can otherwise close it just before the click reopens it.
+  await live.waitForFunction(()=>!document.querySelector('.maplibregl-ctrl-attrib').classList.contains('maplibregl-compact-show'));
+  await live.locator('.maplibregl-ctrl-attrib-button').click();
   assert.equal(await live.locator('.maplibregl-ctrl-attrib-inner a[href="https://openfreemap.org"]').isVisible(),false,
     'optional OpenFreeMap branding is removed');
   assert.equal(await live.locator('.maplibregl-ctrl-attrib-inner a[href*="openstreetmap.org/copyright"]').isVisible(),true,
@@ -389,6 +404,14 @@ async function main(){
   await live.locator('.maplibregl-ctrl-attrib-button').click();
   assert.equal(await creditControl.evaluate(x=>x.classList.contains('maplibregl-compact-show')),false);
   await live.screenshot({path:path.join(artifacts,'vector-live-kl-mobile.png')});
+  await live.evaluate(()=>{window.__journeyVectorBefore={route:JalanGPS.getState().route,bearing:JalanVectorMap.getBearing()};});
+  await live.locator('#passenger-journey-handle').click();
+  assert.equal(await live.locator('#passenger-journey-content').isVisible(),true);
+  await live.screenshot({animations:'disabled',path:path.join(artifacts,'vector-live-journey-details.png')});
+  await live.locator('#passenger-journey-resume').click();
+  assert.equal(await live.evaluate(()=>JalanGPS.getState().active&&JalanGPS.getState().route===window.__journeyVectorBefore.route),true);
+  assert.equal(await live.locator('#passenger-journey-sheet').getAttribute('data-expanded'),'false');
+
   await live.setViewportSize({width:1280,height:800});
   await live.screenshot({path:path.join(artifacts,'vector-live-kl-desktop.png')});
   console.log('PASS: native WebGL map, GPS projection, gestures, report zoom, traffic lifecycle, graphics and post-style tile-outage fallback, live OpenFreeMap');

@@ -67,8 +67,7 @@ body.passenger-mode #jalan-home-report{right:15px;background:#fff;border:2px sol
 #jalan-home-report span{color:#f1c400;text-shadow:0 1px #000;-webkit-text-stroke:2px #202226;font-size:43px}
 body.passenger-mode:has(.jalan-home-sheet[data-state="b"]){--jalan-map-control-bottom:min(365px,48dvh)}
 body.passenger-mode:has(.jalan-home-sheet[data-state="c"]){--jalan-map-control-bottom:calc(92dvh + 8px)}
-body.passenger-guiding #jalan-home-speed,
-body.passenger-guiding #jalan-home-report{display:none!important}
+body.passenger-guiding #jalan-home-speed{display:none!important}
 #jalan-home-menu-panel{position:fixed;z-index:1500;top:calc(82px + env(safe-area-inset-top,0px));
  left:15px;width:min(340px,calc(100vw - 30px));background:#fff;border-radius:17px;
  box-shadow:0 10px 35px #122b4266;padding:14px;color:#223241}
@@ -125,3 +124,16 @@ body.passenger-guiding .passenger-signal-alert{left:74px}
 body.passenger-guiding:has(#passenger-turn-list:not(.hidden)) #jalan-home-menu,
 body.passenger-route-search #jalan-home-menu,
 body.passenger-route-search #jalan-home-menu-panel{display:none!important}
+
+/* One shared corner: reporting while following, Recenter while exploring. */
+body.passenger-guiding #jalan-home-report{display:none;right:14px;
+ bottom:calc(115px + var(--passenger-map-footer-offset,0px) + env(safe-area-inset-bottom,0px));
+ width:50px;height:50px;z-index:1508;touch-action:manipulation}
+body.passenger-guiding #jalan-home-report span{font-size:31px;-webkit-text-stroke:1.5px #202226}
+body.passenger-guiding.passenger-following-location #jalan-home-report{display:grid}
+body.passenger-guiding.passenger-following-location #passenger-recenter-floating{visibility:hidden}
+body.passenger-journey-open #jalan-home-report,
+body.passenger-route-search #jalan-home-report,
+body.passenger-guiding:has(#passenger-turn-list:not(.hidden)) #jalan-home-report{display:none!important}
+@media(max-height:650px){body.passenger-guiding #jalan-home-report{
+ bottom:calc(105px + var(--passenger-map-footer-offset,0px) + env(safe-area-inset-bottom,0px))}}

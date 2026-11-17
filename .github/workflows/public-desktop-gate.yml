@@ -19,6 +19,10 @@ on:
       - 'tests/passenger-gps-status.test.js'
       - 'passenger-home-sheet.js'
       - 'passenger-home-sheet.css'
+      - 'passenger-journey-sheet.js'
+      - 'passenger-journey-sheet.css'
+      - 'passenger-journey-model.js'
+      - 'tests/passenger-journey-model.test.js'
       - 'passenger-route-sheet.js'
       - 'passenger-route-sheet.css'
       - 'passenger-vector-map.js'
@@ -26,6 +30,7 @@ on:
       - 'passenger-route-traffic.css'
       - 'tests/passenger-route-traffic.test.js'
       - 'tests/passenger-vector-390.cjs'
+      - 'tests/passenger-follow-390.cjs'
       - 'tests/passenger-390.cjs'
       - 'tests/public-desktop-390.cjs'
       - '.github/workflows/public-desktop-gate.yml'
@@ -49,6 +54,10 @@ on:
       - 'tests/passenger-gps-status.test.js'
       - 'passenger-home-sheet.js'
       - 'passenger-home-sheet.css'
+      - 'passenger-journey-sheet.js'
+      - 'passenger-journey-sheet.css'
+      - 'passenger-journey-model.js'
+      - 'tests/passenger-journey-model.test.js'
       - 'passenger-route-sheet.js'
       - 'passenger-route-sheet.css'
       - 'passenger-vector-map.js'
@@ -56,6 +65,7 @@ on:
       - 'passenger-route-traffic.css'
       - 'tests/passenger-route-traffic.test.js'
       - 'tests/passenger-vector-390.cjs'
+      - 'tests/passenger-follow-390.cjs'
       - 'tests/passenger-390.cjs'
       - 'tests/public-desktop-390.cjs'
       - '.github/workflows/public-desktop-gate.yml'
@@ -76,7 +86,7 @@ jobs:
           npx playwright install --with-deps chromium
       - name: Run deterministic local Chromium 390px, no outbound network
         run: |
-          node --test tests/passenger-route-traffic.test.js tests/voice-guidance.test.js tests/passenger-gps-status.test.js
+          node --test tests/passenger-journey-model.test.js tests/passenger-route-traffic.test.js tests/voice-guidance.test.js tests/passenger-gps-status.test.js
           node tests/public-desktop-390.cjs
           node tests/passenger-390.cjs
       - name: Verify native vector rendering and public basemap availability
