@@ -773,15 +773,20 @@ async function main(){
   assert.ok(Number.isFinite(headingAfterReturn.camera)&&
     Math.abs(headingAfterReturn.camera+headingAfterReturn.vehicle)<0.02,
     'return to perspective uses last valid GPS or route-estimated heading with upright triangle');
+  const cameraBeforeWeak=await page.evaluate(()=>
+    document.getElementById('map').style.getPropertyValue('--jalan-camera-turn'));
   await page.evaluate(()=>{
     window.__offlineGPSWatch({timestamp:Date.now()+4000,coords:{
       latitude:3.1391,longitude:101.6870,accuracy:180,speed:5,heading:90}});
   });
-  await page.waitForTimeout(60);
-  assert.equal(await page.locator('.jalan-vehicle-marker').count(),0,
-    'uncertain GPS must hide geolocated arrow rather than freeze it');
-  assert.equal(await page.evaluate(()=>document.getElementById('map').style.getPropertyValue('--jalan-camera-turn')),
-    '','uncertain GPS resets camera to north-up');
+  await page.waitForFunction(()=>
+    document.querySelector('.jalan-vehicle-marker')?.classList.contains('jalan-vehicle-uncertain'),
+    null,{timeout:1500});
+  assert.equal(await page.locator('.jalan-vehicle-marker').count(),1,
+    'weak GPS keeps one grey last-known measured vehicle');
+  assert.equal(await page.evaluate(()=>
+    document.getElementById('map').style.getPropertyValue('--jalan-camera-turn')),
+    cameraBeforeWeak,'weak GPS must freeze existing camera instead of inventing a bearing');
   await menuClick('#passenger-2d');
   assert.equal(await page.evaluate(()=>document.body.classList.contains('passenger-map-flat')),true);
   await menuClick('#passenger-stop');
