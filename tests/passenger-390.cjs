@@ -255,10 +255,14 @@ async function main(){
   // A TomTom incident must belong to the same selected route and its
   // original provider fetch. Never invent an incident if traffic unavailable.
   await page.evaluate(()=>{
+    const route=window.JalanGPS.getState().route;
+    const projected=window.JalanTomTom.projectReportPoint(
+      [101.6925,3.145],route.geometry.coordinates);
     window.dispatchEvent(new CustomEvent('jalan:incidents-updated',{detail:{
-      route:window.JalanGPS.getState().route,checkedAt:Date.now(),
-      incidents:[{lat:3.145,lng:101.6925,description:'Reported traffic delay',category:'🚧'},
-        {lat:3.145,lng:101.694,description:'Unrelated nearby road',category:'🚧'}]
+      route,checkedAt:Date.now(),
+      incidents:[{lat:3.145,lng:101.6925,description:'Selected route traffic section',
+        category:'🚧',roadName:'Fixture road',routeAlong:projected.along,routeTotal:projected.total},
+        {lat:3.145,lng:101.694,description:'Unlinked nearby incident',category:'🚧'}]
     }}));
   });
   assert.equal(await page.locator('#passenger-report-list li').count(),2,
@@ -574,33 +578,27 @@ async function main(){
   await page.locator('#passenger-forget-key').click();
   assert.equal(await page.evaluate(()=>localStorage.getItem('jalan-tomtom-key')),null);
   assert.equal(await page.evaluate(()=>document.getElementById('tt-key').value),'');
-  // Exercise actual Go -> traffic module -> mocked provider -> Reports flow.
-  // All provider requests remain intercepted; no real key or GPS is sent.
-  let incidentRequests=0,trafficRouteRequests=0,incidentFailure=false;
+  // Actual passenger Go -> provider route-linked TRAFFIC sections -> reports.
+  // All remote assets are intercepted; no live TomTom key/location is sent.
+  let incidentRequests=0,trafficRouteRequests=0;
   await page.route('https://api.tomtom.com/traffic/map/**',route=>route.fulfill({
     status:200,contentType:'image/png',body:Buffer.from(
       'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=','base64')}));
   await page.route('https://api.tomtom.com/traffic/services/5/incidentDetails?**',route=>{
     incidentRequests++;
-    return route.fulfill({status:incidentFailure?503:200,contentType:'application/json',body:JSON.stringify({incidents:[{
-      geometry:{type:'Point',coordinates:[101.6925,3.145]},
-      properties:{iconCategory:6,events:[{description:'Fixture roadworks ahead'}]}
-    },{
-      geometry:{type:'Point',coordinates:[101.694,3.145]},
-      properties:{iconCategory:6,events:[{description:'Unrelated nearby road'}]}
-    },{
-      geometry:{type:'LineString',coordinates:[[101.6889,3.139],[101.6973,3.1478]]},
-      properties:{iconCategory:6,events:[{description:'Unrelated parallel road'}]}
-    },{
-      geometry:{type:'LineString',coordinates:[[101.6827,3.1346],[101.69362,3.14604]]},
-      properties:{iconCategory:6,events:[{description:'Long incident overlapping selected route'}]}
-    }]})});
+    return route.fulfill({status:503,contentType:'application/json',body:'{}'});
   });
   await page.route('https://api.tomtom.com/routing/1/calculateRoute/**',route=>{
     trafficRouteRequests++;
     return route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({routes:[{
-      legs:[{points:[{latitude:3.139,longitude:101.6869},{latitude:3.1478,longitude:101.6953}]}],
-      summary:{lengthInMeters:3200,travelTimeInSeconds:600,trafficDelayInSeconds:30},guidance:{instructions:[]}
+      legs:[{points:[{latitude:3.139,longitude:101.6869},{latitude:3.145,longitude:101.6925},
+        {latitude:3.1478,longitude:101.6953}]}],
+      summary:{lengthInMeters:3200,travelTimeInSeconds:600,trafficDelayInSeconds:30},
+      sections:[{sectionType:'TRAFFIC',startPointIndex:0,endPointIndex:1,simpleCategory:'JAM',delayInSeconds:90},
+        {sectionType:'TRAFFIC',startPointIndex:1,endPointIndex:2,simpleCategory:'ROAD_WORK',delayInSeconds:60}],
+      guidance:{instructions:[
+        {pointIndex:0,street:'Fixture first road',roadNumbers:['E1']},
+        {pointIndex:1,street:'Fixture second road',roadNumbers:['E2']}]}
     }]})});
   });
   await page.goto(base+'/index.html?mode=passenger',{waitUntil:'load'});
@@ -611,73 +609,64 @@ async function main(){
     localStorage.removeItem('jalan-demo-reports-v1');
     setStart([3.139,101.6869],'Fixture start');destination=[3.1478,101.6953];
     routes=[{provider:'tomtom',duration:600,distance:3200,delay:30,
-      geometry:{type:'LineString',coordinates:[[101.6869,3.139],[101.6953,3.1478]]},legs:[{steps:[]}]}];
+      geometry:{type:'LineString',coordinates:[[101.6869,3.139],[101.6925,3.145],[101.6953,3.1478]]},
+      trafficSectionsCheckedAt:Date.now(),
+      trafficSections:[
+        {sectionType:'TRAFFIC',startPointIndex:0,endPointIndex:1,simpleCategory:'JAM',delayInSeconds:90},
+        {sectionType:'TRAFFIC',startPointIndex:1,endPointIndex:2,simpleCategory:'ROAD_WORK',delayInSeconds:60}],
+      legs:[{steps:[{name:'Fixture first road',street:'Fixture first road',
+        pointIndex:0,roadNumbers:['E1'],maneuver:{type:'continue'}},
+        {name:'Fixture second road',street:'Fixture second road',
+        pointIndex:1,roadNumbers:['E2'],maneuver:{type:'continue'}}]}]}];
     selectedRoute=0;renderRoutes();
   });
   await setupTrafficRoute();
-  assert.equal(incidentRequests,0,'route review does not start traffic fetching');
+  assert.equal(incidentRequests,0,'no area-wide incident requests before Go');
   await page.locator('#passenger-go').click();
   await page.waitForFunction(()=>document.getElementById('passenger-traffic-summary').dataset.state==='ready');
-  assert.equal(incidentRequests,1,'Go fetches incidents without opening options');
-  assert.equal(trafficRouteRequests,0,'GPS-based traffic checks wait for a trusted fix');
+  assert.equal(incidentRequests,0,
+    'route-linked reports do not fetch unrelated bbox Incident Details');
+  assert.equal(trafficRouteRequests,0,'traffic route check waits for a trusted GPS fix');
   assert.equal(await page.locator('#passenger-options').evaluate(x=>x.open),false);
-  assert.equal(await page.locator('#passenger-traffic-summary').isVisible(),true);
-  assert.match(await page.locator('#passenger-traffic-summary').innerText(),/Route reports: 2/);
+  assert.match(await page.locator('#passenger-traffic-summary').innerText(),/Route-linked traffic: 2/);
   assert.equal(await page.locator('.report-marker').count(),2,
-    'map pins use the same route filter as the report list');
+    'two provider-defined route sections, not nearby unlinked incidents');
   assert.equal(await page.locator('#passenger-traffic-toggle').getAttribute('aria-pressed'),'true');
-  assert.equal(await page.evaluate(()=>document.getElementById('tt-incident-toggle').checked),true);
   const trafficLayers=()=>page.evaluate(()=>{
     let n=0;map.eachLayer(layer=>{if(String(layer._url||'').includes('/traffic/map/'))n++;});return n;
   });
-  assert.equal(await trafficLayers(),1,'Go starts one traffic colour overlay');
+  assert.equal(await trafficLayers(),1,'Go enables one traffic colour overlay');
   await page.locator('#passenger-turn-toggle').click();
-  assert.match(await page.locator('#passenger-report-list').innerText(),/Fixture roadworks ahead/);
+  assert.match(await page.locator('#passenger-report-list').innerText(),/Fixture second road/);
   assert.equal(await page.locator('#passenger-report-list li').count(),2);
-  assert.doesNotMatch(await page.locator('#passenger-report-list').innerText(),/Unrelated/);
-  await page.getByRole('button',{name:/Long incident overlapping selected route/}).tap();
-  await assertReportCenter(3.14252,101.69026);
-  await page.locator('#passenger-turn-toggle').click();
-  // Reports can be inspected immediately after Go, even before GPS matches.
-  const liveReport=page.getByRole('button',{name:/View report on map: TomTom traffic incident.*Fixture roadworks ahead/});
-  await liveReport.focus();
-  await liveReport.press('Enter');
+  await page.getByRole('button',{name:/Fixture second road/}).tap();
   await assertReportCenter(3.145,101.6925);
-  assert.equal(await page.locator('.jalan-report-focus-marker').count(),1);
   assert.equal(await page.locator('.jalan-vehicle-marker').count(),0,
-    'a report marker must not impersonate a matched GPS vehicle');
-  assert.equal(await page.locator('#passenger-turn-list').isVisible(),false);
+    'a provider route-section marker cannot impersonate road-matched GPS');
   await page.evaluate(()=>window.__offlineGPSWatch({timestamp:Date.now(),coords:{
     latitude:3.139,longitude:101.6869,accuracy:8,speed:0,heading:0}}));
   await page.waitForFunction(()=>document.getElementById('passenger-live-eta').textContent.includes('10 min'));
   await assertReportCenter(3.145,101.6925);
   await page.locator('#passenger-recenter-floating').click();
   assert.equal(await page.locator('.jalan-report-focus-marker').count(),0);
-  assert.equal(trafficRouteRequests,1,'first trusted fix starts the immediate traffic route check');
-  await page.evaluate(()=>window.__offlineGPSWatch({timestamp:Date.now()+1000,coords:{
-    latitude:3.139,longitude:101.6869,accuracy:8,speed:0,heading:0}}));
-  assert.equal(trafficRouteRequests,1,'GPS updates do not repeatedly request traffic routes');
-  await page.locator('#passenger-turn-toggle').click();
-  await page.getByRole('button',{name:/Fixture roadworks ahead/}).tap();
-  await assertReportCenter(3.145,101.6925);
+  assert.equal(trafficRouteRequests,1,'trusted GPS triggers one traffic route comparison');
   await page.locator('#passenger-options > summary').click();
   await page.locator('#passenger-traffic-details summary').click();
   await page.locator('#passenger-traffic-toggle').click();
-  assert.equal(await trafficLayers(),0,'Live traffic Off removes colour overlay');
-  assert.equal(await page.locator('.jalan-report-focus-marker').count(),0,
-    'Live traffic Off also removes the selected incident highlight');
+  assert.equal(await trafficLayers(),0,'Off removes traffic colour overlay');
+  assert.equal(await page.locator('.jalan-report-focus-marker').count(),0);
   assert.equal(await page.locator('#passenger-traffic-summary').getAttribute('data-state'),'off');
   await page.locator('#passenger-turn-toggle').click();
-  assert.equal(await page.locator('#passenger-report-list li').count(),0,'Off clears old incident reports');
+  assert.equal(await page.locator('#passenger-report-list li').count(),0);
   await page.locator('#passenger-turn-close').click();
-  incidentFailure=true;
+  await page.evaluate(()=>{routes[selectedRoute].trafficSectionsCheckedAt=Date.now()-11*60*1000;});
   await page.locator('#passenger-traffic-toggle').click();
-  await page.waitForFunction(()=>document.getElementById('passenger-traffic-summary').textContent.includes('unavailable'));
-  assert.equal(await page.locator('#passenger-traffic-summary').getAttribute('data-state'),'error');
+  await page.waitForFunction(()=>document.getElementById('passenger-traffic-summary').textContent.includes('Recalculate route'));
+  assert.equal(await page.locator('.report-marker').count(),0,
+    'expired route snapshot must not display stale reports');
   await page.locator('#passenger-stop').click();
   assert.equal(await trafficLayers(),0,'End preview removes automatic traffic layers');
   assert.equal(await page.locator('#proactive-toggle').getAttribute('aria-pressed'),'false');
-  // A new Go with a TomTom-shaped route but no key must make no traffic call.
   await setupTrafficRoute();
   await page.evaluate(()=>{document.getElementById('tt-key').value='';});
   const beforeMissingKey=incidentRequests;

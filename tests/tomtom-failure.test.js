@@ -78,11 +78,60 @@ test('invalid TomTom summary fails closed rather than drawing NaN distance',asyn
  assert.match(n['tt-status'].textContent,/Uncheck TomTom primary routing to use OSRM/);
  assert.equal(s.calls.length,1,'manual fallback must not silently fetch OSRM');
 });
+test('route calculation requests TomTom-native route TRAFFIC sections',async()=>{
+ const s=scene();
+ await s.nodes['tt-route'].onclick();await s.tick();
+ assert.equal(s.calls.length,1);
+ assert.equal(new URL(s.calls[0].url).searchParams.get('sectionType'),'traffic');
+});
+test('route-linked sections use road metadata and route point indices, not a 25m incident radius',()=>{
+ const api=scene().ctx.window.JalanTomTom;
+ const coords=[coordinate(0,0),coordinate(100,0),coordinate(200,0),coordinate(300,0)];
+ const route={provider:'tomtom',geometry:{type:'LineString',coordinates:coords},
+  trafficSectionsCheckedAt:Date.now(),
+  trafficSections:[{sectionType:'TRAFFIC',startPointIndex:1,endPointIndex:3,
+   simpleCategory:'JAM',delayInSeconds:145,effectiveSpeedInKmh:16},
+   {sectionType:'TRAFFIC',startPointIndex:1,endPointIndex:3,
+    simpleCategory:'JAM',delayInSeconds:145},
+   {sectionType:'TRAFFIC',startPointIndex:6,endPointIndex:7,simpleCategory:'OTHER'},
+   {sectionType:'TUNNEL',startPointIndex:0,endPointIndex:1}],
+  legs:[{steps:[{pointIndex:0,street:'Jalan Example',roadNumbers:['E2']},
+   {pointIndex:3,street:'Jalan Elsewhere',roadNumbers:['E9']}]}]};
+ const result=api.trafficSectionsForRoute(route);
+ assert.equal(result.length,1,'invalid, duplicate and non-TRAFFIC sections are excluded');
+ assert.equal(result[0].roadName,'Jalan Example');
+ assert.equal(result[0].roadNumbers[0],'E2');
+ assert.equal(result[0].startPointIndex,1);
+ assert.equal(result[0].endPointIndex,3);
+ assert.equal(result[0].delaySeconds,145);
+ assert.equal(result[0].effectiveSpeedKmh,16);
+ assert.equal(result[0].routeAlong>0,true);
+ assert.equal(result[0].routeAlong<result[0].routeTotal,true);
+ assert.equal(api.trafficSectionsForRoute({...route,provider:'osrm'}).length,0,
+  'OSRM cannot fabricate TomTom route-linked traffic sections');
+ assert.equal(api.trafficSectionsForRoute({...route,trafficSections:[]}).length,0,
+  'missing provider traffic sections never fall back to nearby unverified incidents');
+});
+test('route-linked section distance follows point index when the route revisits identical coordinates',()=>{
+ const api=scene().ctx.window.JalanTomTom;
+ const coords=[coordinate(0,0),coordinate(100,0),coordinate(200,0),
+  coordinate(200,100),coordinate(100,0),coordinate(0,0),coordinate(100,0)];
+ const route={provider:'tomtom',geometry:{type:'LineString',coordinates:coords},
+  trafficSections:[{sectionType:'TRAFFIC',startPointIndex:5,endPointIndex:6,
+    simpleCategory:'JAM',delayInSeconds:60}],legs:[{steps:[]}]};
+ const [matched]=api.trafficSectionsForRoute(route);
+ assert.ok(matched,'a valid later-section index remains eligible');
+ assert.equal(matched.startPointIndex,5);
+ assert.ok(matched.routeAlong>500,'later pass at repeated coordinates must not snap to first road segment');
+ assert.ok(matched.routeAlong<matched.routeTotal);
+});
 test('valid traffic-aware TomTom route remains primary on successful response',async()=>{
  const s=scene(),n=s.nodes;
  await n['tt-route'].onclick();await s.tick();
  assert.equal(s.renders,1);
  assert.equal(s.ctx.routes[0].provider,'tomtom');
+ assert.equal(s.ctx.routes[0].trafficSections,null,
+  'absent provider sections must remain unknown, not be presented as clear roads');
  assert.match(n['tt-eta'].textContent,/Traffic delay/);
  assert.equal(s.calls.length,1);
 });

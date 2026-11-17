@@ -306,45 +306,37 @@ async function main(){
   assert.equal(osrmCalls,callsBeforeNoKey,'Missing TomTom key must not silently switch to OSRM');
   assert.match(await page.locator('#status').textContent(),/Enter a TomTom key or uncheck/);
   await page.locator('#tt-key').fill('PublicTestKey123');
-  // Delayed TomTom incident JSON may complete despite AbortSignal. Removing the
-  // key must invalidate it: no old warning markers or stale 'traffic active'
-  // status may reappear after the user has stopped traffic.
+  // TomTom route-linked TRAFFIC sections are associated by the provider with
+  // the selected route. Verify no separate area-wide Incident Details fetch,
+  // plus revocation clears existing route-specific report pins.
   await page.evaluate(()=>setPanelCollapsed(false));
   await page.locator('#tt-route').click();
   await page.waitForFunction(()=>routes[0]?.provider==='tomtom');
   await page.evaluate(()=>{
-    const originalFetch=window.fetch;
-    window.__restoreIncidentFetch=()=>{window.fetch=originalFetch};
-    window.fetch=(url,options)=>{
-      if(String(url).startsWith('https://api.tomtom.com/traffic/services/5/incidentDetails')){
-        window.__incidentSignal=options?.signal;
-        return new Promise(resolve=>{
-          window.__finishStaleIncident=()=>resolve({ok:true,json:async()=>({incidents:[{
-            geometry:{type:'Point',coordinates:[101.6869,3.139]},
-            properties:{iconCategory:6,events:[{description:'Old warning'}]}
-          }]})});
-        });
-      }
-      return originalFetch(url,options);
+    const route=routes[0];
+    route.trafficSections=[{sectionType:'TRAFFIC',startPointIndex:0,
+      endPointIndex:route.geometry.coordinates.length-1,simpleCategory:'JAM',
+      delayInSeconds:120,effectiveSpeedInKmh:18}];
+    route.trafficSectionsCheckedAt=Date.now();
+    const previousFetch=window.fetch;
+    window.__restoreIncidentFetch=()=>{window.fetch=previousFetch;};
+    window.__legacyIncidentRequests=0;
+    window.fetch=(url,opts)=>{
+      if(String(url).includes('/incidentDetails'))window.__legacyIncidentRequests++;
+      return previousFetch(url,opts);
     };
     document.getElementById('tt-incident-toggle').checked=true;
   });
   await page.evaluate(()=>setPanelCollapsed(false));
   await page.locator('#tt-connect').click();
-  await page.waitForFunction(()=>typeof window.__finishStaleIncident==='function');
+  await page.waitForFunction(()=>document.querySelectorAll('#map .report-marker').length>0);
+  assert.equal(await page.evaluate(()=>window.__legacyIncidentRequests),0,
+    'route-linked reports must not request unrelated bbox Incident Details');
   await page.locator('#tt-remove-key').click();
-  assert.equal(await page.evaluate(()=>window.__incidentSignal?.aborted),true,
-    'Removing TomTom key must abort the incident request');
-  await page.evaluate(async()=>{
-    window.__finishStaleIncident(); // deliberately ignores the aborted signal
-    await new Promise(resolve=>setTimeout(resolve,80));
-    window.__restoreIncidentFetch();
-    delete window.__finishStaleIncident;delete window.__restoreIncidentFetch;
-  });
-  assert.match(await page.locator('#tt-status').textContent(),/Key cleared from browser/,
-    'Late incident response must not overwrite key-revocation status');
   assert.equal(await page.locator('#map .report-marker').count(),0,
-    'Late incident response must not re-add old traffic hazard markers');
+    'key removal clears route-linked traffic warning markers');
+  assert.match(await page.locator('#tt-status').textContent(),/Key cleared from browser/);
+  await page.evaluate(()=>window.__restoreIncidentFetch());
   await page.locator('#tt-key').fill('PublicTestKey123');
 
   // N11 actual public-script DOM integration for the new proactive safeguards.
