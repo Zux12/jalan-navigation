@@ -10,13 +10,13 @@ test('JalanGPS match confidence is cleared on predicted fixes, stop and restart'
     setAttribute(){},addEventListener(){},onclick:null});
   return elements.get(id);
  };
- let updateGPS=null,mode='matched',cleared=0;
+ let updateGPS=null,mode='matched',cleared=0,feeds=0;
  const display={panTo(){},removeLayer(){},invalidateSize(){}};
  const qualityEvents=[];
  const browserWindow={
   dispatchEvent(e){if(e.type==='jalan:location-quality')qualityEvents.push(e.detail);},JalanNavigation:{stop(){}},
   JalanVoice:{reset(){},label(){return 'Muted'},nextMode(){return 'mute'},announce(){},alert(){}},
-  JalanPredictiveGPS:{create:()=>({feed:({position})=>({mode,position,along:0})})}
+  JalanPredictiveGPS:{create:()=>({feed:({position})=>{feeds++;return {mode,position,along:0};}})}
  };
  const ctx={
   window:browserWindow,document:{hidden:false,getElementById:get,
@@ -44,7 +44,13 @@ test('JalanGPS match confidence is cleared on predicted fixes, stop and restart'
  // The predictor may call an impossible point 'matched'; measured GPS must
  // independently reject it and must not export that coordinate or a turn.
  const jump=fix();jump.coords.latitude=3.24;jump.coords.longitude=101.9;
+ const feedsBeforeJump=feeds;
  updateGPS(jump);
+ for(let i=0;i<8;i++)updateGPS({...jump,timestamp:Date.now()});
+ assert.equal(feeds,feedsBeforeJump,
+   'a series of impossible GPS teleports must not poison route predictor history');
+ assert.equal(qualityEvents.at(-1).error,true,
+   'rejected measurement is not painted as a valid GPS-quality fix');
  assert.equal(state().matched,false,'rejected GPS jump cannot retain route confidence');
  assert.equal(state().gpsReliable,false,'a rejected sample is not a fresh measured fix');
  assert.deepEqual(Array.from(state().gpsPosition),[3.139,101.6869]);
@@ -68,6 +74,7 @@ test('JalanGPS match confidence is cleared on predicted fixes, stop and restart'
   updateGPS(f);
   assert.equal(state().matched,false,'invalid GPS accuracy revokes a route-match claim');
   assert.equal(state().accuracy,Infinity,'invalid accuracy must not pass the 75 m proactive threshold');
+  assert.equal(qualityEvents.at(-1).error,true,'invalid accuracy must downgrade GPS quality');
  }
  updateGPS(fix());
  assert.equal(state().matched,true);
