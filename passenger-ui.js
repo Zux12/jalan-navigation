@@ -49,6 +49,21 @@
  window.JalanPassengerStartup=startupPosition;
  let startupMarker=null,locationPending=true;
  let startupTimestamp=-Infinity;
+ let freeLast=null,freeHeading=null,freeExploring=false,freeReturn=null;
+ const freeActive=()=>!destination&&!routes.length&&!document.body.classList.contains('passenger-guiding');
+ const centerFree=()=>{
+   if(freeActive()&&freeLast&&Date.now()-freeLast.timestamp<=15000&&!document.hidden){
+     freeExploring=false;map.panTo(freeLast.point,{animate:false});
+   }
+ };
+ const exploreFree=()=>{if(freeActive()){freeExploring=true;clearTimeout(freeReturn);}};
+ const releaseFree=()=>{if(freeActive()&&freeExploring){clearTimeout(freeReturn);freeReturn=setTimeout(centerFree,3000);}};
+ map.on('dragstart',exploreFree);map.on('dragend',releaseFree);
+ window.addEventListener('jalan:vector-gesture',exploreFree);
+ window.addEventListener('jalan:vector-gesture-end',releaseFree);
+ window.addEventListener('pointerdown',()=>{if(freeActive())clearTimeout(freeReturn);},{passive:true});
+ window.addEventListener('pointerup',releaseFree,{passive:true});
+ window.addEventListener('pointercancel',releaseFree,{passive:true});
  const clearStartupMarker=()=>{
    if(startupMarker){map.removeLayer(startupMarker);startupMarker=null;}
  };
@@ -62,6 +77,7 @@
    locationPending=false;
    clearStartupMarker();
    startupPosition.ready=locationConfidence(detail);
+   if(startupPosition.ready){startupTimestamp=detail.timestamp;freeLast=detail;}
    // The original public location circle cannot masquerade as a trusted fix.
    if(locationMarker){pointLayer.removeLayer(locationMarker);locationMarker=null;}
    if(!startupPosition.ready){
@@ -81,10 +97,26 @@
    const detail=event.detail;
    if(document.body.classList.contains('passenger-guiding')||destination||routes.length||
       !locationConfidence(detail)||detail.timestamp<startupTimestamp)return;
+   const previous=freeLast;
+   let heading=null;
+   if(Number.isFinite(detail.heading)&&detail.heading>=0&&detail.heading<360&&detail.speed>=1)
+     heading=detail.heading;
+   else if(previous&&detail.timestamp>previous.timestamp&&detail.timestamp-previous.timestamp<=30000){
+     const a=L.latLng(previous.point),b=L.latLng(detail.point);
+     if(a.distanceTo(b)>=Math.max(5,Math.min(20,detail.accuracy))){
+       const rad=Math.PI/180,p=a.lat*rad,q=b.lat*rad,dl=(b.lng-a.lng)*rad;
+       heading=(Math.atan2(Math.sin(dl)*Math.cos(q),Math.cos(p)*Math.sin(q)-Math.sin(p)*Math.cos(q)*Math.cos(dl))/rad+360)%360;
+     }
+   }
+   if(heading!==null)freeHeading=heading;
+   freeLast=detail;
    startupTimestamp=detail.timestamp;
    if(!startupMarker){
      window.dispatchEvent(new CustomEvent('jalan:initial-location',{detail}));
    }else startupMarker.setLatLng(detail.point);
+   const symbol=startupMarker?.getElement()?.querySelector('span');
+   if(symbol)symbol.style.transform='rotate('+((freeHeading||0)-(window.JalanVectorMap?.active?window.JalanVectorMap.getBearing():0))+'deg)';
+   if(!freeExploring)centerFree();
    // Keep the original blue location circle from duplicating the triangle.
    if(locationMarker){pointLayer.removeLayer(locationMarker);locationMarker=null;}
  });

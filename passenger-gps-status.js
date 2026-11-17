@@ -53,7 +53,8 @@
      valid:!!c&&Number.isFinite(c.latitude)&&Number.isFinite(c.longitude)&&
        Math.abs(c.latitude)<=90&&Math.abs(c.longitude)<=180});
     window.dispatchEvent(new CustomEvent('jalan:free-location',{detail:{
-     point:[c?.latitude,c?.longitude],accuracy:c?.accuracy,timestamp:fix.timestamp}}));
+     point:[c?.latitude,c?.longitude],accuracy:c?.accuracy,timestamp:fix.timestamp,
+     heading:c?.heading,speed:c?.speed}}));
    },error=>{
     failure=error.code===1?'GPS location permission denied':'GPS location is unavailable · waiting for a new reading';
     if(error.code===1){permitted=false;stopWatch();}

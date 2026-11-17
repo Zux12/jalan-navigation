@@ -307,8 +307,12 @@ async function main(){
     'pre-route GPS moves the same triangle without duplicate markers');
   assert.equal(await startup.evaluate(()=>routes.length===0&&!JalanGPS.getState().active),true,
     'moving before a destination never starts navigation or calculates a route');
-  assert.ok(await startup.evaluate(()=>Math.abs(map.getCenter().lat-3.139)<.00001),
-    'live triangle movement preserves the map view while exploring');
+  assert.ok(await startup.evaluate(()=>Math.abs(map.getCenter().lat-3.1394)<.00001),
+    'pre-route map follows the live triangle');
+  await startup.evaluate(()=>window.dispatchEvent(new CustomEvent('jalan:free-location',{detail:{
+    point:[3.1394,101.6873],accuracy:8,timestamp:Date.now()+1,heading:90,speed:5}})));
+  assert.equal(await startup.locator('.passenger-startup-pin span').evaluate(x=>x.style.transform),'rotate(90deg)',
+    'pre-route triangle turns to measured direction of travel');
   await startup.evaluate(()=>window.dispatchEvent(new CustomEvent('jalan:free-location',{detail:{point:[4,102],accuracy:180,timestamp:Date.now()}})));
   assert.equal(await startup.evaluate(()=>window.__freeMarker.getLatLng().lat),3.1394,'poor GPS cannot move the triangle');
   await startup.screenshot({path:path.join(artifacts,'gps-badge-startup-green.png')});
@@ -316,7 +320,7 @@ async function main(){
   await startup.waitForFunction(()=>document.getElementById('passenger-gps-status').dataset.quality==='yellow');
   await startupContext.setGeolocation({latitude:3.13900003,longitude:101.6869,accuracy:180});
   await startup.waitForFunction(()=>document.getElementById('passenger-gps-status').dataset.quality==='red');
-  assert.ok(await startup.evaluate(()=>Math.abs(map.getCenter().lat-3.139)<.00001),
+  assert.ok(await startup.evaluate(()=>Math.abs(map.getCenter().lat-3.1394)<.00001),
     'quality tracking changes only the indicator, without moving the map');
   await startup.close();await startupContext.close();
   // Inaccurate geolocation must not display a false current-position arrow or
