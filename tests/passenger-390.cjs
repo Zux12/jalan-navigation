@@ -28,13 +28,22 @@ async function main(){
    viewport:{width:390,height:844},deviceScaleFactor:2,
    isMobile:true,hasTouch:true,reducedMotion:'reduce'});
   await context.addInitScript(()=>{
-   Object.defineProperty(navigator,'geolocation',{configurable:true,value:{
+   window.__testVoices=[];window.__spoken=[];
+   const synth=new EventTarget();synth.getVoices=()=>window.__testVoices;
+   synth.cancel=()=>{};synth.speak=u=>window.__spoken.push({text:u.text,voice:u.voice?.name,lang:u.lang});
+   Object.defineProperty(window,'speechSynthesis',{configurable:true,value:synth});
+   Object.defineProperty(window,'SpeechSynthesisUtterance',{configurable:true,value:class{constructor(text){this.text=text;}}});
+   Object.defineProperty(navigator,'geolocation' ,{configurable:true,value:{
     getCurrentPosition(_success,error){error({code:1,message:'Denied in offline fixture'})},
     watchPosition(success,error){window.__offlineGPSWatch=success;error({code:1,message:'Denied in offline fixture'});return 1},
     clearWatch(){}
    }});
   });
   const page=await context.newPage(),errors=[];
+  const menuClick=async selector=>{
+    if(!await page.locator('#jalan-home-menu-panel').isVisible())await page.locator('#jalan-home-menu').click();
+    await page.locator(selector).click();
+  };
   page.on('pageerror',error=>errors.push(error.message));
   await page.route('**/*',route=>{
    if(route.request().url().startsWith(base+'/'))return route.continue();
@@ -62,7 +71,23 @@ async function main(){
   assert.match(await page.locator('#jalan-home-notice').textContent(),/No report was submitted/);
   await page.locator('#jalan-home-menu').click();
   assert.equal(await page.locator('#jalan-home-menu-panel').isVisible(),true);
-  await page.locator('#jalan-home-menu-close').click();
+  assert.equal(await page.locator('#jalan-home-notice').isVisible(),false,'old notices do not obscure the menu');
+  assert.equal(await page.locator('#passenger-options').count(),0,'old three-dot control is removed');
+  assert.equal(await page.locator('#passenger-journey-options').isVisible(),false,'journey controls are hidden before Go');
+  await page.evaluate(()=>{
+    window.__testVoices=[{voiceURI:'test-voice-us',name:'Test English US',lang:'en-US',localService:true},
+      {voiceURI:'test-voice-uk',name:'Test English UK',lang:'en-GB',localService:true}];
+    speechSynthesis.dispatchEvent(new Event('voiceschanged'));
+  });
+  await page.locator('#passenger-voice-choice').selectOption({label:'Test English US · en-US'});
+  await page.locator('#passenger-voice-preview').click();
+  assert.equal(await page.evaluate(()=>window.__spoken.at(-1).voice),'Test English US');
+  assert.match(await page.locator('#gps-voice').textContent(),/Mute/,'sample does not enable navigation speech');
+  fs.mkdirSync(path.join(root,'test-artifacts'),{recursive:true});
+  await page.screenshot({path:path.join(root,'test-artifacts/passenger-voice-menu.png')});
+  await page.keyboard.press('Escape');
+  assert.equal(await page.locator('#jalan-home-menu-panel').isVisible(),false);
+  assert.equal(await page.locator('#jalan-home-menu').getAttribute('aria-expanded'),'false');
   // The search banner must support progressive A→B (not jump to C) on
   // an actual pointer swipe, while B exposes the session-only Recent area.
   const swipeSearch=async dy=>{
@@ -330,7 +355,7 @@ async function main(){
   assert.equal(activeStyles.filter(x=>x>0.9).length,1,
     'Go hides unselected alternatives and highlights the chosen road');
   assert.equal(await page.locator('#gps-hud').isVisible(),false,'engineering HUD hidden in clean view');
-  assert.equal(await page.locator('#passenger-options').evaluate(x=>x.open),false,
+  assert.equal(await page.locator('#jalan-home-menu-panel').isVisible(),false,
     'Go keeps the menu collapsed, showing minutes, km and search');
   assert.equal(await page.locator('.passenger-turn').isVisible(),true,
     'top next-turn guidance must be visible even with compact metrics');
@@ -339,17 +364,23 @@ async function main(){
   assert.equal(await page.locator('.passenger-stats').isVisible(),true);
   assert.equal(await page.locator('#passenger-voice').isVisible(),false,
     'advanced controls remain hidden until opening options');
-  await page.locator('#passenger-options > summary').click();
+  await page.locator('#jalan-home-menu').click();
   assert.equal(await page.locator('#passenger-voice').isVisible(),true,
     'advanced controls remain accessible when passenger requests them');
+  await page.screenshot({path:path.join(root,'test-artifacts/passenger-guidance-menu.png')});
+  await page.locator('#jalan-home-menu-panel [data-menu=settings]').click();
+  assert.equal(await page.locator('#passenger-setup').isVisible(),true,'Routing settings can open during guidance');
+  assert.equal(await page.evaluate(()=>JalanGPS.getState().active),true,'opening settings preserves the journey');
+  await page.locator('#passenger-setup-close').click();
+  await page.locator('#jalan-home-menu').click();
    assert.equal(await page.locator('#passenger-traffic-toggle').getAttribute('aria-pressed'),'false',
      'OSRM / no-key Go cannot start TomTom traffic checks');
    await page.locator('#passenger-traffic-details summary').click();
-   await page.locator('#passenger-traffic-toggle').click();
+   await menuClick('#passenger-traffic-toggle');
    assert.equal(await page.locator('#passenger-traffic-toggle').getAttribute('aria-pressed'),'false',
      'no-key / OSRM route cannot enable automatic TomTom checks');
    assert.match(await page.locator('#passenger-traffic-status').innerText(),/active TomTom route/);
-   await page.locator('#passenger-traffic-check').click();
+   await menuClick('#passenger-traffic-check');
    assert.match(await page.locator('#passenger-traffic-status').innerText(),/road-matched GPS/,
      'manual traffic check must fail closed without road-matched GPS');
    await page.evaluate(()=>window.dispatchEvent(new CustomEvent('jalan:traffic-status',{
@@ -363,24 +394,24 @@ async function main(){
   assert.equal(await page.locator('#passenger-auto-reroute').getAttribute('aria-pressed'),'true',
     'explicit Go enables sustained off-route recovery for this journey');
   assert.match(await page.locator('#passenger-voice').innerText(),/Mute/);
-  await page.locator('#passenger-voice').click();
+  await menuClick('#passenger-voice');
   assert.match(await page.locator('#passenger-voice').innerText(),/Full guidance/,
     'voice button enables existing guidance engine');
   assert.match(await page.locator('#gps-voice').innerText(),/Full guidance/,
     'passenger voice control mirrors engineering state');
-  await page.locator('#passenger-voice').click();
-  await page.locator('#passenger-voice').click();
+  await menuClick('#passenger-voice');
+  await menuClick('#passenger-voice');
   assert.match(await page.locator('#passenger-voice').innerText(),/Mute/,
     'passenger voice control can mute without leaving navigation');
-  await page.locator('#passenger-auto-reroute').click();
+  await menuClick('#passenger-auto-reroute');
   assert.equal(await page.locator('#passenger-auto-reroute').getAttribute('aria-pressed'),'false');
-  await page.locator('#passenger-auto-reroute').click();
+  await menuClick('#passenger-auto-reroute');
   assert.equal(await page.locator('#passenger-auto-reroute').getAttribute('aria-pressed'),'true');
   assert.equal(await page.locator('#gps-auto').getAttribute('aria-pressed'),'true');
   assert.match(await page.locator('#passenger-reroute-status').innerText(),/enabled/);
-  await page.locator('#passenger-auto-reroute').click();
+  await menuClick('#passenger-auto-reroute');
   assert.equal(await page.locator('#passenger-auto-reroute').getAttribute('aria-pressed'),'false');
-  await page.locator('#passenger-reroute-now').click();
+  await menuClick('#passenger-reroute-now');
   assert.match(await page.locator('#passenger-reroute-status').innerText(),/not ready/i,
     'manual recalculate shows unavailable status rather than a fake new route');
   await page.evaluate(()=>window.dispatchEvent(new CustomEvent('jalan:reroute-status',{
@@ -393,6 +424,7 @@ async function main(){
   assert.equal(await page.locator('#passenger-reroute-status').getAttribute('data-state'),'error');
   assert.equal(await page.locator('.passenger-car-arrow').count(),0,
     'fixed fake vehicle triangle must be removed');
+  await page.locator('#jalan-home-menu-close').click();
   const zoomBefore=await page.evaluate(()=>map.getZoom());
   // Unreliable GPS must NEVER silently zoom into an asserted matched road.
   await page.evaluate(()=>{
@@ -426,11 +458,11 @@ async function main(){
     document.getElementById('tt-primary').checked=true;
     document.getElementById('tt-key').value='';
   });
-  await page.locator('#passenger-traffic-check').click();
+  await menuClick('#passenger-traffic-check');
   assert.match(await page.locator('#passenger-traffic-status').innerText(),/Enter TomTom key/,
     'matched GPS does not bypass absent provider credentials');
   await page.evaluate(()=>{document.getElementById('tt-key').value='TEST_RESTRICTED_KEY_1234';});
-  await page.locator('#passenger-traffic-check').click();
+  await menuClick('#passenger-traffic-check');
   await page.waitForFunction(()=>document.getElementById('passenger-traffic-status').textContent.includes('Traffic check failed'),null,{timeout:4000});
   assert.equal(await page.locator('#passenger-traffic-offer').isVisible(),false,
     'failed network request cannot fabricate an alternative');
@@ -687,14 +719,14 @@ async function main(){
   });
   assert.deepEqual(stableCamera,{setCount:0,panCount:0},
     'stationary GPS updates must not redraw the entire route camera');
-  await page.locator('#passenger-recenter').click();
+  await menuClick('#passenger-recenter');
   assert.match(await page.locator('#passenger-gesture-hint').innerText(),/Following GPS/);
   assert.equal(await page.evaluate(()=>map.getZoom()),17,
     'Recenter explicitly restores navigation zoom after exploration');
   const restored=await page.evaluate(()=>[map.getCenter().lat,map.getCenter().lng]);
   assert.notDeepEqual(restored,exploreCenter,
     'Recenter returns the map to the GPS-follow target instead of keeping the dragged view');
-  await page.locator('#passenger-2d').click();
+  await menuClick('#passenger-2d');
   assert.equal(await page.evaluate(()=>document.getElementById('map').style.getPropertyValue('--jalan-camera-turn')),
     '0deg','2D mode stays north-up');
   assert.equal(await page.evaluate(()=>getComputedStyle(document.getElementById('map')).pointerEvents),
@@ -722,11 +754,11 @@ async function main(){
   assert.equal(flatGestures.panned,true,'flat 2D one-finger drag works');
   assert.equal(flatGestures.zoomed,true,'flat 2D pinch works');
   assert.equal(flatGestures.rotated,true,'flat 2D two-finger rotation works');
-  await page.locator('#passenger-recenter').click();
+  await menuClick('#passenger-recenter');
   assert.equal(await page.evaluate(()=>document.getElementById('map').style.getPropertyValue('--jalan-camera-turn')),
     '0deg','2D Recenter restores north-up');
   assert.equal(await page.evaluate(()=>map.getZoom()),17,'2D Recenter returns to GPS zoom');
-  await page.locator('#passenger-2d').click();
+  await menuClick('#passenger-2d');
   const headingAfterReturn=await page.evaluate(()=>({
     camera:Number.parseFloat(document.getElementById('map').style.getPropertyValue('--jalan-camera-turn')),
     vehicle:Number.parseFloat(document.querySelector('.jalan-vehicle-symbol').style.getPropertyValue('--jalan-vehicle-heading'))
@@ -743,9 +775,9 @@ async function main(){
     'uncertain GPS must hide geolocated arrow rather than freeze it');
   assert.equal(await page.evaluate(()=>document.getElementById('map').style.getPropertyValue('--jalan-camera-turn')),
     '','uncertain GPS resets camera to north-up');
-  await page.locator('#passenger-2d').click();
+  await menuClick('#passenger-2d');
   assert.equal(await page.evaluate(()=>document.body.classList.contains('passenger-map-flat')),true);
-  await page.locator('#passenger-stop').click();
+  await menuClick('#passenger-stop');
   assert.equal(await page.locator('.passenger-demo-report-marker').count(),0);
   assert.equal(await page.evaluate(()=>map.hasLayer(reportLayer)),true,
     'End preview restores the original map demo layer');
@@ -766,13 +798,20 @@ async function main(){
   await page.locator('#jalan-home-menu').click();
    await page.locator('#jalan-home-menu-panel [data-menu=settings]').click();
   await page.locator('#passenger-key').fill('TEST_RESTRICTED_KEY_1234');
-  await page.locator('#passenger-remember').check();
+  assert.equal(await page.locator('#passenger-remember').isChecked(),true,'key saving is enabled by default');
   await page.locator('#passenger-use-tomtom').click();
   assert.equal(await page.evaluate(()=>document.getElementById('tt-primary').checked),true);
   assert.equal(await page.evaluate(()=>!!localStorage.getItem('jalan-tomtom-key')),true,
-    'remember on this device requires explicit checkbox');
+    'Use TomTom saves the key for future visits by default');
   await page.goto(base+'/index.html?mode=passenger',{waitUntil:'load'});
   assert.equal(await page.locator('#passenger-remember').isChecked(),true);
+  assert.equal(await page.evaluate(()=>JalanVoice.getState().unavailable),true,'saved voice remains pending while device voices load');
+  await page.evaluate(()=>{
+    window.__testVoices=[{voiceURI:'test-voice-us',name:'Test English US',lang:'en-US',localService:true}];
+    speechSynthesis.dispatchEvent(new Event('voiceschanged'));
+  });
+  assert.equal(await page.locator('#passenger-voice-choice option:checked').textContent(),'Test English US · en-US',
+    'saved voice selection returns after reload and async loading');
   assert.equal(await page.evaluate(()=>!!document.getElementById('tt-key').value),true,
     'both interfaces reuse saved browser key');
   assert.match(await page.locator('#passenger-provider-status').innerText(),/no re-entry needed/);
@@ -835,7 +874,7 @@ async function main(){
   assert.equal(incidentRequests,0,
     'route-linked reports do not fetch unrelated bbox Incident Details');
   assert.equal(trafficRouteRequests,0,'traffic route check waits for a trusted GPS fix');
-  assert.equal(await page.locator('#passenger-options').evaluate(x=>x.open),false);
+  assert.equal(await page.locator('#jalan-home-menu-panel').isVisible(),false);
   assert.match(await page.locator('#passenger-traffic-summary').innerText(),/Route-linked traffic: 2/);
   assert.equal(await page.locator('.report-marker').count(),2,
     'two provider-defined route sections, not nearby unlinked incidents');
@@ -859,9 +898,8 @@ async function main(){
   await page.locator('#passenger-recenter-floating').click();
   assert.equal(await page.locator('.jalan-report-focus-marker').count(),0);
   assert.equal(trafficRouteRequests,1,'trusted GPS triggers one traffic route comparison');
-  await page.locator('#passenger-options > summary').click();
-  await page.locator('#passenger-traffic-details summary').click();
-  await page.locator('#passenger-traffic-toggle').click();
+  await menuClick('#passenger-traffic-details summary');
+  await menuClick('#passenger-traffic-toggle');
   assert.equal(await trafficLayers(),0,'Off removes traffic colour overlay');
   assert.equal(await page.locator('.jalan-report-focus-marker').count(),0);
   assert.equal(await page.locator('#passenger-traffic-summary').getAttribute('data-state'),'off');
@@ -869,11 +907,11 @@ async function main(){
   assert.equal(await page.locator('#passenger-report-list li').count(),0);
   await page.locator('#passenger-turn-close').click();
   await page.evaluate(()=>{routes[selectedRoute].trafficSectionsCheckedAt=Date.now()-11*60*1000;});
-  await page.locator('#passenger-traffic-toggle').click();
+  await menuClick('#passenger-traffic-toggle');
   await page.waitForFunction(()=>document.getElementById('passenger-traffic-summary').textContent.includes('Recalculate route'));
   assert.equal(await page.locator('.report-marker').count(),0,
     'expired route snapshot must not display stale reports');
-  await page.locator('#passenger-stop').click();
+  await menuClick('#passenger-stop');
   assert.equal(await trafficLayers(),0,'End preview removes automatic traffic layers');
   assert.equal(await page.locator('#proactive-toggle').getAttribute('aria-pressed'),'false');
   await setupTrafficRoute();
@@ -883,8 +921,8 @@ async function main(){
   assert.match(await page.locator('#passenger-traffic-summary').innerText(),/add a TomTom key/);
   assert.equal(incidentRequests,beforeMissingKey);
   assert.equal(await trafficLayers(),0);
-  await page.locator('#passenger-options > summary').click();
-  await page.locator('#passenger-stop').click();
+  await page.locator('#jalan-home-menu').click();
+  await menuClick('#passenger-stop');
   // Real browser integration of Go -> sustained detour -> provider response.
   // GPS, routes and time are controlled fixtures; every external request is intercepted.
   await page.goto(base+'/index.html?mode=passenger',{waitUntil:'load'});
@@ -962,7 +1000,7 @@ async function main(){
       body:fs.readFileSync(path.join(leaflet,'leaflet.css'))}));
   await deniedPage.goto(base+'/index.html?mode=passenger',{waitUntil:'load'});
   assert.equal(await deniedPage.evaluate(()=>document.body.classList.contains('passenger-mode')),true);
-  assert.equal(await deniedPage.locator('#passenger-remember').isChecked(),false);
+  assert.equal(await deniedPage.locator('#passenger-remember').isChecked(),true);
   await deniedPage.locator('#jalan-home-menu').click();
    await deniedPage.locator('#jalan-home-menu-panel [data-menu=settings]').click();
   await deniedPage.locator('#passenger-key').fill('TEST_RESTRICTED_KEY_1234');

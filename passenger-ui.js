@@ -183,22 +183,23 @@
    el('passenger-provider-status').textContent='OSRM manually selected — no live traffic ETA.';
    hideSettings();
  });
- // The engineering and passenger screens share one browser origin and key policy.
- // Never copy the key into source code, URLs, logs or a remote database.
+ // Passenger saves an entered key by default at the owner's request.
+ // The engineering screen retains its explicit persistence control.
  const sharedKeyInput=el('tt-key'), sharedRemember=el('tt-remember'),
        passengerRemember=el('passenger-remember');
  const validKey=value=>/^[\w-]{8,160}$/.test(value);
- passengerRemember.checked=sharedRemember.checked;
+ passengerRemember.checked=true;
  if(validKey(sharedKeyInput.value.trim())){
    el('passenger-provider-status').textContent=sharedRemember.checked?
      'Saved TomTom key available on this device — no re-entry needed.':
-     'TomTom key available for this open page.';
+     window.JalanTomTomKeyStorage?.configured?
+     'Configured TomTom key ready — no entry needed.':'TomTom key available for this open page.';
  }
  el('passenger-use-tomtom').addEventListener('click',()=>{
    const input=el('passenger-key'),entered=input.value.trim();
    const value=entered||sharedKeyInput.value.trim();
    if(!validKey(value)){
-     el('passenger-provider-status').textContent='No saved key found. Enter a restricted TomTom key once.';
+     el('passenger-provider-status').textContent='No saved key found. Paste a TomTom browser key once.';
      return;
    }
    // A changed key invalidates old provider requests and old browser storage.
@@ -228,7 +229,7 @@
    el('tt-remove-key').click();
    passengerRemember.checked=false;
    el('passenger-key').value='';
-   el('passenger-provider-status').textContent='Saved TomTom key cleared from this browser.';
+   el('passenger-provider-status').textContent=el('tt-status').textContent;
  });
  function refreshOverview(){
    routeLabels.clearLayers();
@@ -449,6 +450,7 @@
    }
  };
  turnToggle.addEventListener('click',()=>{
+   window.JalanPassengerMenu?.close();
    const open=turnList.classList.contains('hidden');
    if(open){selectInfoTab('reports');turnList.classList.remove('hidden');}
    else closeDirections();
@@ -634,7 +636,7 @@
    closeDirections();
    clearReportFocus();
    incidentSnapshot={route:null,incidents:[],checkedAt:0};
-   el('passenger-options').open=false;
+   window.JalanPassengerMenu?.close();
    clearLiveEta();
    el('passenger-signal-alert').classList.remove('hidden');
    el('passenger-signal-alert').textContent='Waiting for verified GPS';
@@ -672,7 +674,7 @@
    clearReportFocus();
    passengerDemoReports.clearLayers();
    if(!map.hasLayer(reportLayer))reportLayer.addTo(map);
-   el('passenger-options').open=false;
+   window.JalanPassengerMenu?.close();
    clearLiveEta();
    el('passenger-signal-alert').classList.add('hidden');
    hideTrafficOffer();

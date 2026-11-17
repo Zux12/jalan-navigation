@@ -67,7 +67,7 @@ body.passenger-mode #jalan-home-report{right:15px;background:#fff;border:2px sol
 #jalan-home-report span{color:#f1c400;text-shadow:0 1px #000;-webkit-text-stroke:2px #202226;font-size:43px}
 body.passenger-mode:has(.jalan-home-sheet[data-state="b"]){--jalan-map-control-bottom:min(365px,48dvh)}
 body.passenger-mode:has(.jalan-home-sheet[data-state="c"]){--jalan-map-control-bottom:calc(92dvh + 8px)}
-body.passenger-guiding #jalan-home-menu,body.passenger-guiding #jalan-home-speed,
+body.passenger-guiding #jalan-home-speed,
 body.passenger-guiding #jalan-home-report{display:none!important}
 #jalan-home-menu-panel{position:fixed;z-index:1500;top:calc(82px + env(safe-area-inset-top,0px));
  left:15px;width:min(340px,calc(100vw - 30px));background:#fff;border-radius:17px;
@@ -105,3 +105,23 @@ body.passenger-mode .jalan-home-sheet[data-state="c"] #jalan-search-trigger{disp
 body.passenger-mode.passenger-route-search .jalan-home-sheet{display:flex!important;z-index:1802}
 body.passenger-mode.passenger-route-search .jalan-home-sheet .topbar{display:block!important}
 body.passenger-mode.passenger-route-search .jalan-home-sheet .results:not(.hidden){display:block!important}
+
+/* One menu before and during guidance; keep the locked turn banner clear. */
+#jalan-home-menu-panel{max-height:calc(100dvh - 105px - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px));overflow-y:auto;overscroll-behavior:contain}
+#jalan-home-menu-panel h2{font:700 15px system-ui;margin:12px 0 9px}
+#jalan-home-menu-panel .jalan-home-menu-head{position:sticky;top:-14px;background:#fff;z-index:1}
+#jalan-home-menu-panel label{display:block;font:600 13px system-ui;margin:7px 0}
+#passenger-voice-choice{width:100%;min-height:44px;font:14px system-ui;background:#fff;color:#223241;border:1px solid #bdcbd6;border-radius:9px;padding:8px}
+#jalan-home-menu-panel .jalan-voice-settings{border-bottom:1px solid #e0e5eb;padding-bottom:5px}
+#jalan-home-menu-panel .passenger-nav-options,#jalan-home-menu-panel .passenger-controls{display:flex;flex-wrap:wrap;gap:7px}
+#jalan-home-menu-panel .passenger-nav-options button,#jalan-home-menu-panel .passenger-controls button{width:auto;flex:1 1 100px;margin:0}
+#jalan-home-menu-panel .passenger-controls{margin-top:10px}
+#jalan-home-menu-panel .passenger-fix{margin:0 0 7px}
+#jalan-home-menu-panel .passenger-traffic-details{margin:10px 0}
+body.passenger-mode:not(.passenger-guiding) .passenger-journey-options{display:none}
+body.passenger-guiding #jalan-home-menu{z-index:1601;top:calc(125px + env(safe-area-inset-top,0px));left:14px;width:48px;height:48px;font-size:27px}
+body.passenger-guiding #jalan-home-menu-panel{z-index:1602;top:calc(181px + env(safe-area-inset-top,0px));max-height:calc(100dvh - 205px - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px))}
+body.passenger-guiding .passenger-signal-alert{left:74px}
+body.passenger-guiding:has(#passenger-turn-list:not(.hidden)) #jalan-home-menu,
+body.passenger-route-search #jalan-home-menu,
+body.passenger-route-search #jalan-home-menu-panel{display:none!important}

@@ -3,6 +3,7 @@ on:
   pull_request:
     paths:
       - 'tomtom-live.js'
+      - 'jalan-config.js'
       - 'proactive-routing.js'
       - 'gps-navigation.js'
       - 'predictive-gps.js'
@@ -16,6 +17,7 @@ on:
     branches: [main]
     paths:
       - 'tomtom-live.js'
+      - 'jalan-config.js'
       - 'proactive-routing.js'
       - 'gps-navigation.js'
       - 'predictive-gps.js'
