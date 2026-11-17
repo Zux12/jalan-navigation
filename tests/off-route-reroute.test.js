@@ -5,7 +5,7 @@ const test=require('node:test'),assert=require('node:assert/strict');
 const fs=require('node:fs'),path=require('node:path'),vm=require('node:vm');
 const source=name=>fs.readFileSync(path.join(__dirname,'..',name),'utf8');
 function scene({tomtom=true,auto=true}={}){
- let now=1700000000000,watch=null,watchStarts=0,watchClears=0,renders=0,clears=0;
+ let now=1700000000000,watch=null,watchError=null,watchStarts=0,watchClears=0,renders=0,clears=0;
  const nodes=new Map(),events=[],requests=[],timers=new Map(),documentEvents={};let timerId=0;
  const node=id=>{
   if(!nodes.has(id))nodes.set(id,{value:'',checked:false,textContent:'',attrs:{},listeners:{},
@@ -21,7 +21,7 @@ function scene({tomtom=true,auto=true}={}){
     JalanVoice:{reset(){},label(){return 'Muted'},announce(){},alert(){}}},
   document:{hidden:false,getElementById:node,body:{classList:{add(){},remove(){},contains(){return false}}},
     addEventListener(k,fn){documentEvents[k]=fn}},
-  navigator:{geolocation:{watchPosition(success){watch=success;return ++watchStarts},clearWatch(){watchClears++}}},
+  navigator:{geolocation:{watchPosition(success,error){watch=success;watchError=error;return ++watchStarts},clearWatch(){watchClears++}}},
   L:{circleMarker:()=>layer,layerGroup:()=>layer},map:{panTo(){},removeLayer(){},invalidateSize(){}},
   routes:[original],selectedRoute:0,startPoint:[3,101.6],destination,
   renderRoutes(){renders++;context.window.JalanGPS.stop()},
@@ -62,6 +62,7 @@ function scene({tomtom=true,auto=true}={}){
  return {context,node,events,requests,feed,detour,finish,flush,original,destination,
   state:()=>context.window.JalanGPS.getState(),
   get watches(){return watchStarts},get watchClears(){return watchClears},get renders(){return renders},get clears(){return clears},
+  failGPS(){watchError({code:2,message:"Position unavailable in fixture"})},
   expireRequest(){for(const t of timers.values())if(t.ms===20000){t.fn();break}},
   background(){context.document.hidden=true;documentEvents.visibilitychange()},
   advance(ms){now+=ms}};
@@ -108,7 +109,7 @@ test('HTTP and invalid-route failures retain the route/GPS, throttle retries, th
  }
 });
 test('revoked, moved or superseded requests cannot resurrect or replace the journey',async()=>{
- for(const reason of ['stop','auto-off','destination','key','provider','background','poor-gps','back-on-route','moved']){
+ for(const reason of ['stop','auto-off','destination','key','provider','background','gps-error','poor-gps','back-on-route','moved']){
   const s=scene();s.detour();assert.equal(s.requests.length,1);
   if(reason==='stop')s.context.window.JalanGPS.stop();
   if(reason==='auto-off')s.node('gps-auto').onclick();
@@ -116,6 +117,7 @@ test('revoked, moved or superseded requests cannot resurrect or replace the jour
   if(reason==='key')s.node('tt-key').value='differentTestKey';
   if(reason==='provider')s.node('tt-primary').checked=false;
   if(reason==='background')s.background();
+  if(reason==='gps-error')s.failGPS();
   if(reason==='poor-gps')s.feed([3.0008,101.6006],1000,150);
   if(reason==='back-on-route')s.feed([3,101.6006],3000);
   if(reason==='moved')s.feed([3.0008,101.603],10000);

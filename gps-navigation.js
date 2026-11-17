@@ -71,7 +71,12 @@
  }
  function start(){if(active)return;if(!build()){statusEl.textContent='Calculate a route before starting GPS test.';return;}if(!navigator.geolocation){statusEl.textContent='Geolocation unavailable';return;}
   window.JalanNavigation?.stop();current=null;lastFixAt=0;lastReportedAccuracy=Infinity;latestMatched=false;latestMode='waiting';rerouteFix=null;predictor=window.JalanPredictiveGPS.create(route.geometry.coordinates);active=true;window.dispatchEvent(new CustomEvent('jalan:journey-start',{detail:{provider:route?.provider||'osrm',predictedSeconds:route?.duration||null,distanceMeters:route?.distance||null}}));progress=0;offCount=0;lastSpeech='';destinationAnnounced=false;window.JalanVoice.reset();document.body.classList.add('nav-active');el('gps-hud').classList.remove('hidden');el('gps-instruction').textContent='Acquiring GPS…';warn('Experimental guidance only. Test stationary or as a passenger.');marker=L.circleMarker(points[0],{radius:10,color:'#fff',weight:3,fillColor:'#0e9f6e',fillOpacity:document.body.classList.contains('passenger-mode')?0:1,opacity:document.body.classList.contains('passenger-mode')?0:1}).addTo(map);
-  watch=navigator.geolocation.watchPosition(update,e=>warn('GPS unavailable: '+e.message),{enableHighAccuracy:true,maximumAge:1500,timeout:20000});
+  watch=navigator.geolocation.watchPosition(update,e=>{
+   latestMatched=false;lastReportedAccuracy=Infinity;lastFixAt=0;latestMode='waiting';rerouteFix=null;cancelReroute();
+   warn('GPS unavailable: '+e.message);
+   window.dispatchEvent(new CustomEvent('jalan:gps-fix',{detail:{accuracy:Infinity,
+     matched:false,matchedPosition:null,speedMps:null,heading:null,reason:'geolocation-error'}}));
+  },{enableHighAccuracy:true,maximumAge:1500,timeout:20000});
  }
  function stop(){cancelReroute();latestMode='waiting';rerouteFix=null;if(active)window.dispatchEvent(new CustomEvent('jalan:journey-stop'));active=false;current=null;lastFixAt=0;lastReportedAccuracy=Infinity;latestMatched=false;if(watch!==null){navigator.geolocation.clearWatch(watch);watch=null;}if(marker){map.removeLayer(marker);marker=null;}if('speechSynthesis'in window)speechSynthesis.cancel();el('gps-hud').classList.add('hidden');document.body.classList.remove('nav-active');setTimeout(()=>map.invalidateSize(),70);}
  const rerouteStatus=(state,message)=>window.dispatchEvent(new CustomEvent('jalan:reroute-status',{detail:{state,message}}));
