@@ -128,53 +128,79 @@ function reportRouteMatcher(coords){
 }
 const projectReportPoint=(point,coords)=>reportRouteMatcher(coords)?.project(point)||null;
 const matchReportGeometry=(geometry,coords)=>reportRouteMatcher(coords)?.match(geometry)||null;
-async function incidents(force=false){
+// TomTom Routing associates TRAFFIC sections with the exact selected route
+// using point indices. Do not apply an independent 25m Incident Details corridor.
+// Incident Details "from/to" are location labels; TMC sign is not a compass
+// heading without a proper reference table.
+const trafficSectionsForRoute=r=>{
+ if(r?.provider!=='tomtom'||!Array.isArray(r.geometry?.coordinates))return [];
+ const coords=r.geometry.coordinates,steps=(r.legs||[]).flatMap(x=>x.steps||[])
+  .filter(x=>Number.isInteger(x.pointIndex)&&x.pointIndex>=0&&x.pointIndex<coords.length)
+  .sort((a,b)=>a.pointIndex-b.pointIndex);
+ const output=[],seen=new Set();
+ for(const section of r.trafficSections||[]){
+  if(section?.sectionType!=='TRAFFIC')continue;
+  const start=section.startPointIndex,end=section.endPointIndex;
+  if(!Number.isInteger(start)||!Number.isInteger(end)||start<0||end<=start||
+     end>=coords.length)continue;
+  const middle=Math.floor((start+end)/2),point=coords[middle];
+  if(!validPoint(point))continue;
+  const id=start+':'+end+':'+String(section.simpleCategory||'OTHER');
+  if(seen.has(id))continue;seen.add(id);
+  const instruction=steps.filter(x=>x.pointIndex<=middle).at(-1);
+  const name=String(instruction?.street||instruction?.roadNumbers?.[0]||
+    instruction?.name||'Road on selected route').slice(0,100);
+  const category=String(section.simpleCategory||'OTHER').replace(/_/g,' ');
+  const delay=Number.isFinite(section.delayInSeconds)&&section.delayInSeconds>=0?
+    Math.round(section.delayInSeconds):null;
+  const speed=Number.isFinite(section.effectiveSpeedInKmh)&&section.effectiveSpeedInKmh>=0?
+    Math.round(section.effectiveSpeedInKmh):null;
+  const projected=projectReportPoint(point,coords);
+  if(!projected)continue;
+  output.push({lat:point[1],lng:point[0],startPointIndex:start,endPointIndex:end,
+   roadName:name,roadNumbers:instruction?.roadNumbers||[],category,delaySeconds:delay,
+   effectiveSpeedKmh:speed,routeAlong:projected.along,routeTotal:projected.total});
+ }
+ return output.sort((a,b)=>a.startPointIndex-b.startPointIndex).slice(0,60);
+};
+function incidents(force=false){
  if(!active||!el('tt-incident-toggle').checked||routes[selectedRoute]?.provider!=='tomtom'){
   invalidateIncidents();return;
  }
- if(!force&&Date.now()-lastIncidents<300000)return;
- incidentAbort?.abort();incidentAbort=new AbortController();
- const id=++incidentEpoch,r=routes[selectedRoute];
- trafficState('loading','Loading route traffic…',r);
- try{
-  const b=L.latLngBounds(r.geometry.coordinates.map(p=>[p[1],p[0]])).pad(.15);
-  const bbox=[b.getWest(),b.getSouth(),b.getEast(),b.getNorth()].map(x=>x.toFixed(5)).join(',');
-  const url=new URL('https://api.tomtom.com/traffic/services/5/incidentDetails');
-  url.searchParams.set('key',key());url.searchParams.set('bbox',bbox);
-  url.searchParams.set('fields','{incidents{type,geometry{type,coordinates},properties{iconCategory,events{description}}}}');
-  url.searchParams.set('language','en-GB');
-  const response=await fetch(url,{signal:incidentAbort.signal,cache:'no-store'});
-  if(!response.ok)throw Error('Incident API HTTP '+response.status);
-  const data=await response.json();
-  if(id!==incidentEpoch||!active||!el('tt-incident-toggle').checked||routes[selectedRoute]!==r)return;
-  if(!Array.isArray(data.incidents))throw Error('Invalid incident response');
-  incidentLayer.clearLayers();const reportItems=[];let n=0;
-  for(const item of data.incidents){
-   if(n>=60)break;
-   const match=matchReportGeometry(item?.geometry,r.geometry.coordinates);
-   if(!match)continue;
-   const loc=[match.lat,match.lng];
-   const props=item.properties||{},cat=Number(props.iconCategory),emoji=[6,7].includes(cat)?'🚧':[1,2].includes(cat)?'🚗':'⚠️';
-   const popup=document.createElement('div'),head=document.createElement('strong'),desc=document.createElement('p');
-   head.textContent='TomTom incident along selected route';desc.textContent=String(props.events?.[0]?.description||'Traffic incident').slice(0,180);
-   popup.append(head,desc);
-   L.marker(loc,{icon:L.divIcon({className:'report-marker',html:emoji,iconSize:[28,28],iconAnchor:[14,14]})}).bindPopup(popup).addTo(incidentLayer);
-   reportItems.push({lat:loc[0],lng:loc[1],category:emoji,description:desc.textContent});n++;
-  }
-  lastIncidents=Date.now();publishIncidents({route:r,incidents:reportItems,checkedAt:lastIncidents});
-  const stamp=new Date(lastIncidents).toLocaleTimeString('en-MY',{hour:'numeric',minute:'2-digit'});
-  trafficState('ready','Route reports: '+n+' · '+stamp,r);
-  status(`TomTom traffic active · ${n} incident(s) closely matching the selected route. Traffic colours also cover surrounding roads.`);
- }catch(e){
-  if(e.name!=='AbortError'&&id===incidentEpoch&&active){
-   incidentLayer.clearLayers();publishIncidents({route:null,incidents:[],checkedAt:0});
-   trafficState('error','Traffic reports unavailable · retrying in 5 min',r);
-   status('Traffic active; incidents unavailable: '+e.message);
-  }
+ const r=routes[selectedRoute],checkedAt=r.trafficSectionsCheckedAt;
+ incidentLayer.clearLayers();
+ // No fresh Incident Details request is made here. Sections are a route
+ // snapshot and must not masquerade as continuously updated incident data.
+ if(!Number.isFinite(checkedAt)||Date.now()-checkedAt>10*60*1000){
+  publishIncidents({route:r,incidents:[],checkedAt:0});
+  trafficState('stale','Route traffic snapshot expired · Recalculate route',r);
+  status('TomTom traffic overlay active; route incidents need a fresh route calculation.');
+  return;
  }
+ const sections=trafficSectionsForRoute(r),reportItems=[];
+ for(const section of sections){
+  const emoji=section.category==='JAM'?'🚗':
+    ['ROAD WORK','ROAD CLOSURE'].includes(section.category)?'🚧':'⚠️';
+  const summary=section.category[0]+section.category.slice(1).toLowerCase()+
+    ' · '+section.roadName+
+    (section.delaySeconds===null?'':' · delay '+Math.round(section.delaySeconds/60)+' min')+
+    (section.effectiveSpeedKmh===null?'':' · '+section.effectiveSpeedKmh+' km/h');
+  const popup=document.createElement('div'),heading=document.createElement('strong'),desc=document.createElement('p');
+  heading.textContent='TomTom traffic on selected route';desc.textContent=summary;
+  popup.append(heading,desc);
+  L.marker([section.lat,section.lng],{icon:L.divIcon({
+    className:'report-marker',html:emoji,iconSize:[28,28],iconAnchor:[14,14]})})
+   .bindPopup(popup).addTo(incidentLayer);
+  reportItems.push({...section,description:summary,category:emoji,source:'tomtom-route-section'});
+ }
+ lastIncidents=checkedAt;
+ publishIncidents({route:r,incidents:reportItems,checkedAt:lastIncidents});
+ trafficState('ready','Route-linked traffic: '+sections.length+' · from last route calculation',r);
+ status('TomTom route-linked traffic · '+sections.length+
+   ' affected section(s) from the selected route. No 25m incident corridor applied.');
 }
 function refreshRouteIncidents(force=false){if(!active)return;clearTimeout(debounce);debounce=setTimeout(()=>incidents(force),400);}
-function connect(){try{const k=key();hide();active=true;trafficState('loading','Loading route traffic…');tiles=L.tileLayer('https://api.tomtom.com/traffic/map/4/tile/flow/relative0/{z}/{x}/{y}.png?key='+encodeURIComponent(k),{opacity:.82,maxZoom:19,maxNativeZoom:18,attribution:'Traffic © TomTom',updateWhenIdle:true}).addTo(map);let errors=0;tiles.on('tileerror',()=>{if(++errors===3){status('Traffic tiles failed. Check key, domain restriction and quota.');trafficState('error','Traffic map unavailable · check connection or key');}});status('Live traffic enabled. Incidents appear near a TomTom route.');refreshRouteIncidents(true);timer=setInterval(()=>{if(!active||document.hidden)return;tiles?.setUrl('https://api.tomtom.com/traffic/map/4/tile/flow/relative0/{z}/{x}/{y}.png?key='+encodeURIComponent(k)+'&v='+Math.floor(Date.now()/300000));incidents();},300000);return true;}catch(e){status(e.message);trafficState('error','Traffic unavailable · check TomTom key');return false;}}
+function connect(){try{const k=key();hide();active=true;trafficState('loading','Loading route traffic…');tiles=L.tileLayer('https://api.tomtom.com/traffic/map/4/tile/flow/relative0/{z}/{x}/{y}.png?key='+encodeURIComponent(k),{opacity:.82,maxZoom:19,maxNativeZoom:18,attribution:'Traffic © TomTom',updateWhenIdle:true}).addTo(map);let errors=0;tiles.on('tileerror',()=>{if(++errors===3){status('Traffic tiles failed. Check key, domain restriction and quota.');trafficState('error','Traffic map unavailable · check connection or key');}});status('Live traffic enabled. Route reports use provider-linked TRAFFIC sections.');refreshRouteIncidents(true);timer=setInterval(()=>{if(!active||document.hidden)return;tiles?.setUrl('https://api.tomtom.com/traffic/map/4/tile/flow/relative0/{z}/{x}/{y}.png?key='+encodeURIComponent(k)+'&v='+Math.floor(Date.now()/300000));incidents();},300000);return true;}catch(e){status(e.message);trafficState('error','Traffic unavailable · check TomTom key');return false;}}
 /* Replacing a browser key revokes previously remembered credentials and
    cancels pending traffic/route work before any further Connect/Calculate. */
 input.addEventListener('input',()=>{
@@ -198,5 +224,5 @@ function startPassengerTraffic(){
  return connect();
 }
 window.JalanTomTom={enabled,calculate,routeCleared,refreshRouteIncidents,
- startPassengerTraffic,stopPassengerTraffic:hide,reportRouteTolerance,projectReportPoint,matchReportGeometry};
+ startPassengerTraffic,stopPassengerTraffic:hide,reportRouteTolerance,projectReportPoint,matchReportGeometry,trafficSectionsForRoute};
 })();
