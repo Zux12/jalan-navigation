@@ -615,8 +615,9 @@ async function main(){
         {sectionType:'TRAFFIC',startPointIndex:0,endPointIndex:1,simpleCategory:'JAM',delayInSeconds:90},
         {sectionType:'TRAFFIC',startPointIndex:1,endPointIndex:2,simpleCategory:'ROAD_WORK',delayInSeconds:60}],
       legs:[{steps:[{name:'Fixture first road',street:'Fixture first road',
-        pointIndex:0,roadNumbers:['E1']},{name:'Fixture second road',
-        street:'Fixture second road',pointIndex:1,roadNumbers:['E2']}]}]}];
+        pointIndex:0,roadNumbers:['E1'],maneuver:{type:'continue'}},
+        {name:'Fixture second road',street:'Fixture second road',
+        pointIndex:1,roadNumbers:['E2'],maneuver:{type:'continue'}}]}]}];
     selectedRoute=0;renderRoutes();
   });
   await setupTrafficRoute();
