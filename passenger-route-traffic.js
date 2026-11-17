@@ -57,7 +57,8 @@
  // the correct lane/direction on coincident or stacked carriageways.
  function makeFlowMatch(path,sample,data){
    const speed=data?.currentSpeed,free=data?.freeFlowSpeed;
-   if(!Number.isFinite(speed)||!Number.isFinite(free)||free<=0||speed<0)return null;
+   if(!Number.isFinite(speed)||!Number.isFinite(free)||free<=0||speed<0||
+      (Number.isFinite(data.confidence)&&data.confidence<.5))return null;
    const line=data.coordinates?.coordinate;
    if(!Array.isArray(line)||line.length<2)return null;
    const geometry=line.map(p=>[p.longitude,p.latitude]);
@@ -95,7 +96,7 @@
      let type=null;
      if(flowAt&&now-flowAt<=flowTTL){
        for(const match of flows){
-         if(match.type&&match.segments.some(([a,b])=>a<=from+1&&b>=to-1))
+         if(match.type&&match.segments.some(([a,b])=>Math.min(b,to)-Math.max(a,from)>=10))
            if(!type||priority[match.type]>priority[type])type=match.type;
        }
      }
@@ -114,8 +115,9 @@
      if(type){
        const previous=pieces.at(-1);
        const coordinate=interpolated(path,to);
-       if(previous?.type===type)previous.coordinates.push(coordinate);
-       else pieces.push({type,coordinates:[interpolated(path,from),coordinate]});
+       if(previous?.type===type&&Math.abs(previous.end-from)<.01){
+         previous.coordinates.push(coordinate);previous.end=to;
+       }else pieces.push({type,end:to,coordinates:[interpolated(path,from),coordinate]});
      }
    }
    return pieces;
