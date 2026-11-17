@@ -642,20 +642,27 @@ async function main(){
     'rotating map must not draw a second triangle');
   assert.equal(await page.evaluate(()=>!!locationMarker&&pointLayer.hasLayer(locationMarker)),false,
     'ongoing GPS fixes must not recreate legacy location dot in passenger mode');
-  // A browser-cached 20s-old fix must revoke the previously valid vehicle
-  // marker rather than appearing as current road position.
+  // A cached 20s-old fix must freeze the last measured vehicle in grey,
+  // not falsely follow the route or delete the triangle.
   await page.evaluate(()=>{
     window.__offlineGPSWatch({timestamp:Date.now()-20000,coords:{
       latitude:3.139,longitude:101.6869,accuracy:8,speed:0,heading:0}});
   });
-  await page.waitForFunction(()=>!document.querySelector('.jalan-vehicle-marker'),null,{timeout:1500});
-  assert.equal(await page.locator('#passenger-vehicle-screen').isVisible(),false,
-    'expired Safari GPS update removes the upright triangle');
+  await page.waitForFunction(()=>
+    document.querySelector('.jalan-vehicle-marker')?.classList.contains('jalan-vehicle-uncertain'),
+    null,{timeout:1500});
+  assert.equal(await page.locator('.jalan-vehicle-marker').count(),1,
+    'stale Safari GPS retains one frozen georeferenced triangle');
+  assert.equal(await page.locator('#passenger-vehicle-screen').isVisible(),true,
+    'upright grey last-known triangle stays visible');
+  await page.waitForFunction(()=>document.getElementById('passenger-fix').textContent.includes('last known position'),null,{timeout:1500});
+  assert.match(await page.locator('#passenger-fix').innerText(),/last known position/i);
   await page.evaluate(()=>{
     window.__offlineGPSWatch({timestamp:Date.now()+2000,coords:{
       latitude:3.139,longitude:101.6869,accuracy:8,speed:0,heading:0}});
   });
   await page.waitForFunction(()=>!!document.querySelector('.jalan-vehicle-marker')&&
+    !document.querySelector('.jalan-vehicle-marker').classList.contains('jalan-vehicle-uncertain')&&
     !document.getElementById('passenger-vehicle-screen').classList.contains('hidden'),
     null,{timeout:1500});
   assert.equal(await page.locator('#passenger-vehicle-screen').isVisible(),true,
@@ -693,7 +700,7 @@ async function main(){
   assert.match(await page.locator('#passenger-live-eta').innerText(),/6 min/,
     'expired estimate message cannot override the last validated quote');
   assert.equal(await page.locator('.jalan-vehicle-symbol').getAttribute('data-heading'),
-    'route','slow GPS uses clearly estimated route direction, not fake compass');
+    'held','slow GPS retains last reliable bearing rather than snapping to old road geometry');
   assert.equal(await page.locator('.jalan-vehicle-symbol').textContent(),'▲',
     'triangle appears after a verified GPS match even when stationary');
   const slowDirection=await page.evaluate(()=>{
@@ -796,7 +803,9 @@ async function main(){
     let setCount=0,panCount=0;
     map.setView=(...args)=>{setCount++;return originalSet(...args);};
     map.panTo=(...args)=>{panCount++;return originalPan(...args);};
-    const position=window.JalanGPS.getState().position;
+    // Passenger camera follows measured GPS, not the old route-snapped predictor.
+    const position=window.JalanGPS.getState().gpsPosition;
+    if(!Array.isArray(position))throw Error('measured GPS unavailable for camera stability check');
     for(let i=0;i<3;i++){
       window.__offlineGPSWatch({timestamp:Date.now()+3900+i*100,coords:{
         latitude:position[0],longitude:position[1],accuracy:8,speed:0,heading:0}});
@@ -853,15 +862,20 @@ async function main(){
   assert.ok(Number.isFinite(headingAfterReturn.camera)&&
     Math.abs(headingAfterReturn.camera+headingAfterReturn.vehicle)<0.02,
     'return to perspective uses last valid GPS or route-estimated heading with upright triangle');
+  const cameraBeforeWeak=await page.evaluate(()=>
+    document.getElementById('map').style.getPropertyValue('--jalan-camera-turn'));
   await page.evaluate(()=>{
     window.__offlineGPSWatch({timestamp:Date.now()+4000,coords:{
       latitude:3.1391,longitude:101.6870,accuracy:180,speed:5,heading:90}});
   });
-  await page.waitForTimeout(60);
-  assert.equal(await page.locator('.jalan-vehicle-marker').count(),0,
-    'uncertain GPS must hide geolocated arrow rather than freeze it');
-  assert.equal(await page.evaluate(()=>document.getElementById('map').style.getPropertyValue('--jalan-camera-turn')),
-    '','uncertain GPS resets camera to north-up');
+  await page.waitForFunction(()=>
+    document.querySelector('.jalan-vehicle-marker')?.classList.contains('jalan-vehicle-uncertain'),
+    null,{timeout:1500});
+  assert.equal(await page.locator('.jalan-vehicle-marker').count(),1,
+    'weak GPS keeps one grey last-known measured vehicle');
+  assert.equal(await page.evaluate(()=>
+    document.getElementById('map').style.getPropertyValue('--jalan-camera-turn')),
+    cameraBeforeWeak,'weak GPS must freeze existing camera instead of inventing a bearing');
   await menuClick('#passenger-2d');
   assert.equal(await page.evaluate(()=>document.body.classList.contains('passenger-map-flat')),true);
   await menuClick('#passenger-stop');
@@ -1028,6 +1042,7 @@ async function main(){
   await page.locator('#passenger-go').click();
   assert.equal(await page.locator('#passenger-auto-reroute').getAttribute('aria-pressed'),'true');
   await page.evaluate(()=>{
+    window.__detourGPSWatch=window.__offlineGPSWatch;
     const send=(latitude,longitude,advance)=>{
       window.__detourNow+=advance;
       window.__offlineGPSWatch({timestamp:Date.now(),coords:{latitude,longitude,accuracy:8,speed:5,heading:90}});
@@ -1037,6 +1052,13 @@ async function main(){
   });
   await page.waitForFunction(()=>document.getElementById('passenger-signal-alert').textContent.includes('Recalculating route'));
   assert.equal(detourRequests,1,'Go automatically requests one route after a sustained detour');
+  assert.equal(await page.locator('.jalan-vehicle-marker').count(),1,
+    'off-route GPS retains vehicle triangle instead of discarding it');
+  await page.evaluate(()=>window.__detourVehicle=document.querySelector('.jalan-vehicle-marker'));
+  assert.deepEqual(await page.evaluate(()=>JalanGPS.getState().gpsPosition),[3.0008,101.6006],
+    'measured off-route position remains separate from old route-match state');
+  assert.equal(await page.locator('#passenger-speed').innerText(),'18',
+    'speed is measured GPS even when prior route is unmatched');
   assert.equal(await page.locator('#passenger-signal-alert').isVisible(),true,
     'recalculation feedback is visible without opening the options menu');
   assert.equal(await page.evaluate(()=>JalanGPS.getState().active&&routes[0]===window.__detourOriginal.route),true,
@@ -1048,6 +1070,10 @@ async function main(){
   }]})});
   await page.waitForFunction(()=>JalanGPS.getState().active&&JalanGPS.getState().route!==window.__detourOriginal.route);
   assert.equal(await page.evaluate(()=>destination===window.__detourOriginal.destination&&destinationMarker===window.__detourOriginal.marker),true);
+  assert.equal(await page.evaluate(()=>window.__offlineGPSWatch===window.__detourGPSWatch),true,
+    'successful reroute preserves original geolocation watch');
+  assert.equal(await page.evaluate(()=>window.__detourVehicle===document.querySelector('.jalan-vehicle-marker')),true,
+    'reroute replaces only road geometry without recreating the triangle');
   assert.equal(await page.locator('#passenger-navigation').isVisible(),true);
   assert.equal(await page.locator('#passenger-go').isVisible(),false,'new route resumes guidance without another Go');
   assert.match(await page.locator('#passenger-reroute-status').textContent(),/Route updated/);

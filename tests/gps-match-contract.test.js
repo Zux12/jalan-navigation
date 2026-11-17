@@ -10,13 +10,13 @@ test('JalanGPS match confidence is cleared on predicted fixes, stop and restart'
     setAttribute(){},addEventListener(){},onclick:null});
   return elements.get(id);
  };
- let updateGPS=null,mode='matched',cleared=0;
+ let updateGPS=null,mode='matched',cleared=0,feeds=0;
  const display={panTo(){},removeLayer(){},invalidateSize(){}};
  const qualityEvents=[];
  const browserWindow={
   dispatchEvent(e){if(e.type==='jalan:location-quality')qualityEvents.push(e.detail);},JalanNavigation:{stop(){}},
   JalanVoice:{reset(){},label(){return 'Muted'},nextMode(){return 'mute'},announce(){},alert(){}},
-  JalanPredictiveGPS:{create:()=>({feed:({position})=>({mode,position,along:0})})}
+  JalanPredictiveGPS:{create:()=>({feed:({position})=>{feeds++;return {mode,position,along:0};}})}
  };
  const ctx={
   window:browserWindow,document:{hidden:false,getElementById:get,
@@ -37,10 +37,31 @@ test('JalanGPS match confidence is cleared on predicted fixes, stop and restart'
  get('gps-start').onclick();
  assert.equal(state().active,true);
  assert.equal(state().matched,false,'starting GPS must not borrow an old fix');
+ // Browser geolocation callbacks normally carry fresh, monotonic timestamps;
+ // separate a true older-sample replay from many synthetic callbacks in one ms.
+ let lastFixtureTime=0;
  const fix=()=>({coords:{latitude:3.139,longitude:101.6869,accuracy:6,
-   speed:0,heading:0},timestamp:Date.now()});
+   speed:0,heading:0},timestamp:(lastFixtureTime=Math.max(Date.now(),lastFixtureTime+1))});
  updateGPS(fix());
  assert.equal(state().matched,true,'verified predictor match permits proactive checks');
+ // The predictor may call an impossible point 'matched'; measured GPS must
+ // independently reject it and must not export that coordinate or a turn.
+ const jump=fix();jump.coords.latitude=3.24;jump.coords.longitude=101.9;
+ const feedsBeforeJump=feeds;
+ updateGPS(jump);
+ for(let i=0;i<8;i++)updateGPS({...jump,timestamp:Date.now()});
+ assert.equal(feeds,feedsBeforeJump,
+   'a series of impossible GPS teleports must not poison route predictor history');
+ assert.equal(qualityEvents.at(-1).error,true,
+   'rejected measurement is not painted as a valid GPS-quality fix');
+ assert.equal(state().matched,false,'rejected GPS jump cannot retain route confidence');
+ assert.equal(state().gpsReliable,false,'a rejected sample is not a fresh measured fix');
+ assert.deepEqual(Array.from(state().gpsPosition),[3.139,101.6869]);
+ assert.deepEqual(Array.from(state().position),[3.139,101.6869],
+   'read-only route state cannot export a rejected GPS teleport');
+ assert.match(get('gps-instruction').textContent,/Route alignment pending/,
+   'even a predictor-matched teleport must pause turning guidance');
+ updateGPS(fix());assert.equal(state().matched,true);
  const expired=fix();expired.timestamp=Date.now()-20000;
  updateGPS(expired);
  assert.equal(state().matched,false,'cached 20-second-old Safari reading invalidates GPS match');
@@ -56,6 +77,7 @@ test('JalanGPS match confidence is cleared on predicted fixes, stop and restart'
   updateGPS(f);
   assert.equal(state().matched,false,'invalid GPS accuracy revokes a route-match claim');
   assert.equal(state().accuracy,Infinity,'invalid accuracy must not pass the 75 m proactive threshold');
+  assert.equal(qualityEvents.at(-1).error,true,'invalid accuracy must downgrade GPS quality');
  }
  updateGPS(fix());
  assert.equal(state().matched,true);
@@ -71,6 +93,7 @@ test('JalanGPS match confidence is cleared on predicted fixes, stop and restart'
  assert.equal(state().active,false);
  assert.equal(state().matched,false);
  assert.equal(state().position,null,'stopped session must not expose stale GPS');
+ assert.equal(state().gpsPosition,null,'stop revokes the old measured-position session');
  assert.equal(state().accuracy,Infinity,'stopped session clears numeric GPS accuracy');
  assert.equal(cleared,1);
  get('gps-start').onclick();
@@ -78,8 +101,8 @@ test('JalanGPS match confidence is cleared on predicted fixes, stop and restart'
  assert.equal(state().matched,false,'restart must reset match confidence');
  assert.equal(state().position,null);
  assert.equal(state().accuracy,Infinity,'restarted session must not inherit accuracy');
- // The old reroute path invoked start() while active, so the new route was
- // calculated but the prior GPS watch and matcher remained attached.
+ // A successful replacement must update the active route matcher in place,
+ // preserving the original GPS watcher and measured vehicle fix.
  let watchStarts=1;
  ctx.navigator.geolocation.watchPosition=success=>{updateGPS=success;watchStarts++;return watchStarts;};
  updateGPS(fix());
@@ -88,11 +111,20 @@ test('JalanGPS match confidence is cleared on predicted fixes, stop and restart'
  ctx.requestDrivingRoutes=async()=>[{...previousRoute,
    geometry:{type:'LineString',coordinates:[[101.6869,3.139],[101.6955,3.148]]}}];
  await get('gps-reroute').onclick();
- assert.ok(cleared>previousWatchClears,
-   'successful reroute must stop the previous GPS watcher');
- assert.ok(watchStarts>1,
-   'successful reroute must start a new GPS watcher');
+ assert.equal(cleared,previousWatchClears,
+   'successful reroute must not stop the existing GPS watcher');
+ assert.equal(watchStarts,1,
+   'successful reroute must not start a second GPS watcher');
  assert.equal(state().active,true,'new route GPS session must be active');
- assert.notEqual(state().route,previousRoute,'new GPS session must hold the new route');
+ assert.notEqual(state().route,previousRoute,'same GPS session must hold the replacement route');
  assert.equal(state().matched,false,'reroute must not reuse old road-match confidence');
+ // A new navigation session may legitimately begin far from the last trip.
+ // Its first accurate fix must not be rejected by the previous trip's filter.
+ browserWindow.JalanGPS.stop();get('gps-start').onclick();
+ assert.equal(state().gpsPosition,null,'new session starts without prior trip coordinates');
+ const newTrip=fix();newTrip.coords.latitude=3.24;newTrip.coords.longitude=101.9;
+ updateGPS(newTrip);
+ assert.equal(state().gpsReliable,true,'fresh independent GPS session accepts its first real fix');
+ assert.equal(state().matched,true);
+ assert.deepEqual(Array.from(state().gpsPosition),[3.24,101.9]);
 });

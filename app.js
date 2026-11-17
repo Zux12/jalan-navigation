@@ -95,18 +95,18 @@ async function calculateRoutes(){
   console.error(e);
  }finally{if(osrmAbort===controller)osrmAbort=null;}
 }
-function renderRoutes(){
+function renderRoutes({preserveGPS=false}={}){
  if(passengerMode&&routes!==passengerLastRoutes){
   // Real provider alternatives only. Sort by finite ETA; never fabricate one.
   routes.sort((a,b)=>(Number.isFinite(a.duration)?a.duration:Infinity)-(Number.isFinite(b.duration)?b.duration:Infinity));
   selectedRoute=0;passengerLastRoutes=routes;
  }
- window.JalanNavigation?.stop();window.JalanGPS?.stop();routeLayer.clearLayers();routes.forEach((r,i)=>{const points=r.geometry.coordinates.map(p=>[p[1],p[0]]);L.polyline(points,{color:i===selectedRoute?'#2563eb':'#94a3b8',weight:i===selectedRoute?7:5,opacity:i===selectedRoute?0.95:0.65}).addTo(routeLayer).on('click',()=>selectRoute(i))});
+ if(!preserveGPS){window.JalanNavigation?.stop();window.JalanGPS?.stop();}routeLayer.clearLayers();routes.forEach((r,i)=>{const points=r.geometry.coordinates.map(p=>[p[1],p[0]]);L.polyline(points,{color:i===selectedRoute?'#087af5':'#94a3b8',weight:i===selectedRoute?9:5,opacity:preserveGPS?(i===selectedRoute?1:0):(i===selectedRoute?0.95:0.65)}).addTo(routeLayer).on('click',()=>selectRoute(i))});
  const chosen=routes[selectedRoute];
  const bounds=L.latLngBounds(chosen.geometry.coordinates.map(p=>[p[1],p[0]]));
  // Update the panel first; fitBounds runs after the layout has settled.
  const fitSelectedRoute=()=>{
-   // A quick Cancel or a newer selection invalidates this queued overview fit.
+   // Cancel and newer route choices invalidate an older queued overview fit.
    if(routes[selectedRoute]!==chosen)return;
    // Route-overview fit is queued for later paint. Go may have started GPS
    // meanwhile; never zoom back out over the active passenger camera.

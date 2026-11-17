@@ -24,7 +24,7 @@ function scene({tomtom=true,auto=true}={}){
   navigator:{geolocation:{watchPosition(success,error){watch=success;watchError=error;return ++watchStarts},clearWatch(){watchClears++}}},
   L:{circleMarker:()=>layer,layerGroup:()=>layer},map:{panTo(){},removeLayer(){},invalidateSize(){}},
   routes:[original],selectedRoute:0,startPoint:[3,101.6],destination,
-  renderRoutes(){renders++;context.window.JalanGPS.stop()},
+  renderRoutes({preserveGPS=false}={}){renders++;if(!preserveGPS)context.window.JalanGPS.stop()}, 
   clearRoute(){clears++;context.window.JalanGPS?.stop();context.window.JalanTomTom?.routeCleared();context.routes=[]},
   updateLocation(){},fmtDist:String,fmtTime:String,statusEl:{textContent:''},setPanelCollapsed(){},
   localStorage:{getItem(){return null},removeItem(){},setItem(){}},
@@ -81,7 +81,9 @@ for(const tomtom of [true,false])test(`sustained detour replaces ${tomtom?'TomTo
  await s.finish();
  assert.notEqual(s.state().route,s.original);assert.equal(s.state().route.duration,200);
  assert.equal(s.context.destination,s.destination);assert.equal(s.state().active,true);
- assert.equal(s.watches,2);assert.equal(s.renders,1);assert.equal(s.clears,0);
+ assert.equal(s.watches,1,'detour replacement must retain the original geolocation watch');
+ assert.equal(s.watchClears,0,'successful route swap does not clear GPS');
+ assert.equal(s.renders,1);assert.equal(s.clears,0);
  assert.equal(s.events.filter(e=>e.type==='jalan:route-change').length,1);
 });
 test('first accurate GPS already away from the planned road can recover without an initial route match',async()=>{
@@ -97,6 +99,57 @@ test('single jump, poor accuracy, stale readings and auto Off cannot trigger rou
   if(scenario==='off')s.detour();
   await s.flush();assert.equal(s.requests.length,0,scenario);assert.equal(s.state().route,s.original);
  }
+});
+test('repeated impossible GPS teleports never relocate the vehicle or trigger a route request',async()=>{
+ const s=scene();s.feed([3,101.6],0);
+ const accepted=s.state().gpsPosition;
+ // Several good-accuracy samples at a location >10km away in seconds
+ // must not become a trusted measured position or a reroute origin.
+ for(let i=0;i<8;i++)s.feed([3.02,101.7],3000);
+ await s.flush();
+ assert.deepEqual(s.state().gpsPosition,accepted);
+ assert.equal(s.requests.length,0,'no TomTom request from rejected teleport');
+ assert.equal(s.state().route,s.original);
+ assert.equal(s.state().active,true);
+ assert.equal(s.watches,1);
+});
+test('out-of-order fresh-looking GPS callbacks never rewind the measured vehicle or drive rerouting',async()=>{
+ const s=scene();s.feed([3,101.6],0);
+ // A second accurate fix is accepted at t+3s; delayed callbacks with older
+ // timestamps are still within the existing 10s staleness window.
+ s.feed([3,101.6001],3000);
+ const trusted=s.state().gpsPosition;
+ const firstTimestamp=1700000000000;
+ for(let i=0;i<3;i++)s.feed([3.00055,101.6004+i*.00006],1000,8,firstTimestamp+1500+i*100);
+ await s.flush();
+ assert.deepEqual(s.state().gpsPosition,trusted,'old callback cannot replace newer GPS');
+ assert.equal(s.requests.length,0,'out-of-order callbacks cannot create a detour request');
+ assert.equal(s.state().gpsReliable,true,'replayed callback should not revoke fresh accepted position');
+ s.feed([3,101.60016],1000);
+ assert.deepEqual(Array.from(s.state().gpsPosition),[3,101.60016],
+  'the next genuinely fresh fix still advances measured position');
+ assert.equal(s.watches,1,'one uninterrupted geolocation watcher');
+});
+test('GPS short-range and post-outage teleports cannot bypass travel plausibility',async()=>{
+ // Before this fix a 189 m displacement at t=2.1 s passed the old 250 m
+ // floor after three consistent samples, despite no plausible vehicle travel.
+ const near=scene();near.feed([3,101.6],0);
+ const first=near.state().gpsPosition;
+ for(const delta of [0,1050,1050])near.feed([3,101.6017],delta);
+ assert.deepEqual(near.state().gpsPosition,first,
+   '189 m in 2.1 s is not evidence of safe vehicle motion');
+ assert.equal(near.state().gpsReliable,false);
+ assert.equal(near.requests.length,0,'rejected short teleport cannot route from a false origin');
+ // The former dt<30 condition also allowed an impossible 40 km position
+ // after a 35 s GPS outage, merely because it repeated three times.
+ const long=scene();long.feed([3,101.6],0);long.advance(35000);
+ const original=long.state().gpsPosition;
+ for(const delta of [0,1000,1000])long.feed([3.2,101.9],delta);
+ assert.deepEqual(long.state().gpsPosition,original,
+   'post-outage 40 km relocation must remain unverified');
+ assert.equal(long.state().gpsReliable,false);
+ assert.equal(long.requests.length,0,'no provider request from post-outage teleport');
+ assert.equal(long.state().active,true,'preserve GPS watcher and existing journey');
 });
 test('HTTP and invalid-route failures retain the route/GPS, throttle retries, then recover',async()=>{
  for(const failure of [{ok:false},{invalid:true}]){

@@ -307,8 +307,11 @@ async function main(){
     'pre-route GPS moves the same triangle without duplicate markers');
   assert.equal(await startup.evaluate(()=>routes.length===0&&!JalanGPS.getState().active),true,
     'moving before a destination never starts navigation or calculates a route');
-  assert.ok(await startup.evaluate(()=>Math.abs(map.getCenter().lat-3.139)<.00001),
-    'live triangle movement preserves the map view while exploring');
+  assert.ok(await startup.evaluate(()=>Math.abs(map.getCenter().lat-3.1394)<.00001),
+    'pre-route map follows the live triangle');
+  await startup.evaluate(()=>window.dispatchEvent(new CustomEvent('jalan:free-location',{detail:{
+    point:[3.1394,101.6873],accuracy:8,timestamp:Date.now()+1,heading:90,speed:5}})));
+  await startup.waitForFunction(()=>document.querySelector('.jalan-vector-pin .passenger-startup-pin span')?.style.transform==='rotate(90deg)');
   await startup.evaluate(()=>window.dispatchEvent(new CustomEvent('jalan:free-location',{detail:{point:[4,102],accuracy:180,timestamp:Date.now()}})));
   assert.equal(await startup.evaluate(()=>window.__freeMarker.getLatLng().lat),3.1394,'poor GPS cannot move the triangle');
   await startup.screenshot({path:path.join(artifacts,'gps-badge-startup-green.png')});
@@ -316,7 +319,7 @@ async function main(){
   await startup.waitForFunction(()=>document.getElementById('passenger-gps-status').dataset.quality==='yellow');
   await startupContext.setGeolocation({latitude:3.13900003,longitude:101.6869,accuracy:180});
   await startup.waitForFunction(()=>document.getElementById('passenger-gps-status').dataset.quality==='red');
-  assert.ok(await startup.evaluate(()=>Math.abs(map.getCenter().lat-3.139)<.00001),
+  assert.ok(await startup.evaluate(()=>Math.abs(map.getCenter().lat-3.1394)<.00001),
     'quality tracking changes only the indicator, without moving the map');
   await startup.close();await startupContext.close();
   // Inaccurate geolocation must not display a false current-position arrow or
@@ -410,6 +413,11 @@ async function main(){
   });
   assert.equal(trail.color,'#8293aa');assert.ok(trail.last.lng<trail.end[0],'travelled colour stops before the destination');
   await live.screenshot({path:path.join(artifacts,'vector-travelled-route.png')});
+  // The real continuous-GPS controller emits this after a successful atomic
+  // off-route route swap; old geometry must disappear before the next fix.
+  await live.evaluate(()=>window.dispatchEvent(new CustomEvent('jalan:route-change',{detail:{reason:'off-route'}})));
+  assert.equal(await live.evaluate(()=>Object.values(map._layers).some(x=>x.options?.className==='jalan-travelled-route')),false,
+    'atomic replacement immediately clears obsolete travelled-route geometry');
   await live.evaluate(()=>{JalanGPS.getState=window.__originalState;});
   assert.ok(tileResponses.some(code=>code===200),'actual vector/glyph resources received');
   assert.equal(await live.evaluate(()=>JalanVectorMap.active),true);
