@@ -4,7 +4,7 @@ const fs=require('node:fs'),vm=require('node:vm'),path=require('node:path');
 const code=fs.readFileSync(path.join(__dirname,'..','passenger-route-traffic.js'),'utf8');
 const point=(east,north=0)=>[101.68+east/(111320*Math.cos(3.14*Math.PI/180)),3.14+north/111320];
 const geometry=[point(0),point(100),point(200),point(300)];
-function scene({flow=null}={}){
+function scene({flow=null,clock=null}={}){
  const handlers=new Map(),keyListeners=new Map(),all=[],urls=[];
  const layerGroup=()=>{const layers=[];const group={
   addTo(){return group;},clearLayers(){layers.length=0;},getLayers(){return layers;}
@@ -21,7 +21,7 @@ function scene({flow=null}={}){
   listeners.push(fn);handlers.set(name,listeners);}};
  let routes=[],selectedRoute=0;
  const ctx={window,document,map:{},L,location:{search:'?mode=passenger'},
-  URL,URLSearchParams,AbortController,Date,Math,Number,Array,console,
+  URL,URLSearchParams,AbortController,Date:clock?class extends Date{static now(){return clock.now}}:Date,Math,Number,Array,console,
   setInterval:()=>1,clearInterval:()=>{},routes,selectedRoute,
   fetch:async(url)=>{
    urls.push(String(url));
@@ -130,4 +130,16 @@ test('revoking TomTom key while provider response is pending prevents stale flow
  s.setKey('');await s.tick();
  assert.equal(s.api.getState().active,false,'key revocation clears selected traffic layer');
  assert.equal(s.api.getState().overlayCount,0,'late provider response cannot recolour route');
+});
+
+test('journey traffic snapshot reuses existing evidence, expires and clears on key revocation',async()=>{
+ const clock={now:Date.now()},s=scene({clock}),r=route([section(1,2,2)]);
+ r.trafficSectionsCheckedAt=clock.now;s.ctx.routes=[r];s.dispatch('jalan:routes-rendered');await s.tick();
+ const count=s.urls.length,a=s.api.getJourneySnapshot();
+ assert.equal(a.route,r);assert.ok(a.total>290);assert.equal(a.segments[0].type,'moderate');
+ a.segments[0].type='heavy';assert.equal(s.api.getJourneySnapshot().segments[0].type,'moderate');
+ clock.now+=10*60*1000+1;
+ assert.equal(s.api.getJourneySnapshot().segments.length,0,'expired colour evidence is removed without new requests');
+ assert.equal(s.urls.length,count);
+ s.setKey('');assert.equal(s.api.getJourneySnapshot().route,null);
 });

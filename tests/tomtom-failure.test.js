@@ -256,3 +256,15 @@ test('invalid configured key is not injected into routing',()=>{
  const s=scene({configKey:'invalid key value',userKey:null});
  assert.equal(s.nodes['tt-key'].value,'');assert.equal(s.ctx.window.JalanTomTom.enabled(),false);
 });
+
+test('normalization retains all road-distance boundaries for journey via summary',async()=>{
+ const instructions=Array.from({length:122},(_,i)=>({street:i===121?'Long highway':'Local road',
+  routeOffsetInMeters:i*10,maneuver:'CONTINUE'}));
+ const s=scene({response:{routes:[{legs:[{points:[{latitude:3.14,longitude:101.68},
+  {latitude:3.15,longitude:101.69}]}],summary:{travelTimeInSeconds:600,lengthInMeters:10000,trafficDelayInSeconds:0},
+  guidance:{instructions}}]}});
+ await s.nodes['tt-route'].onclick();await s.tick();
+ assert.equal(s.ctx.routes[0].legs[0].steps.length,120,'spoken-step limit unchanged');
+ assert.equal(s.ctx.routes[0].roadGuidance.length,122,'longest-road summary sees every boundary');
+ assert.equal(require('../passenger-journey-model.js').longestRoad(s.ctx.routes[0]),'Long highway');
+});
