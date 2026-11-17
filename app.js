@@ -106,6 +106,8 @@ function renderRoutes({preserveGPS=false}={}){
  const bounds=L.latLngBounds(chosen.geometry.coordinates.map(p=>[p[1],p[0]]));
  // Update the panel first; fitBounds runs after the layout has settled.
  const fitSelectedRoute=()=>{
+   // Cancel and newer route choices invalidate an older queued overview fit.
+   if(routes[selectedRoute]!==chosen)return;
    // Route-overview fit is queued for later paint. Go may have started GPS
    // meanwhile; never zoom back out over the active passenger camera.
    if(document.body.classList.contains('nav-active')||

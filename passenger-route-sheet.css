@@ -26,3 +26,14 @@ body.passenger-mode .passenger-overview.passenger-route-dragging{
 
 /* Once search is hidden, its old A/B/C height must not move map buttons. */
 body.passenger-mode:has(.jalan-home-sheet.jalan-sheet-route){--jalan-map-control-bottom:96px}
+
+.passenger-route-actions{display:grid;grid-template-columns:1fr 1fr;gap:10px;flex:0 0 auto;margin-top:4px}
+body.passenger-mode .passenger-route-actions .passenger-go{
+ position:relative;isolation:isolate;overflow:hidden;margin:0;background:#104b9a;
+}
+#passenger-go-fill{position:absolute;inset:0;z-index:-1;background:#136dec;
+ transform-origin:right center;pointer-events:none}
+.passenger-go-label{position:relative;pointer-events:none}
+#passenger-route-cancel{border:1px solid #cbd5e1;border-radius:16px;background:#edf2f7;
+ color:#243b54;font-size:17px;font-weight:800;min-height:48px;padding:11px;cursor:pointer}
+.passenger-route-actions button:focus-visible{outline:3px solid #193b68;outline-offset:2px}

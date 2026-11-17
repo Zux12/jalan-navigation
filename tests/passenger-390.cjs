@@ -1181,6 +1181,7 @@ async function main(){
   assert.equal(await page.locator('#passenger-overview').isVisible(),false);
   console.log('PASS active journey sheet: drag/touch/keyboard, longest-road label, proportional remaining traffic, scroll, Resume continuity and Stop reset');
   await require('./passenger-follow-390.cjs')(page,context,base);
+  await require('./passenger-route-start-390.cjs')(browser,base,root);
   await page.goto(base+'/index.html?mode=engineering',{waitUntil:'load'});
   assert.equal(await page.evaluate(()=>document.body.classList.contains('passenger-mode')),false);
   assert.equal(await page.locator('#info-panel').isVisible(),true,'original engineering dashboard retained');
