@@ -255,10 +255,14 @@ async function main(){
   // A TomTom incident must belong to the same selected route and its
   // original provider fetch. Never invent an incident if traffic unavailable.
   await page.evaluate(()=>{
+    const route=window.JalanGPS.getState().route;
+    const projected=window.JalanTomTom.projectReportPoint(
+      [101.6925,3.145],route.geometry.coordinates);
     window.dispatchEvent(new CustomEvent('jalan:incidents-updated',{detail:{
-      route:window.JalanGPS.getState().route,checkedAt:Date.now(),
-      incidents:[{lat:3.145,lng:101.6925,description:'Reported traffic delay',category:'🚧'},
-        {lat:3.145,lng:101.694,description:'Unrelated nearby road',category:'🚧'}]
+      route,checkedAt:Date.now(),
+      incidents:[{lat:3.145,lng:101.6925,description:'Selected route traffic section',
+        category:'🚧',roadName:'Fixture road',routeAlong:projected.along,routeTotal:projected.total},
+        {lat:3.145,lng:101.694,description:'Unlinked nearby incident',category:'🚧'}]
     }}));
   });
   assert.equal(await page.locator('#passenger-report-list li').count(),2,
