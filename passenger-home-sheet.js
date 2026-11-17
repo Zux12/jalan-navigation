@@ -64,58 +64,93 @@
  };
  const setState=next=>{
    const state=['a','b','c'].includes(next)?next:'a';
+   if(state!=='c'&&document.activeElement===input)input.blur();
    sheet.dataset.state=state;
    header.inert=state!=='c';
    handle.setAttribute('aria-expanded',String(state!=='a'));
    handle.setAttribute('aria-label',state==='c'?'Collapse destination panel':'Expand destination panel');
    sheet.setAttribute('aria-label','Destination search bottom sheet · state '+state.toUpperCase());
  };
- let dragStart=null;
- const start=e=>{if(e.button!==undefined&&e.button!==0)return;
-   dragStart={y:e.clientY,at:sheet.dataset.state};
-   if(e.pointerId!==undefined)handle.setPointerCapture?.(e.pointerId);
+ // One gesture controller for the whole sheet, including child buttons and
+ // list rows. A/B swipes resize the panel; C gives native lists scroll priority.
+ // Touch events are separate from mouse/pen pointers because native scrolling
+ // can cancel PointerEvents before a C-at-top downward swipe finishes.
+ let gesture=null,suppressClickUntil=0;
+ const beginGesture=(point,target,kind,id)=>{
+   if(sheet.classList.contains('jalan-sheet-route')||document.body.classList.contains('passenger-guiding'))return;
+   const scroller=target.closest?.('.results,.jalan-sheet-recent');
+   gesture={x:point.clientX,y:point.clientY,at:sheet.dataset.state,kind,id,
+     atTop:!scroller||scroller.scrollTop<=1,claimed:false};
+   suppressClickUntil=0;
  };
- const end=e=>{
-   if(!dragStart)return;const delta=e.clientY-dragStart.y,prior=dragStart.at;dragStart=null;
-   if(delta< -32)setState(prior==='a'?'b':'c');
-   else if(delta>32)setState(prior==='c'?'b':'a');
-   else setState(prior==='a'?'b':prior==='b'?'c':'b');
+ const cancelGesture=()=>{gesture=null;sheet.classList.remove('jalan-sheet-dragging');};
+ const moveGesture=(point,event)=>{
+   if(!gesture)return;
+   const dx=point.clientX-gesture.x,dy=point.clientY-gesture.y;
+   if(!gesture.claimed){
+     if(Math.max(Math.abs(dx),Math.abs(dy))<6)return;
+     // Horizontal edits/gestures never change the panel stage. Once a gesture
+     // belongs to list scrolling, it cannot collapse the panel midway through.
+     if(Math.abs(dy)<Math.abs(dx)*1.2||
+        (gesture.at==='c'&&(dy<0||!gesture.atTop))){cancelGesture();return;}
+     gesture.claimed=true;sheet.classList.add('jalan-sheet-dragging');
+     if(gesture.kind==='pointer')sheet.setPointerCapture?.(gesture.id);
+   }
+   if(event.cancelable)event.preventDefault();
  };
- handle.addEventListener('pointerdown',start);
- handle.addEventListener('pointerup',end);
- handle.addEventListener('pointercancel',()=>{dragStart=null;});
- // A/B search allows a gradual swipe as well as a direct tap. The
- // pointer is captured so the touch target does not move during expansion.
- let searchSwipe=null,swallowSwipeClick=false;
- searchTrigger.addEventListener('pointerdown',e=>{
-   if(e.button!==undefined&&e.button!==0)return;
-   swallowSwipeClick=false;
-   searchSwipe={y:e.clientY,at:sheet.dataset.state};
-   searchTrigger.setPointerCapture?.(e.pointerId);
+ const endGesture=(point,event)=>{
+   if(!gesture)return;
+   moveGesture(point,event);
+   if(!gesture)return;
+   const {at,y,claimed}=gesture,delta=point.clientY-y;
+   cancelGesture();
+   if(!claimed)return;
+   // A swipe over New, a recent row or a search result must not also select it.
+   suppressClickUntil=Date.now()+700;
+   if(event.cancelable)event.preventDefault();
+   if(delta< -32)setState(at==='a'?'b':'c');
+   else if(delta>32)setState(at==='c'?'b':'a');
+ };
+ sheet.addEventListener('click',e=>{
+   if(e.detail!==0&&Date.now()<suppressClickUntil){
+     e.preventDefault();e.stopImmediatePropagation();
+   }
+ },true);
+ sheet.addEventListener('pointerdown',e=>{
+   if(e.pointerType==='touch'||e.button!==0||e.isPrimary===false)return;
+   beginGesture(e,e.target,'pointer',e.pointerId);
  });
- searchTrigger.addEventListener('pointerup',e=>{
-   if(!searchSwipe)return;
-   const delta=e.clientY-searchSwipe.y,prior=searchSwipe.at;
-   searchSwipe=null;
-   if(Math.abs(delta)<32)return;
-   swallowSwipeClick=true;
-   setState(delta<0?(prior==='a'?'b':'c'):(prior==='c'?'b':'a'));
-   e.preventDefault();
+ window.addEventListener('pointermove',e=>{
+   if(gesture?.kind==='pointer'&&gesture.id===e.pointerId)moveGesture(e,e);
  });
- searchTrigger.addEventListener('pointercancel',()=>{searchSwipe=null;});
- // A/B taps open C directly; a real swipe must not synthesize a tap to C.
- searchTrigger.addEventListener('click',e=>{
-   if(swallowSwipeClick){swallowSwipeClick=false;e.preventDefault();return;}
-   setState('c');input.focus({preventScroll:true});
+ window.addEventListener('pointerup',e=>{
+   if(gesture?.kind==='pointer'&&gesture.id===e.pointerId)endGesture(e,e);
  });
+ window.addEventListener('pointercancel',e=>{
+   if(gesture?.kind==='pointer'&&gesture.id===e.pointerId)cancelGesture();
+ });
+ sheet.addEventListener('touchstart',e=>{
+   if(e.touches.length!==1){cancelGesture();return;}
+   const touch=e.touches[0];beginGesture(touch,e.target,'touch',touch.identifier);
+ },{passive:true});
+ sheet.addEventListener('touchmove',e=>{
+   if(e.touches.length!==1){cancelGesture();return;}
+   if(gesture?.kind==='touch'&&gesture.id===e.touches[0].identifier)
+     moveGesture(e.touches[0],e);
+ },{passive:false});
+ sheet.addEventListener('touchend',e=>{
+   if(gesture?.kind!=='touch')return;
+   const touch=Array.from(e.changedTouches).find(t=>t.identifier===gesture.id);
+   if(touch)endGesture(touch,e);
+ },{passive:false});
+ sheet.addEventListener('touchcancel',cancelGesture);
+ // Ordinary taps and keyboard activation keep their existing direct actions.
+ handle.addEventListener('click',()=>{
+   const state=sheet.dataset.state;setState(state==='a'?'b':state==='b'?'c':'b');
+ });
+ searchTrigger.addEventListener('click',()=>{setState('c');input.focus({preventScroll:true});});
  input.addEventListener('focus',()=>setState('c'));
  form.addEventListener('submit',()=>setState('c'));
- sheet.addEventListener('pointerdown',e=>{
-   if(e.target===sheet&&e.pointerType==='touch')start(e);
- });
- sheet.addEventListener('pointerup',e=>{
-   if(dragStart&&e.target===sheet)end(e);
- });
  quick.addEventListener('click',e=>{
    const shortcut=e.target.closest('button[data-shortcut]')?.dataset.shortcut;
    if(!shortcut)return;
@@ -141,8 +176,8 @@
    recentNames.splice(0,recentNames.length,...unique);
    renderRecent();
  },true);
- window.addEventListener('jalan:routes-rendered',()=>{sheet.classList.add('jalan-sheet-route');input.blur();});
- window.addEventListener('jalan:route-cleared',()=>{sheet.classList.remove('jalan-sheet-route');setState('a');});
+ window.addEventListener('jalan:routes-rendered',()=>{cancelGesture();sheet.classList.add('jalan-sheet-route');input.blur();});
+ window.addEventListener('jalan:route-cleared',()=>{cancelGesture();sheet.classList.remove('jalan-sheet-route');setState('a');});
  window.addEventListener('jalan:journey-start',()=>{sheet.classList.add('jalan-sheet-route');toggleMenu(false);});
  window.addEventListener('jalan:journey-stop',()=>{sheet.classList.toggle('jalan-sheet-route',routes.length>0);});
  window.addEventListener('jalan:gps-fix',e=>{

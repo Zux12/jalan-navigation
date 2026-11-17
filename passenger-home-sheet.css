@@ -6,6 +6,10 @@ body.passenger-mode .jalan-home-sheet{--sheet-height:128px;position:fixed!import
  background:#fff;color:#182735;border-radius:30px 30px 0 0;
  box-shadow:0 -7px 26px #0b203729;display:flex;flex-direction:column;overflow:hidden;
  transition:height .22s ease;touch-action:pan-y}
+/* Compact states belong to sheet gestures; expanded lists retain native scroll. */
+body.passenger-mode .jalan-home-sheet:not([data-state="c"]){touch-action:none}
+.jalan-home-sheet.jalan-sheet-dragging{user-select:none;-webkit-user-select:none}
+
 body.passenger-mode .jalan-home-sheet[data-state="b"]{--sheet-height:min(350px,46dvh)}
 body.passenger-mode .jalan-home-sheet[data-state="c"]{--sheet-height:92dvh}
 body.passenger-mode .jalan-home-sheet.jalan-sheet-route,
@@ -31,7 +35,7 @@ body.passenger-mode .jalan-home-sheet[data-state="c"] .search button[type=submit
 body.passenger-mode .jalan-home-sheet .results{position:static!important;inset:auto!important;
  width:100%!important;max-width:none!important;flex:0 1 auto;
  border:0;border-radius:15px;box-shadow:none;padding:0!important;margin:0 0 10px!important;
- max-height:34dvh;overflow:auto;background:#fff;z-index:auto}
+ max-height:34dvh;overflow:auto;overscroll-behavior:contain;background:#fff;z-index:auto}
 .jalan-sheet-quick{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px;
  margin:7px 0 14px}
 .jalan-sheet-quick button{min-height:64px;background:#fff;border:1px solid #d9dde4;
