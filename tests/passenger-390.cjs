@@ -77,7 +77,7 @@ async function main(){
   assert.equal(await page.locator('#jalan-home-speed-value').textContent(),'—',
     'unverified GPS must never display invented speed');
   await page.locator('#jalan-home-report').click();
-  assert.match(await page.locator('#jalan-home-notice').textContent(),/No report was submitted/);
+  assert.equal(await page.locator('#jalan-home-notice').isVisible(),false,'report placeholder popup is removed');
   await page.locator('#jalan-home-menu').click();
   assert.equal(await page.locator('#jalan-home-menu-panel').isVisible(),true);
   assert.equal(await page.locator('#jalan-home-notice').isVisible(),false,'old notices do not obscure the menu');
@@ -869,11 +869,9 @@ async function main(){
   assert.equal(await page.evaluate(()=>map.hasLayer(reportLayer)),true,
     'End preview restores the original map demo layer');
   assert.equal(await page.evaluate(()=>document.body.classList.contains('passenger-guiding')),false);
-  assert.equal(await page.evaluate(()=>routeLayer.getLayers().filter(x=>x.options.opacity>=0.6).length),3,
-    'End preview restores visible route alternatives');
-  assert.equal(await page.evaluate(()=>!!startMarker&&pointLayer.hasLayer(startMarker)),true,
-    'route planning start marker returns after ending preview');
-  assert.equal(await page.locator('#passenger-overview').isVisible(),true);
+  assert.equal(await page.evaluate(()=>routes.length),0,'Stop clears the route');
+  assert.equal(await page.evaluate(()=>startMarker===null),true,'Stop removes the old start marker');
+  assert.equal(await page.locator('#passenger-overview').isVisible(),false);
   await page.locator('#jalan-home-menu').click();
    await page.locator('#jalan-home-menu-panel [data-menu=settings]').click();
   assert.equal(await page.locator('#passenger-setup').isVisible(),true);
@@ -1156,6 +1154,7 @@ async function main(){
   assert.equal(await page.locator('#passenger-navigation').isVisible(),false);
   assert.equal(await page.locator('#passenger-overview').isVisible(),false);
   console.log('PASS active journey sheet: drag/touch/keyboard, longest-road label, proportional remaining traffic, scroll, Resume continuity and Stop reset');
+  await require('./passenger-follow-390.cjs')(page,context,base);
   await page.goto(base+'/index.html?mode=engineering',{waitUntil:'load'});
   assert.equal(await page.evaluate(()=>document.body.classList.contains('passenger-mode')),false);
   assert.equal(await page.locator('#info-panel').isVisible(),true,'original engineering dashboard retained');

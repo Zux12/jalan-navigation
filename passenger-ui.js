@@ -61,7 +61,14 @@
  // Vehicle icon is georeferenced. Never show a fixed screen arrow implying
  // a valid position before the GPS predictor has actually matched a route.
  let vehicle=null,lastValidHeading=null,directionSource='unavailable';
- let exploring=false,lastGPSDetail=null;
+ let exploring=false,lastGPSDetail=null,returnTimer=null,returnPending=false;
+ const mapContacts=new Set();
+ const cancelAutoReturn=()=>{clearTimeout(returnTimer);returnTimer=null;returnPending=false;};
+ const syncMapAction=()=>{
+   const visible=!screenVehicle.classList.contains('hidden');
+   document.body.classList.toggle('passenger-following-location',
+     document.body.classList.contains('passenger-guiding')&&!exploring&&visible);
+ };
  const gestureSurface=el('passenger-map-gestures'),hint=el('passenger-gesture-hint');
  const screenVehicle=el('passenger-vehicle-screen');
  let pendingOverlay=false;
@@ -70,7 +77,7 @@
    const vector=window.JalanVectorMap;
    const anchor=vehicle?.getElement();
    if(!vehicle||(!vector?.active&&!anchor)||!document.body.classList.contains('passenger-guiding')){
-     screenVehicle.classList.add('hidden');return;
+     screenVehicle.classList.add('hidden');syncMapAction();return;
    }
    const bounds=(vector?.active?map.getContainer():anchor).getBoundingClientRect();
    const point=vector?.active?vector.project(vehicle.getLatLng()):null;
@@ -79,10 +86,10 @@
      ((lastValidHeading||0)-vector.getBearing())+'deg':'0deg');
    const maxX=window.innerWidth,maxY=window.innerHeight;
    if(!Number.isFinite(x)||!Number.isFinite(y)||x<0||x>maxX||
-     y<0||y>maxY){screenVehicle.classList.add('hidden');return;}
+     y<0||y>maxY){screenVehicle.classList.add('hidden');syncMapAction();return;}
    screenVehicle.style.left=x+'px';
    screenVehicle.style.top=y+'px';
-   screenVehicle.classList.remove('hidden');
+   screenVehicle.classList.remove('hidden');syncMapAction();
  };
  const scheduleScreenVehicle=()=>{
    if(pendingOverlay)return;
@@ -122,7 +129,7 @@
    lastValidHeading=null;
    directionSource='unavailable';
    map.getContainer().style.removeProperty('--jalan-camera-turn');
-   screenVehicle.classList.add('hidden');
+   screenVehicle.classList.add('hidden');syncMapAction();
  }
  function updateVehicle(detail){
    const state=window.JalanGPS?.getState();
@@ -636,7 +643,7 @@
    rerouteStatus.textContent=autoControl.getAttribute('aria-pressed')==='true'?
      'Auto rerouting enabled · watching for sustained deviation.':
      'Auto rerouting off · manual Recalculate available.';
-   exploring=false;lastGPSDetail=null;hint.textContent='Drag · pinch · twist to explore · Recenter to resume following';
+   cancelAutoReturn();mapContacts.clear();exploring=false;lastGPSDetail=null;hint.textContent='Drag · pinch · twist to explore · Recenter to resume following';
    discardVehicle();
    if(!routes.length)return;
    hidePlannerMarkers();
@@ -670,7 +677,7 @@
    el('passenger-signal-alert').classList.add('hidden');
    hideTrafficOffer();
    stopPassengerTraffic();
-   exploring=false;lastGPSDetail=null;
+   cancelAutoReturn();mapContacts.clear();exploring=false;lastGPSDetail=null;
    discardVehicle();
    document.body.classList.remove('passenger-guiding','passenger-map-flat');
    window.JalanVectorMap?.setCamera({pitch:0,bearing:0,padding:{top:0,bottom:0,left:0,right:0}});
@@ -742,6 +749,7 @@
  };
  window.addEventListener('jalan:gps-fix',event=>{
    lastGPSDetail=event.detail;
+   if(returnPending&&!mapContacts.size&&!gesture&&!document.hidden)recenterPassenger();
    // Never move the camera on an unmatched, stale, or inaccurate fix.
    if(updateVehicle(event.detail))followPassengerGPS(event.detail);
    requestAnimationFrame(()=>syncGPS(event.detail));
@@ -760,13 +768,13 @@
    el('passenger-fix').textContent=document.hidden?
      'Safari in background · GPS cannot be verified':
      'GPS signal stale or unavailable · waiting for fresh position';
-   hint.textContent='GPS follow paused · Recenter after a fresh location update';
+   hint.textContent='GPS follow paused · waiting for a fresh location update';
  };
  setInterval(expireStalePassengerGPS,2000);
  document.addEventListener('visibilitychange',expireStalePassengerGPS);
  // Heading-up map: custom touch gestures because Leaflet's 2-D hit-testing
  // does not match a CSS-tilted/rotated perspective. Gesture exploration
- // deliberately suspends automatic follow until Recenter is pressed.
+ // pauses follow until three seconds after release or an explicit Recenter.
  let gesture=null;
  const snapshot=touches=>{
    const a=touches[0],b=touches[1];
@@ -777,14 +785,34 @@
  };
  const startExplore=(stopCamera=true)=>{
    if(!document.body.classList.contains('passenger-guiding'))return false;
-   exploring=true;
+   cancelAutoReturn();clearReportFocus();exploring=true;syncMapAction();
    // A MapLibre gesture is already underway when its start event fires.
    // Calling gl.stop() here would interrupt drag, pinch or rotation.
    if(stopCamera)map.stop();
-   hint.textContent='Exploring map · tap Recenter to follow GPS again';
+   hint.textContent='Exploring map · returns to your location 3 seconds after release';
    return true;
  };
+ const queueAutoReturn=()=>{
+   if(returnTimer||!exploring||focusedReport||mapContacts.size||gesture||document.hidden||
+      !document.body.classList.contains('passenger-guiding'))return;
+   returnTimer=setTimeout(()=>{returnTimer=null;returnPending=true;recenterPassenger();},3000);
+ };
  window.addEventListener('jalan:vector-gesture',()=>{startExplore(false);});
+ window.addEventListener('jalan:vector-gesture-end',queueAutoReturn);
+ map.getContainer().addEventListener('pointerdown',event=>{
+   mapContacts.add(event.pointerId);cancelAutoReturn();
+ },true);
+ const releaseMapContact=event=>{
+   if(mapContacts.delete(event.pointerId)&&!mapContacts.size)queueAutoReturn();
+ };
+ window.addEventListener('pointerup',releaseMapContact);
+ window.addEventListener('pointercancel',releaseMapContact);
+ document.addEventListener('visibilitychange',()=>{
+   if(document.hidden){cancelAutoReturn();mapContacts.clear();gesture=null;}
+   else queueAutoReturn();
+ });
+ window.addEventListener('pagehide',cancelAutoReturn);
+
  window.addEventListener('jalan:map-renderer',()=>{
    applyCameraAngle(focusedReport||document.body.classList.contains('passenger-map-flat')?
      0:lastValidHeading===null?0:-lastValidHeading);
@@ -836,13 +864,15 @@
  gestureSurface.addEventListener('touchend',event=>{
    if(event.cancelable)event.preventDefault();
    gesture=event.touches.length?{...snapshot(event.touches),pinchTotal:0}:null;
+   if(!gesture)queueAutoReturn();
  },{passive:false});
- gestureSurface.addEventListener('touchcancel',()=>{gesture=null;});
+ gestureSurface.addEventListener('touchcancel',()=>{gesture=null;queueAutoReturn();});
  // Both 2D and 2.5D views use this gesture surface so rotating the map
  // does not invalidate Leaflet's original hit-testing.
  const recenterPassenger=()=>{
    clearReportFocus();
-   gesture=null;exploring=false;
+   clearTimeout(returnTimer);returnTimer=null;returnPending=true;
+   if(mapContacts.size||gesture||document.hidden)return;
    hint.textContent='Following GPS · drag, pinch or twist to explore';
    const state=window.JalanGPS?.getState();
    const reliable=state?.active&&state.matched&&
@@ -852,6 +882,7 @@
      hint.textContent='Waiting for reliable GPS · cannot recenter yet';
      return;
    }
+   returnPending=false;exploring=false;
    updateVehicle(lastGPSDetail);
    const flat=document.body.classList.contains('passenger-map-flat');
    applyCameraAngle(flat?0:lastValidHeading===null?0:-lastValidHeading);
@@ -872,6 +903,6 @@
    el('passenger-2d').textContent=flat?(window.JalanVectorMap?.active?'3D map':'2.5D preview'):'2D map';
    el('passenger-2d').setAttribute('aria-pressed',String(flat));
  });
- el('passenger-stop').addEventListener('click',()=>el('gps-exit').click());
+ el('passenger-stop').addEventListener('click',()=>window.JalanPassengerJourney?.stop());
  // Keep engineering test panels and private KL coordinate-GET panels untouched.
 })();

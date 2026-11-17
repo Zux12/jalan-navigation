@@ -117,12 +117,40 @@
  },{passive:false});
  panel.addEventListener('touchcancel',cancel,{passive:true});
  el('passenger-journey-resume').addEventListener('click',()=>setExpanded(false,true));
- el('passenger-journey-stop').addEventListener('click',()=>{
+ let stopLocationEpoch=0;
+ const invalidateStopLocation=()=>{stopLocationEpoch++;};
+ window.addEventListener('jalan:destination-selected',invalidateStopLocation);
+ window.addEventListener('jalan:routes-rendered',invalidateStopLocation);
+ window.addEventListener('jalan:journey-start',invalidateStopLocation);
+ window.addEventListener('jalan:vector-gesture',invalidateStopLocation);
+ map.on('dragstart',invalidateStopLocation);
+ function stopJourney(){
+  const last=window.JalanGPS?.getState?.();
   setExpanded(false);clearRoute(true);
+  const id=++stopLocationEpoch;
   el('destination').value='';el('results').replaceChildren();el('results').classList.add('hidden');
-  chooseStart=false;reportMode=null;
+  chooseStart=false;reportMode=null;startPoint=null;
+  if(startMarker){pointLayer.removeLayer(startMarker);startMarker=null;}
   el('jalan-search-trigger').focus({preventScroll:true});
- });
+  const stillHome=()=>id===stopLocationEpoch&&!destination&&!routes.length&&!active();
+  const show=fix=>{
+   const c=fix?.coords,age=Date.now()-fix?.timestamp;
+   if(!stillHome()||!c||!Number.isFinite(c.latitude)||!Number.isFinite(c.longitude)||
+      Math.abs(c.latitude)>90||Math.abs(c.longitude)>180||!Number.isFinite(c.accuracy)||
+      c.accuracy<0||c.accuracy>75||!Number.isFinite(age)||age< -5000||age>15000)return;
+   const point=[c.latitude,c.longitude];updateLocation(point);
+   window.dispatchEvent(new CustomEvent('jalan:initial-location',{detail:{point,accuracy:c.accuracy,timestamp:fix.timestamp}}));
+   map.stop();map.setView(point,17,{animate:false});
+  };
+  // Show a trustworthy current fix immediately, then ask for a fresh reading.
+  if(last?.active&&last.matched&&Array.isArray(last.position))show({timestamp:Date.now()-last.fixAgeMs,
+   coords:{latitude:last.position[0],longitude:last.position[1],accuracy:last.accuracy}});
+  navigator.geolocation?.getCurrentPosition(show,()=>{
+   if(stillHome())window.dispatchEvent(new Event('jalan:initial-location-error'));
+  },{enableHighAccuracy:true,maximumAge:0,timeout:14000});
+ }
+ window.JalanPassengerJourney={stop:stopJourney};
+ el('passenger-journey-stop').addEventListener('click',stopJourney);
  el('passenger-search').addEventListener('click',()=>setExpanded(false),true);
  el('passenger-turn-toggle').addEventListener('click',()=>setExpanded(false),true);
  el('jalan-home-menu').addEventListener('click',()=>setExpanded(false),true);

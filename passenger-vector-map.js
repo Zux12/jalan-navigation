@@ -111,6 +111,9 @@
    ['dragstart','zoomstart','rotatestart','pitchstart'].forEach(event=>gl.on(event,e=>{
      if(e.originalEvent)window.dispatchEvent(new Event('jalan:vector-gesture'));
    }));
+   ['dragend','zoomend','rotateend','pitchend'].forEach(event=>gl.on(event,e=>{
+     if(e.originalEvent)window.dispatchEvent(new Event('jalan:vector-gesture-end'));
+   }));
    gl.on('click',event=>{
      const hit=gl.queryRenderedFeatures(event.point,{layers:['jalan-route-lines']})[0];
      const layer=hit&&map._layers[hit.properties.leafletId];
