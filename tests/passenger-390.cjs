@@ -52,6 +52,42 @@ async function main(){
   assert.equal(await page.locator('#info-panel').isVisible(),false);
   assert.equal(await page.locator('#search-form').isVisible(),true);
   assert.equal(await page.locator('#passenger-overview').isVisible(),false);
+  const sheetState=()=>page.locator('#jalan-home-sheet').getAttribute('data-state');
+  assert.equal(await sheetState(),'a','Passenger preview opens with collapsed search sheet');
+  assert.equal(await page.locator('#jalan-home-menu').isVisible(),true);
+  assert.equal(await page.locator('#jalan-home-report').isVisible(),true);
+  assert.equal(await page.locator('#jalan-home-speed-value').textContent(),'—',
+    'unverified GPS must never display invented speed');
+  await page.locator('#jalan-home-report').click();
+  assert.match(await page.locator('#jalan-home-notice').textContent(),/No report was submitted/);
+  await page.locator('#jalan-home-menu').click();
+  assert.equal(await page.locator('#jalan-home-menu-panel').isVisible(),true);
+  await page.locator('#jalan-home-menu-close').click();
+  await page.locator('#jalan-sheet-handle').click();
+  assert.equal(await sheetState(),'b','handle expands to B quick shortcuts');
+  assert.equal(await page.locator('.jalan-sheet-quick button').count(),3);
+  await page.locator('#jalan-sheet-handle').click();
+  assert.equal(await sheetState(),'c','handle expands to C recent list');
+  assert.match(await page.locator('#jalan-recent-list').textContent(),/during this session/);
+  await page.locator('#jalan-sheet-handle').click();
+  assert.equal(await sheetState(),'b');
+  // Drag down from B to A. Handle taps intentionally alternate B/C,
+  // whereas downward gestures collapse to A.
+  const handleBox=await page.locator('#jalan-sheet-handle').boundingBox();
+  await page.mouse.move(handleBox.x+handleBox.width/2,handleBox.y+10);
+  await page.mouse.down();
+  await page.mouse.move(handleBox.x+handleBox.width/2,handleBox.y+115,{steps:8});
+  await page.mouse.up();
+  assert.equal(await sheetState(),'a','downward drag collapses B to A');
+  await page.locator('#jalan-search-trigger').tap();
+  assert.equal(await sheetState(),'c','search tap opens C directly from A');
+  assert.equal(await page.locator('#destination').evaluate(x=>x===document.activeElement),true);
+  await page.evaluate(()=>document.activeElement?.blur());
+  await page.locator('#jalan-sheet-handle').click();
+  assert.equal(await sheetState(),'b');
+  await page.locator('#jalan-search-trigger').tap();
+  assert.equal(await sheetState(),'c','search tap opens C directly from B');
+  await page.evaluate(()=>document.activeElement?.blur());
   await page.evaluate(()=>{
    // Deliberately out-of-order synthetic provider returns, NOT live roads.
    const points=[[101.6869,3.139],[101.6953,3.1478]];
@@ -551,14 +587,16 @@ async function main(){
   assert.equal(await page.evaluate(()=>!!startMarker&&pointLayer.hasLayer(startMarker)),true,
     'route planning start marker returns after ending preview');
   assert.equal(await page.locator('#passenger-overview').isVisible(),true);
-  await page.locator('#passenger-settings-top').click();
+  await page.locator('#jalan-home-menu').click();
+   await page.locator('#jalan-home-menu-panel [data-menu=settings]').click();
   assert.equal(await page.locator('#passenger-setup').isVisible(),true);
   await page.locator('#passenger-use-osrm').click();
   assert.equal(await page.evaluate(()=>document.getElementById('tt-primary').checked),false);
   assert.equal(await page.locator('#passenger-overview').isVisible(),false);
   // A passenger can explicitly save a restricted key once on the same device.
   // Tests use a synthetic token; no real credentials or provider requests.
-  await page.locator('#passenger-settings-top').click();
+  await page.locator('#jalan-home-menu').click();
+   await page.locator('#jalan-home-menu-panel [data-menu=settings]').click();
   await page.locator('#passenger-key').fill('TEST_RESTRICTED_KEY_1234');
   await page.locator('#passenger-remember').check();
   await page.locator('#passenger-use-tomtom').click();
@@ -570,11 +608,13 @@ async function main(){
   assert.equal(await page.evaluate(()=>!!document.getElementById('tt-key').value),true,
     'both interfaces reuse saved browser key');
   assert.match(await page.locator('#passenger-provider-status').innerText(),/no re-entry needed/);
-  await page.locator('#passenger-settings-top').click();
+  await page.locator('#jalan-home-menu').click();
+   await page.locator('#jalan-home-menu-panel [data-menu=settings]').click();
   await page.locator('#passenger-use-tomtom').click();
   assert.equal(await page.evaluate(()=>document.getElementById('tt-primary').checked),true,
     'reuse existing browser key without entering again');
-  await page.locator('#passenger-settings-top').click();
+  await page.locator('#jalan-home-menu').click();
+   await page.locator('#jalan-home-menu-panel [data-menu=settings]').click();
   await page.locator('#passenger-forget-key').click();
   assert.equal(await page.evaluate(()=>localStorage.getItem('jalan-tomtom-key')),null);
   assert.equal(await page.evaluate(()=>document.getElementById('tt-key').value),'');
@@ -710,7 +750,8 @@ async function main(){
   await deniedPage.goto(base+'/index.html?mode=passenger',{waitUntil:'load'});
   assert.equal(await deniedPage.evaluate(()=>document.body.classList.contains('passenger-mode')),true);
   assert.equal(await deniedPage.locator('#passenger-remember').isChecked(),false);
-  await deniedPage.locator('#passenger-settings-top').click();
+  await deniedPage.locator('#jalan-home-menu').click();
+   await deniedPage.locator('#jalan-home-menu-panel [data-menu=settings]').click();
   await deniedPage.locator('#passenger-key').fill('TEST_RESTRICTED_KEY_1234');
   await deniedPage.locator('#passenger-remember').check();
   await deniedPage.locator('#passenger-use-tomtom').click();
@@ -722,7 +763,8 @@ async function main(){
     /Browser storage blocked; key not saved/);
   assert.equal(await deniedPage.evaluate(()=>document.getElementById('tt-key').value),
     'TEST_RESTRICTED_KEY_1234','key is retained only in the current page');
-  await deniedPage.locator('#passenger-settings-top').click();
+  await deniedPage.locator('#jalan-home-menu').click();
+   await deniedPage.locator('#jalan-home-menu-panel [data-menu=settings]').click();
   await deniedPage.locator('#passenger-forget-key').click();
   assert.equal(await deniedPage.evaluate(()=>document.getElementById('tt-key').value),'',
     'Forget must still clear a page-memory key when persistent storage fails');
