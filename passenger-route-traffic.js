@@ -11,7 +11,7 @@
  const maxSamples=6, flowTTL=5*60*1000, incidentTTL=10*60*1000;
  const windowMeters=80, maxOffsetMeters=16;
  let route=null,epoch=0,aborters=[],flowAt=0,lastRequestAt=0,refreshId=null,flowMatches=[],
-     overlay=L.layerGroup().addTo(map),hasFlow=false;
+     overlay=L.layerGroup().addTo(map),hasFlow=false,trafficSamplingAllowed=false;
  const status=document.createElement('div');
  status.id='jalan-route-traffic-legend';
  status.setAttribute('role','status');
@@ -200,6 +200,9 @@
    return Array.from({length:count},(_,i)=>path.total*(i+.5)/count);
  }
  async function sampleFlow(current){
+   // Route-indexed TRAFFIC sections can render from calculateRoute without
+   // additional Flow Segment requests. Only sample after passenger opt-in.
+   if(!trafficSamplingAllowed)return;
    const path=makePath(current.geometry.coordinates);
    if(!path||!path.total)return;
    const secret=key?.value?.trim();
@@ -222,27 +225,31 @@
        return makeFlowMatch(path,metres,json?.flowSegmentData);
      }catch{return null;}
    }));
-   if(epoch!==id||route!==current)return;
+   if(epoch!==id||route!==current||!trafficSamplingAllowed)return;
+   // Reject an abort-ignoring response when a script silently replaces the
+   // browser key without an input/change event.
+   if(key?.value?.trim()!==secret){trafficSamplingAllowed=false;reset();return;}
    flowAt=Date.now();flowMatches=outputs.filter(Boolean);hasFlow=flowMatches.length>0;
    draw();
  }
  function choose(){
    const candidate=routes?.[selectedRoute];
    if(!candidate||candidate.provider!=='tomtom'){
-     reset();status.textContent='Traffic colours unavailable · OSRM demo';return;
+     trafficSamplingAllowed=false;reset();status.textContent='Traffic colours unavailable · OSRM demo';return;
    }
    if(candidate!==route){reset();route=candidate;draw();}
    // Bounded point-by-point flow queries only on selected TomTom route and only
    // with an explicitly entered browser-held TomTom key.
-   if(!lastRequestAt||Date.now()-lastRequestAt>=flowTTL)sampleFlow(candidate);
-   if(!refreshId)refreshId=setInterval(()=>{
+   if(trafficSamplingAllowed&&(!lastRequestAt||Date.now()-lastRequestAt>=flowTTL))sampleFlow(candidate);
+   if(trafficSamplingAllowed&&!refreshId)refreshId=setInterval(()=>{
      if(!document.hidden&&route===routes?.[selectedRoute])sampleFlow(route);
    },flowTTL);
  }
  // A revoked/replaced browser-held key must invalidate even an abort-ignoring
  // provider response before it can draw stale colours on the selected route.
- key?.addEventListener('input',reset);
- key?.addEventListener('change',reset);
+ function revokeKey(){trafficSamplingAllowed=false;reset();}
+ key?.addEventListener('input',revokeKey);
+ key?.addEventListener('change',revokeKey);
  window.addEventListener('jalan:routes-rendered',choose);
  window.addEventListener('jalan:route-change',choose);
  window.addEventListener('jalan:journey-start',()=>{
@@ -251,9 +258,14 @@
  window.addEventListener('jalan:route-cleared',reset);
  window.addEventListener('jalan:journey-stop',()=>{if(route)draw();});
  window.addEventListener('jalan:traffic-layer-status',event=>{
-   if(event.detail?.state==='off'){reset();}
-   if(event.detail?.state==='ready'&&!route&&
-      routes?.[selectedRoute]?.provider==='tomtom')choose();
+   const state=event.detail?.state;
+   if(state==='off'||state==='error'){
+     trafficSamplingAllowed=false;reset();return;
+   }
+   if((state==='loading'||state==='ready')&&
+      routes?.[selectedRoute]?.provider==='tomtom'){
+     trafficSamplingAllowed=true;choose();
+   }
  });
  window.addEventListener('jalan:incidents-updated',()=>{if(route)draw();});
  window.JalanRouteTraffic={
