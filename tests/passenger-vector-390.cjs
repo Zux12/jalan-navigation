@@ -188,7 +188,15 @@ async function main(){
   await startup.route('https://tiles.openfreemap.org/styles/positron',route=>route.fulfill({json:style}));
   await startup.goto(base+'/index.html?mode=passenger');
   await startup.waitForFunction(()=>window.JalanVectorMap?.active&&window.JalanPassengerStartup?.ready,null,{timeout:12000});
-  await startup.waitForFunction(()=>document.querySelectorAll('.passenger-startup-pin').length===1,null,{timeout:8000});
+  console.log('STARTUP MARKER DIAGNOSTIC',JSON.stringify(await startup.evaluate(()=>({
+    ready:window.JalanPassengerStartup?.ready,
+    markers:window.JalanVectorMap?.getState().markers,
+    vectorPinHtml:[...document.querySelectorAll('.jalan-vector-pin')].map(node=>node.innerHTML.slice(0,260)),
+    iconClasses:[...document.querySelectorAll('.leaflet-marker-icon')].map(node=>node.className),
+    layerIcons:Object.values(map._layers).filter(layer=>layer instanceof L.Marker).map(layer=>layer.options.icon?.options.className)
+  }))));
+  await startup.waitForFunction(()=>[...document.querySelectorAll('.jalan-vector-pin')]
+    .some(node=>node.textContent?.includes('▲')),null,{timeout:8000});
   assert.equal(await startup.evaluate(()=>Math.round(map.getZoom())),17,
     'accurate permission-granted startup position zooms to street scale');
   assert.ok(await startup.evaluate(()=>Math.abs(map.getCenter().lat-3.139)<.00001&&
