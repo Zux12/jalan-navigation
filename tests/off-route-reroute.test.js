@@ -113,6 +113,23 @@ test('repeated impossible GPS teleports never relocate the vehicle or trigger a 
  assert.equal(s.state().active,true);
  assert.equal(s.watches,1);
 });
+test('out-of-order fresh-looking GPS callbacks never rewind the measured vehicle or drive rerouting',async()=>{
+ const s=scene();s.feed([3,101.6],0);
+ // A second accurate fix is accepted at t+3s; delayed callbacks with older
+ // timestamps are still within the existing 10s staleness window.
+ s.feed([3,101.6001],3000);
+ const trusted=s.state().gpsPosition;
+ const firstTimestamp=1700000000000;
+ for(let i=0;i<3;i++)s.feed([3.00055,101.6004+i*.00006],1000,8,firstTimestamp+1500+i*100);
+ await s.flush();
+ assert.deepEqual(s.state().gpsPosition,trusted,'old callback cannot replace newer GPS');
+ assert.equal(s.requests.length,0,'out-of-order callbacks cannot create a detour request');
+ assert.equal(s.state().gpsReliable,true,'replayed callback should not revoke fresh accepted position');
+ s.feed([3,101.60016],1000);
+ assert.deepEqual(s.state().gpsPosition,[3,101.60016],
+  'the next genuinely fresh fix still advances measured position');
+ assert.equal(s.watches,1,'one uninterrupted geolocation watcher');
+});
 test('GPS short-range and post-outage teleports cannot bypass travel plausibility',async()=>{
  // Before this fix a 189 m displacement at t=2.1 s passed the old 250 m
  // floor after three consistent samples, despite no plausible vehicle travel.
