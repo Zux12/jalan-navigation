@@ -219,7 +219,7 @@
    else showNotice((shortcut==='home'?'Home':'Work')+' shortcut is a placeholder. Address setup comes later.');
  });
  const toggleMenu=visible=>{
-   if(visible)$('passenger-turn-close').click();
+   if(visible){$('passenger-turn-close').click();notice.classList.add('hidden');}
    menuPanel.classList.toggle('hidden',!visible);
    menu.setAttribute('aria-expanded',String(visible));
    if(visible){menuPanel.scrollTop=0;$('jalan-home-menu-close').focus({preventScroll:true});}

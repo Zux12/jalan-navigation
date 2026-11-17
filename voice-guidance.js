@@ -35,7 +35,8 @@
    utterance.lang=voice?.lang||'en-GB';utterance.rate=.95;
    if(preview){
     const result=state=>window.dispatchEvent(new CustomEvent('jalan:voice-preview',{detail:{state}}));
-    utterance.onend=()=>result('done');utterance.onerror=()=>result('error');
+    utterance.onend=()=>result('done');
+    utterance.onerror=e=>result(['interrupted','canceled'].includes(e?.error)?'done':'error');
    }
    speechSynthesis.speak(utterance);return true;
   }catch{return false;}

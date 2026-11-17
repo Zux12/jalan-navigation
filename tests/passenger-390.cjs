@@ -71,6 +71,7 @@ async function main(){
   assert.match(await page.locator('#jalan-home-notice').textContent(),/No report was submitted/);
   await page.locator('#jalan-home-menu').click();
   assert.equal(await page.locator('#jalan-home-menu-panel').isVisible(),true);
+  assert.equal(await page.locator('#jalan-home-notice').isVisible(),false,'old notices do not obscure the menu');
   assert.equal(await page.locator('#passenger-options').count(),0,'old three-dot control is removed');
   assert.equal(await page.locator('#passenger-journey-options').isVisible(),false,'journey controls are hidden before Go');
   await page.evaluate(()=>{
@@ -804,6 +805,13 @@ async function main(){
     'Use TomTom saves the key for future visits by default');
   await page.goto(base+'/index.html?mode=passenger',{waitUntil:'load'});
   assert.equal(await page.locator('#passenger-remember').isChecked(),true);
+  assert.equal(await page.evaluate(()=>JalanVoice.getState().unavailable),true,'saved voice remains pending while device voices load');
+  await page.evaluate(()=>{
+    window.__testVoices=[{voiceURI:'test-voice-us',name:'Test English US',lang:'en-US',localService:true}];
+    speechSynthesis.dispatchEvent(new Event('voiceschanged'));
+  });
+  assert.equal(await page.locator('#passenger-voice-choice option:checked').textContent(),'Test English US · en-US',
+    'saved voice selection returns after reload and async loading');
   assert.equal(await page.evaluate(()=>!!document.getElementById('tt-key').value),true,
     'both interfaces reuse saved browser key');
   assert.match(await page.locator('#passenger-provider-status').innerText(),/no re-entry needed/);
