@@ -311,8 +311,7 @@ async function main(){
     'pre-route map follows the live triangle');
   await startup.evaluate(()=>window.dispatchEvent(new CustomEvent('jalan:free-location',{detail:{
     point:[3.1394,101.6873],accuracy:8,timestamp:Date.now()+1,heading:90,speed:5}})));
-  assert.equal(await startup.locator('.passenger-startup-pin span').evaluate(x=>x.style.transform),'rotate(90deg)',
-    'pre-route triangle turns to measured direction of travel');
+  await startup.waitForFunction(()=>document.querySelector('.jalan-vector-pin .passenger-startup-pin span')?.style.transform==='rotate(90deg)');
   await startup.evaluate(()=>window.dispatchEvent(new CustomEvent('jalan:free-location',{detail:{point:[4,102],accuracy:180,timestamp:Date.now()}})));
   assert.equal(await startup.evaluate(()=>window.__freeMarker.getLatLng().lat),3.1394,'poor GPS cannot move the triangle');
   await startup.screenshot({path:path.join(artifacts,'gps-badge-startup-green.png')});

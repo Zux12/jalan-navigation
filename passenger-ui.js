@@ -114,8 +114,10 @@
    if(!startupMarker){
      window.dispatchEvent(new CustomEvent('jalan:initial-location',{detail}));
    }else startupMarker.setLatLng(detail.point);
-   const symbol=startupMarker?.getElement()?.querySelector('span');
-   if(symbol)symbol.style.transform='rotate('+((freeHeading||0)-(window.JalanVectorMap?.active?window.JalanVectorMap.getBearing():0))+'deg)';
+   const angle=(freeHeading||0)-(window.JalanVectorMap?.active?window.JalanVectorMap.getBearing():0);
+   const html='<span aria-hidden="true" style="transform:rotate('+angle+'deg)">▲</span>';
+   if(startupMarker&&startupMarker.options.icon.options.html!==html)
+     startupMarker.setIcon(L.divIcon({className:'passenger-startup-pin',html,iconSize:[84,84],iconAnchor:[42,42]}));
    if(!freeExploring)centerFree();
    // Keep the original blue location circle from duplicating the triangle.
    if(locationMarker){pointLayer.removeLayer(locationMarker);locationMarker=null;}
