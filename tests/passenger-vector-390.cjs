@@ -380,8 +380,10 @@ async function main(){
   assert.doesNotMatch(await live.locator('#passenger-next').textContent(),/GPS matched to selected route/);
   const creditControl=live.locator('.maplibregl-ctrl-attrib');
   assert.equal(await creditControl.evaluate(x=>x.classList.contains('maplibregl-compact')),true);
-  if(!await creditControl.evaluate(x=>x.classList.contains('maplibregl-compact-show')))
-    await live.locator('.maplibregl-ctrl-attrib-button').click();
+  // Wait for the existing 5.5 s automatic collapse before toggling. Testing
+  // across that timer can otherwise close it just before the click reopens it.
+  await live.waitForFunction(()=>!document.querySelector('.maplibregl-ctrl-attrib').classList.contains('maplibregl-compact-show'));
+  await live.locator('.maplibregl-ctrl-attrib-button').click();
   assert.equal(await live.locator('.maplibregl-ctrl-attrib-inner a[href="https://openfreemap.org"]').isVisible(),false,
     'optional OpenFreeMap branding is removed');
   assert.equal(await live.locator('.maplibregl-ctrl-attrib-inner a[href*="openstreetmap.org/copyright"]').isVisible(),true,
@@ -392,7 +394,7 @@ async function main(){
   await live.evaluate(()=>{window.__journeyVectorBefore={route:JalanGPS.getState().route,bearing:JalanVectorMap.getBearing()};});
   await live.locator('#passenger-journey-handle').click();
   assert.equal(await live.locator('#passenger-journey-content').isVisible(),true);
-  await live.screenshot({path:path.join(artifacts,'vector-live-journey-details.png')});
+  await live.screenshot({animations:'disabled',path:path.join(artifacts,'vector-live-journey-details.png')});
   await live.locator('#passenger-journey-resume').click();
   assert.equal(await live.evaluate(()=>JalanGPS.getState().active&&JalanGPS.getState().route===window.__journeyVectorBefore.route),true);
   assert.equal(await live.locator('#passenger-journey-sheet').getAttribute('data-expanded'),'false');
