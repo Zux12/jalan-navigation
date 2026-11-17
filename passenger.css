@@ -64,9 +64,6 @@ body.passenger-guiding .interface-switch{display:none}
 .passenger-bottom{pointer-events:auto;position:absolute;left:0;right:0;bottom:0;background:#fff;border-radius:25px 25px 0 0;padding:22px max(18px,env(safe-area-inset-left,0px)) calc(18px + env(safe-area-inset-bottom,0px));box-shadow:0 -10px 25px #19345240;color:#1c2837}
 .passenger-stats{display:flex;justify-content:space-around;align-items:center;gap:15px}
 .passenger-stats b{font-size:29px}.passenger-stats span{font-size:16px;font-weight:700}
-.passenger-traffic-summary{font-size:11px;line-height:1.3;text-align:center;color:#456278;margin:5px 0 0}
-.passenger-traffic-summary[data-state="ready"]{color:#18724b}
-.passenger-traffic-summary[data-state="error"]{color:#a54b21}
 .passenger-fix{text-align:center;font-size:11px;color:#607087;margin:10px 0}
 .passenger-controls{display:flex;gap:8px}
 .passenger-controls button{flex:1;border:1px solid #d4e0ea;border-radius:12px;padding:11px 6px;background:#eef4fb;color:#244a72;font-size:12px;font-weight:750;cursor:pointer}
@@ -221,7 +218,7 @@ body.passenger-vector-active #passenger-vehicle-screen{transform:translate(-50%,
 #jalan-map-status:empty{display:none}
 body.passenger-vector-active .maplibregl-ctrl-bottom-right{z-index:4;bottom:env(safe-area-inset-bottom,0px)}
 body.passenger-vector-active .maplibregl-ctrl-attrib{margin:0!important;padding:0 4px;font-size:10px;line-height:14px;min-height:0;background:#fffffff0;color:#425364}
-body.passenger-vector-active.passenger-guiding .passenger-bottom{bottom:calc(18px + env(safe-area-inset-bottom,0px))}
+body.passenger-vector-active.passenger-guiding .passenger-bottom{bottom:calc(32px + env(safe-area-inset-bottom,0px))}
 
 /* Stationary/passenger pre-route GPS: position only, never inferred heading. */
 .passenger-startup-pin{background:transparent;border:0;pointer-events:none}
@@ -229,17 +226,9 @@ body.passenger-vector-active.passenger-guiding .passenger-bottom{bottom:calc(18p
  border:3px solid #fff;border-radius:50%;box-sizing:border-box;
  background:#087ab8;color:#fff;font:900 24px system-ui,sans-serif;
  text-shadow:0 1px 3px #123b5b99;box-shadow:0 3px 12px #102d5580}
-#passenger-startup-location-status{position:fixed;z-index:1201;
- top:calc(142px + env(safe-area-inset-top,0px));left:50%;
- transform:translateX(-50%);width:max-content;max-width:calc(100vw - 28px);
- padding:8px 12px;border-radius:12px;background:#ffffffed;color:#1f4767;
- box-shadow:0 3px 14px #102b4a36;text-align:center;
- font:700 12px system-ui,sans-serif;pointer-events:none}
-body.passenger-guiding #passenger-startup-location-status,
-#passenger-startup-location-status.hidden{display:none!important}
 
 /* Search replaces speed in the bottom metrics. Speed mirrors right Recenter. */
-body.passenger-vector-active{--passenger-map-footer-offset:8px}
+body.passenger-vector-active{--passenger-map-footer-offset:22px}
 .passenger-search{flex:0 0 44px;width:44px;height:44px;display:grid;place-items:center;
  border:0;border-radius:50%;background:#edf4fa;color:#166b9d;cursor:pointer;touch-action:manipulation}
 .passenger-search svg{width:25px;height:25px;fill:none;stroke:currentColor;stroke-width:2.4;stroke-linecap:round}
@@ -253,3 +242,23 @@ body.passenger-vector-active{--passenger-map-footer-offset:8px}
 /* The map and GPS remain active behind a temporary destination search. */
 body.passenger-route-search .passenger-navigation{visibility:hidden}
 body.passenger-route-search .interface-switch{display:none!important}
+
+/* Freshness/accuracy indicator; no claim about satellites, lanes or road matching. */
+#passenger-gps-status{position:fixed;z-index:1603;top:calc(15px + env(safe-area-inset-top,0px));right:15px;
+ width:48px;height:48px;display:grid;place-items:center;padding:9px;border:3px solid #fff;
+ border-radius:50%;box-shadow:0 3px 13px #172c3e50;background:#f6c344;color:#182735;cursor:pointer}
+#passenger-gps-status svg{width:27px;height:27px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+#passenger-gps-status[data-quality="green"]{background:#16834a;color:#fff}
+#passenger-gps-status[data-quality="red"]{background:#c63535;color:#fff}
+#passenger-gps-status:focus-visible{outline:3px solid #087af5;outline-offset:3px}
+#passenger-gps-status-detail{position:fixed;z-index:1604;top:calc(73px + env(safe-area-inset-top,0px));right:15px;
+ max-width:min(290px,calc(100vw - 30px));padding:11px 14px;border-radius:12px;
+ background:#fff;color:#243b50;font:600 13px/1.45 system-ui;box-shadow:0 5px 20px #152d4550}
+#passenger-gps-status-detail[hidden]{display:none}
+body.passenger-guiding .passenger-turn{padding-right:76px}
+body.passenger-guiding .passenger-turn-chevron{position:absolute;right:28px;bottom:13px;font-size:26px}
+/* OpenFreeMap's own branding is optional. Retain the required data credits. */
+.maplibregl-ctrl-attrib-inner a[href="https://openfreemap.org"],
+.maplibregl-ctrl-attrib-inner a[href="https://openfreemap.org/"]{display:none}
+body.passenger-vector-active .maplibregl-ctrl-attrib.maplibregl-compact{min-height:26px;line-height:26px;padding-right:26px}
+body.passenger-vector-active .maplibregl-ctrl-attrib-button{width:26px;height:26px}

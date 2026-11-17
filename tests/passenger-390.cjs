@@ -29,6 +29,8 @@ async function main(){
    isMobile:true,hasTouch:true,reducedMotion:'reduce'});
   await context.addInitScript(()=>{
    window.__testVoices=[];window.__spoken=[];
+   window.__trafficLayerStatus=null;
+   window.addEventListener('jalan:traffic-layer-status',e=>window.__trafficLayerStatus=e.detail);
    const synth=new EventTarget();synth.getVoices=()=>window.__testVoices;
    synth.cancel=()=>{};synth.speak=u=>window.__spoken.push({text:u.text,voice:u.voice?.name,lang:u.lang});
    Object.defineProperty(window,'speechSynthesis',{configurable:true,value:synth});
@@ -64,6 +66,13 @@ async function main(){
   const sheetState=()=>page.locator('#jalan-home-sheet').getAttribute('data-state');
   assert.equal(await sheetState(),'a','Passenger preview opens with collapsed search sheet');
   assert.equal(await page.locator('#jalan-home-menu').isVisible(),true);
+  assert.equal(await page.locator('#passenger-startup-location-status').count(),0,'startup GPS message is removed');
+  assert.equal(await page.locator('#passenger-gps-status').isVisible(),true);
+  assert.equal(await page.locator('#passenger-gps-status').getAttribute('data-quality'),'red','denied location is red');
+  await page.locator('#passenger-gps-status').click();
+  assert.equal(await page.locator('#passenger-gps-status-detail').isVisible(),true);
+  await page.keyboard.press('Escape');
+  assert.equal(await page.locator('#passenger-gps-status-detail').isVisible(),false);
   assert.equal(await page.locator('#jalan-home-report').isVisible(),true);
   assert.equal(await page.locator('#jalan-home-speed-value').textContent(),'—',
     'unverified GPS must never display invented speed');
@@ -212,6 +221,10 @@ async function main(){
   assert.equal(await page.evaluate(()=>routes[0].duration),600,'provider routes sorted by ETA');
   assert.equal(await page.locator('#passenger-overview').isVisible(),true);
   assert.equal(await page.locator('#passenger-route-list button').count(),3);
+  assert.equal(await page.locator('#passenger-settings').count(),0,'route settings are only in the shared menu');
+  assert.equal(await page.locator('#passenger-route-provider').count(),0,'provider subtitle is removed');
+  assert.equal(await page.locator('#passenger-overview small').count(),3,'only route-card details remain, with no writing below Go');
+  assert.equal(await page.locator('#jalan-route-traffic-legend').count(),0,'traffic legend no longer covers the map');
   // A shorter Safari-like visible viewport must never clip the Go button.
   // A long list should scroll inside the card instead of pushing Go below it.
   await page.setViewportSize({width:390,height:560});
@@ -234,9 +247,19 @@ async function main(){
     'Go action must remain visible above mobile Safari browser chrome');
   assert.ok(layout.listScrollHeight>layout.listClientHeight,
     'only alternative cards should scroll; Go stays pinned');
+  await swipeInside('#passenger-route-list',-85,{offsetY:95});
+  await page.waitForFunction(()=>document.getElementById('passenger-route-list').scrollTop>20);
+  assert.equal(await page.locator('#passenger-overview').getAttribute('data-collapsed'),'false',
+    'scrolling alternatives upward does not collapse the panel');
+  await page.waitForTimeout(250);
+  await page.locator('#passenger-route-list').evaluate(x=>x.scrollTop=180);
+  await swipeInside('#passenger-route-list',60,{offsetY:60});
+  assert.equal(await page.locator('#passenger-overview').getAttribute('data-collapsed'),'false',
+    'a scrolled route list scrolls down before the panel can collapse');
   await page.setViewportSize({width:390,height:844});
   await page.evaluate(()=>{
     const list=document.getElementById('passenger-route-list');
+    list.scrollTop=0;
     while(list.children.length>3)list.lastElementChild.remove();
   });
   assert.match(await page.locator('#passenger-route-list').innerText(),/\+2 min/);
@@ -246,6 +269,58 @@ async function main(){
   await page.locator('#passenger-route-list button').nth(1).click();
   assert.equal(await page.evaluate(()=>selectedRoute),1,'alternative selectable');
   await page.locator('#passenger-route-list button').first().click();
+  await page.waitForTimeout(100);
+  await page.evaluate(()=>{
+    window.__routeChoiceBeforeDrag={routes,chosen:routes[selectedRoute],destination,index:selectedRoute,
+      lat:map.getCenter().lat,lng:map.getCenter().lng,zoom:map.getZoom()};
+  });
+  const assertChoicePreserved=async()=>assert.equal(await page.evaluate(()=>{
+    const before=window.__routeChoiceBeforeDrag,center=map.getCenter();
+    return routes===before.routes&&routes[selectedRoute]===before.chosen&&destination===before.destination&&
+      selectedRoute===before.index&&map.getZoom()===before.zoom&&center.lat===before.lat&&center.lng===before.lng;
+  }),true,'panel gestures preserve destination, chosen route and map camera');
+  await swipeInside('#passenger-route-list button:nth-child(2)',90);
+  assert.equal(await page.locator('#passenger-overview').getAttribute('data-collapsed'),'true');
+  assert.equal(await page.locator('#passenger-route-handle').getAttribute('aria-expanded'),'false');
+  assert.equal(await page.locator('#passenger-go').isVisible(),false,'collapsed controls cannot accidentally start GPS');
+  assert.equal(await page.locator('#passenger-route-content').evaluate(x=>x.inert),true);
+  const peek=await page.locator('#passenger-overview').boundingBox();
+  assert.ok(peek.y>740&&peek.y<810,'collapsed panel leaves only a small visible bottom strip');
+  const planningControls=await page.evaluate(()=>{
+    const panel=document.getElementById('passenger-overview').getBoundingClientRect();
+    return ['jalan-home-speed','jalan-home-report'].every(id=>{
+      const box=document.getElementById(id).getBoundingClientRect();
+      return box.top>100&&box.bottom<panel.top;
+    });
+  });
+  assert.equal(planningControls,true,'map controls stay on screen above the collapsed route strip');
+  await assertChoicePreserved();
+  await page.screenshot({path:path.join(root,'test-artifacts/passenger-routes-collapsed.png')});
+  await swipeInside('#passenger-route-handle',-100,{cancel:true});
+  assert.equal(await page.locator('#passenger-overview').getAttribute('data-collapsed'),'true','cancelled drag keeps the previous state');
+  await swipeInside('#passenger-route-handle',-100);
+  assert.equal(await page.locator('#passenger-overview').getAttribute('data-collapsed'),'false');
+  assert.equal(await page.locator('#passenger-go').isVisible(),true);
+  await assertChoicePreserved();
+  // A mouse drag follows the pointer before snapping, and cannot become a handle tap.
+  const grip=await page.locator('#passenger-route-handle').boundingBox();
+  const panelBefore=await page.locator('#passenger-overview').boundingBox();
+  await page.mouse.move(grip.x+grip.width/2,grip.y+grip.height/2);await page.mouse.down();
+  await page.mouse.move(grip.x+grip.width/2,grip.y+grip.height/2+60,{steps:8});
+  const panelDuring=await page.locator('#passenger-overview').boundingBox();
+  assert.ok(panelDuring.y>panelBefore.y+45,'route panel follows the drag in real time');
+  await page.mouse.up();
+  assert.equal(await page.locator('#passenger-overview').getAttribute('data-collapsed'),'true');
+  await assertChoicePreserved();
+  // A map-selected alternative stays selected while the panel remains tucked away.
+  await page.evaluate(()=>selectRoute(1));
+  assert.equal(await page.locator('#passenger-overview').getAttribute('data-collapsed'),'true');
+  assert.equal(await page.evaluate(()=>selectedRoute),1);
+  await page.locator('#passenger-route-handle').focus();await page.keyboard.press('Enter');
+  assert.equal(await page.locator('#passenger-overview').getAttribute('data-collapsed'),'false','keyboard opens the panel');
+  await page.locator('#passenger-route-list button').first().click();
+  await page.screenshot({path:path.join(root,'test-artifacts/passenger-routes-expanded.png')});
+  console.log('PASS route choice sheet: clean panel, live pointer drag, touch collapse/expand, list scrolling, cancellation, keyboard and selected route retained');
   assert.deepEqual(await page.evaluate(()=>({
     startVisible:!!startMarker&&pointLayer.hasLayer(startMarker),
     locationVisible:!!locationMarker&&pointLayer.hasLayer(locationMarker)
@@ -362,6 +437,15 @@ async function main(){
   assert.equal(await page.locator('#passenger-turn-list').isVisible(),false,
     'full direction list starts closed');
   assert.equal(await page.locator('.passenger-stats').isVisible(),true);
+  assert.equal(await page.locator('#passenger-traffic-summary').count(),0,'traffic sentence is removed from the bottom');
+  assert.equal(await page.evaluate(()=>{
+    const badge=document.getElementById('passenger-gps-status').getBoundingClientRect();
+    const copy=document.querySelector('.passenger-turn-copy').getBoundingClientRect();
+    const chevron=document.querySelector('.passenger-turn-chevron').getBoundingClientRect();
+    return badge.right<=innerWidth-10&&badge.top>=10&&copy.right<badge.left&&chevron.top>=badge.bottom;
+  }),true,'GPS badge has its own corner without covering turn text or the expand control');
+  assert.equal(await page.evaluate(()=>getComputedStyle(document.getElementById('passenger-distance')).fontSize===
+    getComputedStyle(document.getElementById('passenger-eta')).fontSize),true,'distance and time use the same font size');
   assert.equal(await page.locator('#passenger-voice').isVisible(),false,
     'advanced controls remain hidden until opening options');
   await page.locator('#jalan-home-menu').click();
@@ -448,6 +532,9 @@ async function main(){
   assert.ok(await page.evaluate(()=>map.getZoom()>=17),
     'passenger follow zoom must persist after delayed route overview settling');
   assert.equal(await page.locator('#passenger-speed').textContent(),'7','floating speed still uses the matched GPS fix');
+  assert.equal(await page.locator('#passenger-gps-status').getAttribute('data-quality'),'green');
+  assert.match(await page.locator('#passenger-next').textContent(),/Arrival approx/);
+  assert.doesNotMatch(await page.locator('#passenger-next').textContent(),/GPS matched to selected route/);
   assert.equal(await page.locator('#passenger-speed-floating').getAttribute('aria-label'),'7 kilometres per hour');
   assert.equal(await page.evaluate(()=>document.getElementById('passenger-fix').textContent.includes('GPS matched')),true);
   // Actual proactive engine denies missing key and never offers a route
@@ -882,12 +969,12 @@ async function main(){
   await setupTrafficRoute();
   assert.equal(incidentRequests,0,'no area-wide incident requests before Go');
   await page.locator('#passenger-go').click();
-  await page.waitForFunction(()=>document.getElementById('passenger-traffic-summary').dataset.state==='ready');
+  await page.waitForFunction(()=>window.__trafficLayerStatus?.state==='ready');
   assert.equal(incidentRequests,0,
     'route-linked reports do not fetch unrelated bbox Incident Details');
   assert.equal(trafficRouteRequests,0,'traffic route check waits for a trusted GPS fix');
   assert.equal(await page.locator('#jalan-home-menu-panel').isVisible(),false);
-  assert.match(await page.locator('#passenger-traffic-summary').innerText(),/Route-linked traffic: 2/);
+  assert.match(await page.evaluate(()=>window.__trafficLayerStatus?.message),/Route-linked traffic: 2/);
   assert.equal(await page.locator('.report-marker').count(),2,
     'two provider-defined route sections, not nearby unlinked incidents');
   assert.equal(await page.locator('#passenger-traffic-toggle').getAttribute('aria-pressed'),'true');
@@ -914,13 +1001,13 @@ async function main(){
   await menuClick('#passenger-traffic-toggle');
   assert.equal(await trafficLayers(),0,'Off removes traffic colour overlay');
   assert.equal(await page.locator('.jalan-report-focus-marker').count(),0);
-  assert.equal(await page.locator('#passenger-traffic-summary').getAttribute('data-state'),'off');
+  assert.equal(await page.evaluate(()=>window.__trafficLayerStatus?.state),'off');
   await page.locator('#passenger-turn-toggle').click();
   assert.equal(await page.locator('#passenger-report-list li').count(),0);
   await page.locator('#passenger-turn-close').click();
   await page.evaluate(()=>{routes[selectedRoute].trafficSectionsCheckedAt=Date.now()-11*60*1000;});
   await menuClick('#passenger-traffic-toggle');
-  await page.waitForFunction(()=>document.getElementById('passenger-traffic-summary').textContent.includes('Recalculate route'));
+  await page.waitForFunction(()=>window.__trafficLayerStatus?.message.includes('Recalculate route'));
   assert.equal(await page.locator('.report-marker').count(),0,
     'expired route snapshot must not display stale reports');
   await menuClick('#passenger-stop');
@@ -930,7 +1017,7 @@ async function main(){
   await page.evaluate(()=>{document.getElementById('tt-key').value='';});
   const beforeMissingKey=incidentRequests;
   await page.locator('#passenger-go').click();
-  assert.match(await page.locator('#passenger-traffic-summary').innerText(),/add a TomTom key/);
+  assert.match(await page.evaluate(()=>window.__trafficLayerStatus?.message),/add a TomTom key/);
   assert.equal(incidentRequests,beforeMissingKey);
   assert.equal(await trafficLayers(),0);
   await page.locator('#jalan-home-menu').click();

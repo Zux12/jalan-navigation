@@ -1,0 +1,28 @@
+/* Route choice panel can tuck down while its selected map route stays intact. */
+body.passenger-mode .passenger-overview{
+ --route-sheet-peek:72px;
+ z-index:1450;
+ transform:translateX(-50%) translateY(var(--route-sheet-offset,0px));
+ transition:transform .22s ease;
+ touch-action:pan-y;
+ padding-top:4px;
+}
+.passenger-route-handle{display:grid;place-items:center;width:100%;height:30px;
+ min-height:30px;flex:0 0 30px;margin:0 0 3px;padding:0;border:0;
+ border-radius:12px;background:transparent;cursor:grab;touch-action:none}
+.passenger-route-handle span{display:block;width:48px;height:5px;
+ border-radius:8px;background:#9fa8b2}
+.passenger-route-handle:focus-visible{outline:2px solid #136dec;outline-offset:-2px}
+.passenger-route-content{display:flex;flex-direction:column;flex:1 1 auto;min-height:0}
+body.passenger-mode .passenger-overview[data-collapsed="true"]{
+ --route-sheet-offset:calc(100% - var(--route-sheet-peek));
+}
+body.passenger-mode .passenger-overview[data-collapsed="true"] .passenger-route-content{visibility:hidden}
+body.passenger-mode .passenger-overview.passenger-route-dragging{
+ transform:translateX(-50%) translateY(var(--route-sheet-drag));
+ transition:none;user-select:none;-webkit-user-select:none;
+}
+@media(prefers-reduced-motion:reduce){body.passenger-mode .passenger-overview{transition:none}}
+
+/* Once search is hidden, its old A/B/C height must not move map buttons. */
+body.passenger-mode:has(.jalan-home-sheet.jalan-sheet-route){--jalan-map-control-bottom:96px}

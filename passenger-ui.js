@@ -12,11 +12,6 @@
  // Reuse the existing opt-in page-load one-shot geolocation. A pre-route
  // location triangle represents a measured position, never inferred heading
  // or route-matched driving accuracy.
- const startupStatus=document.createElement('div');
- startupStatus.id='passenger-startup-location-status';
- startupStatus.setAttribute('role','status');
- startupStatus.textContent='Finding location · allow browser GPS to centre the map';
- document.body.append(startupStatus);
  const startupPosition={ready:false};
  window.JalanPassengerStartup=startupPosition;
  let startupMarker=null,locationPending=true;
@@ -36,22 +31,20 @@
    // The original public location circle cannot masquerade as a trusted fix.
    if(locationMarker){pointLayer.removeLayer(locationMarker);locationMarker=null;}
    if(!startupPosition.ready){
-     startupStatus.textContent='GPS position uncertain · enable precise location or tap Locate';
      return;
    }
    const icon=L.divIcon({className:'passenger-startup-pin',
      html:'<span aria-hidden="true">▲</span>',iconSize:[42,42],iconAnchor:[21,21]});
    startupMarker=L.marker(detail.point,{icon,interactive:false,keyboard:false,
      title:'GPS location measured; direction not yet verified'}).addTo(map);
-   startupStatus.textContent='GPS location found · triangle shows position, not heading';
  });
  window.addEventListener('jalan:initial-location-error',()=>{
    if(!locationPending)return;
    locationPending=false;
-   startupStatus.textContent='Location unavailable · grant permission or use Locate';
+   startupPosition.ready=false;clearStartupMarker();
  });
  window.addEventListener('jalan:routes-rendered',()=>{
-   clearStartupMarker();startupStatus.classList.add('hidden');
+   clearStartupMarker();
  });
  // Route-planning markers are useful before Go but misleading when a separate
  // GPS-matched vehicle marker owns passenger guidance.
@@ -206,7 +199,6 @@
  const hideSettings=()=>settings.classList.add('hidden');
  const showSettings=()=>settings.classList.remove('hidden');
  el('passenger-settings-top').addEventListener('click',showSettings);
- el('passenger-settings').addEventListener('click',showSettings);
  el('passenger-setup-close').addEventListener('click',hideSettings);
  el('passenger-use-osrm').addEventListener('click',()=>{
    const toggle=el('tt-primary');
@@ -268,10 +260,8 @@
      overview.classList.add('hidden');return;
    }
    overview.classList.remove('hidden');
-   const chosen=routes[selectedRoute],valid=routes.filter(r=>Number.isFinite(r.duration));
+   const valid=routes.filter(r=>Number.isFinite(r.duration));
    const fastest=valid.length?Math.min(...valid.map(r=>r.duration)):null;
-   const name=chosen?.provider==='tomtom'?'TomTom · traffic-aware ETA':'OSRM · no live traffic';
-   el('passenger-route-provider').textContent=name+' · experimental, not approved for driving';
    list.replaceChildren();
    routes.forEach((r,i)=>{
      if(!r?.geometry?.coordinates?.length||!Number.isFinite(r.duration))return;
@@ -433,7 +423,7 @@
        (current?'Distances are approximate along-route values.':'Showing the selected route; distance from you awaits verified GPS.'):
      'No applicable reports ahead on this selected route.'+
        (hasIncidents?' TomTom incident check returned no applicable items.':
-        ' '+el('passenger-traffic-summary').textContent);
+        ' '+trafficSummary.message);
  };
  const selectInfoTab=tab=>{
    activeInfoTab=tab==='directions'?'directions':'reports';
@@ -491,7 +481,8 @@
   const syncGPS=(fix=null)=>{
    if(!document.body.classList.contains('passenger-guiding'))return;
    el('passenger-instruction').textContent=el('gps-instruction').textContent||'Acquiring GPS…';
-   el('passenger-next').textContent=el('gps-detail').textContent||'Route preview';
+   el('passenger-next').textContent=(el('gps-detail').textContent||'Route preview')
+     .replace(/\s*·\s*GPS matched to selected route\s*$/,'');
    el('passenger-eta').textContent=el('gps-eta').textContent||'—';
    el('passenger-distance').textContent=el('gps-distance').textContent||'—';
    const state=window.JalanGPS?.getState();
@@ -567,14 +558,14 @@
  const trafficToggle=el('passenger-traffic-toggle'),
        trafficStatus=el('passenger-traffic-status'),
        trafficOffer=el('passenger-traffic-offer');
- const trafficSummary=el('passenger-traffic-summary');
+ const trafficSummary={state:'off',message:'Traffic starts with Go'};
  let trafficOptOut=false;
  window.addEventListener('jalan:traffic-layer-status',event=>{
    if(!document.body.classList.contains('passenger-guiding'))return;
    const detail=event.detail||{},state=window.JalanGPS?.getState?.();
    if(detail.route&&detail.route!==state?.route)return;
-   trafficSummary.dataset.state=detail.state||'off';
-   trafficSummary.textContent=String(detail.message||'Traffic unavailable');
+   trafficSummary.state=detail.state||'off';
+   trafficSummary.message=String(detail.message||'Traffic unavailable');
    if(!turnList.classList.contains('hidden')&&activeInfoTab==='reports')renderReports();
  });
  const liveEta=el('passenger-live-eta');
@@ -669,7 +660,7 @@
    syncNavigationSettings();
    el('gps-start').click();
    if(!window.JalanGPS?.getState()?.active){
-     el('passenger-route-provider').textContent='GPS preview could not start. Check browser permissions or use Engineering tests.';
+     el('passenger-route-title').textContent='GPS unavailable · check browser permissions';
    }
  });
  window.addEventListener('jalan:journey-start',()=>{

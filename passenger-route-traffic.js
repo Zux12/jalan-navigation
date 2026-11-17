@@ -12,12 +12,7 @@
  const windowMeters=80, maxOffsetMeters=16;
  let route=null,epoch=0,aborters=[],flowAt=0,lastRequestAt=0,refreshId=null,flowMatches=[],
      overlay=L.layerGroup().addTo(map),hasFlow=false;
- const status=document.createElement('div');
- status.id='jalan-route-traffic-legend';
- status.setAttribute('role','status');
- status.textContent='Traffic: blue = unclassified';
  const key=document.getElementById('tt-key');
- document.body.append(status);
 
  const goodPoint=p=>Array.isArray(p)&&p.length===2&&p.every(Number.isFinite)&&
    Math.abs(p[0])<=180&&Math.abs(p[1])<=90;
@@ -145,15 +140,11 @@
        className:'jalan-selected-traffic-colour'
      }).addTo(overlay);
    }
-   status.textContent=route?.provider!=='tomtom'?'Traffic colours unavailable · OSRM demo':
-     pieces.length?'Selected-route traffic: light yellow · moderate orange · heavy red':
-       hasFlow?'No classified congestion on sampled road stretches':'Traffic: blue = unclassified · awaiting trusted TomTom data';
  }
  function reset(){
    epoch++;aborters.forEach(a=>a.abort());aborters=[];flowMatches=[];flowAt=0;lastRequestAt=0;hasFlow=false;
    if(refreshId){clearInterval(refreshId);refreshId=null;}
    overlay.clearLayers();route=null;
-   status.textContent='Traffic: blue = unclassified';
  }
  function samplesFor(path){
    const count=Math.max(1,Math.min(maxSamples,Math.ceil(path.total/500)));
@@ -189,7 +180,7 @@
  function choose(){
    const candidate=routes?.[selectedRoute];
    if(!candidate||candidate.provider!=='tomtom'){
-     reset();status.textContent='Traffic colours unavailable · OSRM demo';return;
+     reset();return;
    }
    if(candidate!==route){reset();route=candidate;draw();}
    // Bounded point-by-point flow queries only on selected TomTom route and only
