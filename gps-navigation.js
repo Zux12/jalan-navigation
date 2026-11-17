@@ -79,6 +79,7 @@
   // A cached/background Safari location must not be advertised as a fresh
   // route match. Do not feed expired or far-future samples to the predictor.
   if(Number.isFinite(sampleTime)&&(sampleTime<now-10000||sampleTime>now+5000)){
+   publishQuality(null,true);
    latestMatched=false;lastReportedAccuracy=Infinity;lastFixAt=0;latestMode='stale';rerouteFix=null;lastMeasuredAccepted=false;
    window.dispatchEvent(new CustomEvent('jalan:gps-fix',{detail:{
     accuracy:Infinity,matched:false,matchedPosition:null,speedMps:null,
@@ -91,10 +92,28 @@
   const raw=[fix.coords.latitude,fix.coords.longitude],reportedAccuracy=fix.coords.accuracy;
   // Never infer GPS accuracy from rendered text: "Unknown" would parse as 0 m.
   const accuracy=Number.isFinite(reportedAccuracy)&&reportedAccuracy>=0?reportedAccuracy:Infinity;
-  const result=predictor.feed({position:raw,accuracy,time:fix.timestamp||Date.now(),speed:fix.coords.speed});
-  const p=result.position;lastFixAt=Date.now();latestMode=result.mode;
+  // Validate browser-measured movement BEFORE feeding the route predictor.
+  // A rejected teleport must never influence its internal history or cause a
+  // false off-route verdict on the next legitimate fix.
   const measured=acceptMeasuredFix(raw,accuracy,now,fix.coords.speed);
   lastMeasuredAccepted=measured;
+  if(!measured){
+   latestMatched=false;lastReportedAccuracy=Infinity;lastFixAt=0;
+   latestMode='uncertain';rerouteFix=null;
+   publishQuality(null,true);
+   window.dispatchEvent(new CustomEvent('jalan:gps-fix',{detail:{
+    accuracy:Infinity,matched:false,matchedPosition:null,speedMps:null,
+    heading:null,reason:'rejected-measured-fix',...positionEvidence()
+   }}));
+   el('gps-accuracy').textContent='Unverified';
+   el('gps-match-status').textContent='GPS measurement rejected';
+   el('gps-instruction').textContent='Route alignment pending · turn guidance paused';
+   el('gps-detail').textContent='Last known position retained; waiting for plausible GPS';
+   warn('GPS jump or inaccurate location rejected. Turn guidance paused.');
+   return;
+  }
+  const result=predictor.feed({position:raw,accuracy,time:fix.timestamp||Date.now(),speed:fix.coords.speed});
+  const p=result.position;lastFixAt=now;latestMode=result.mode;
   // Never ask a route provider to start from a rejected raw GPS jump.
   rerouteFix=measured&&['matched','deviation'].includes(result.mode)&&accuracy<=65&&
    raw.every(Number.isFinite)&&Math.abs(raw[0])<=90&&Math.abs(raw[1])<=180?
