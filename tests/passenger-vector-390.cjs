@@ -187,8 +187,8 @@ async function main(){
   await dependencies(startup);
   await startup.route('https://tiles.openfreemap.org/styles/positron',route=>route.fulfill({json:style}));
   await startup.goto(base+'/index.html?mode=passenger');
-  await startup.waitForFunction(()=>window.JalanVectorMap?.active&&window.JalanPassengerStartup?.ready);
-  await startup.waitForFunction(()=>document.querySelectorAll('.passenger-startup-pin').length===1);
+  await startup.waitForFunction(()=>window.JalanVectorMap?.active&&window.JalanPassengerStartup?.ready,null,{timeout:12000});
+  await startup.waitForFunction(()=>document.querySelectorAll('.passenger-startup-pin').length===1,null,{timeout:8000});
   assert.equal(await startup.evaluate(()=>Math.round(map.getZoom())),17,
     'accurate permission-granted startup position zooms to street scale');
   assert.ok(await startup.evaluate(()=>Math.abs(map.getCenter().lat-3.139)<.00001&&
@@ -209,7 +209,7 @@ async function main(){
   await weak.route('https://tiles.openfreemap.org/styles/positron',route=>route.fulfill({json:style}));
   await weak.goto(base+'/index.html?mode=passenger');
   await weak.waitForFunction(()=>window.JalanVectorMap?.active&&
-    document.getElementById('passenger-startup-location-status')?.textContent.includes('uncertain'));
+    document.getElementById('passenger-startup-location-status')?.textContent.includes('uncertain'),null,{timeout:12000});
   assert.equal(await weak.locator('.passenger-startup-pin').count(),0);
   assert.equal(await weak.evaluate(()=>Math.round(map.getZoom())),12);
   await weak.close();await weakContext.close();
