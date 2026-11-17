@@ -139,6 +139,7 @@ window.addEventListener('load',()=>{
       statusEl.textContent='Showing your current location. Search for a destination.';
     }
   }).catch(()=>{
+    if(passengerMode)window.dispatchEvent(new Event('jalan:initial-location-error'));
     if(!destination && !routes.length)statusEl.textContent='Allow location access to start at your position, or choose a starting point on the map.';
   });
 });
