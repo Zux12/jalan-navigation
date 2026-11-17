@@ -39,6 +39,9 @@
  window.addEventListener('jalan:journey-start',clearTravelled);
  window.addEventListener('jalan:journey-stop',clearTravelled);
  window.addEventListener('jalan:route-cleared',clearTravelled);
+ // An atomic off-route swap emits route-change before its next GPS fix.
+ // Never leave the *old route's* travelled overlay drawn on the new route.
+ window.addEventListener('jalan:route-change',clearTravelled);
  // Reuse the existing opt-in page-load one-shot geolocation. A pre-route
  // location triangle represents a measured position, never inferred heading
  // or route-matched driving accuracy.

@@ -410,6 +410,11 @@ async function main(){
   });
   assert.equal(trail.color,'#8293aa');assert.ok(trail.last.lng<trail.end[0],'travelled colour stops before the destination');
   await live.screenshot({path:path.join(artifacts,'vector-travelled-route.png')});
+  // The real continuous-GPS controller emits this after a successful atomic
+  // off-route route swap; old geometry must disappear before the next fix.
+  await live.evaluate(()=>window.dispatchEvent(new CustomEvent('jalan:route-change',{detail:{reason:'off-route'}})));
+  assert.equal(await live.evaluate(()=>Object.values(map._layers).some(x=>x.options?.className==='jalan-travelled-route')),false,
+    'atomic replacement immediately clears obsolete travelled-route geometry');
   await live.evaluate(()=>{JalanGPS.getState=window.__originalState;});
   assert.ok(tileResponses.some(code=>code===200),'actual vector/glyph resources received');
   assert.equal(await live.evaluate(()=>JalanVectorMap.active),true);
