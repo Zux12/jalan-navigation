@@ -15,6 +15,7 @@
  const startupPosition={ready:false};
  window.JalanPassengerStartup=startupPosition;
  let startupMarker=null,locationPending=true;
+ let startupTimestamp=-Infinity;
  const clearStartupMarker=()=>{
    if(startupMarker){map.removeLayer(startupMarker);startupMarker=null;}
  };
@@ -42,6 +43,17 @@
    if(!locationPending)return;
    locationPending=false;
    startupPosition.ready=false;clearStartupMarker();
+ });
+ window.addEventListener('jalan:free-location',event=>{
+   const detail=event.detail;
+   if(document.body.classList.contains('passenger-guiding')||destination||routes.length||
+      !locationConfidence(detail)||detail.timestamp<startupTimestamp)return;
+   startupTimestamp=detail.timestamp;
+   if(!startupMarker){
+     window.dispatchEvent(new CustomEvent('jalan:initial-location',{detail}));
+   }else startupMarker.setLatLng(detail.point);
+   // Keep the original blue location circle from duplicating the triangle.
+   if(locationMarker){pointLayer.removeLayer(locationMarker);locationMarker=null;}
  });
  window.addEventListener('jalan:routes-rendered',()=>{
    clearStartupMarker();

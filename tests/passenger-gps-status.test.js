@@ -12,7 +12,8 @@ function scene({supported=true,mode='passenger',syncDenied=false}={}){
   addEventListener:(type,fn)=>listen(docEvents,type,fn)};
  const geo={watchPosition(ok,fail,options){const id=++nextWatch;watches.set(id,{ok,fail,options});
   if(syncDenied)fail({code:1});return id;},clearWatch(id){cleared.push(id);watches.delete(id);}};
- const ctx={window:{addEventListener:(type,fn)=>listen(events,type,fn)},document,
+ const ctx={window:{addEventListener:(type,fn)=>listen(events,type,fn),dispatchEvent:e=>fire(events,e.type,e.detail)},document,
+  CustomEvent:class{constructor(type,options){this.type=type;this.detail=options.detail;}},
   navigator:{geolocation:supported?geo:null},location:{search:'?mode='+mode},URLSearchParams,
   Date:{now:()=>now},Math,Number,Array,queueMicrotask:fn=>microtasks.push(fn),
   setInterval:fn=>{const id=timers.size+1;timers.set(id,fn);return id;},clearInterval:id=>timers.delete(id)};
