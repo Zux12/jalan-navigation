@@ -6,7 +6,7 @@
  if(params.get('mode')!=='passenger'||params.get('renderer')==='raster')return;
  const host=map.getContainer(),original={},virtualTiles=new Set(),pins=new Map(),rasters=new Map();
  const watched=new WeakSet(),handlers=[],zoomSnap=map.options.zoomSnap;
- let gl=null,active=false,stopped=false,queued=false,syncing=false,lineSignature='',timer,popup=null,popupLayer=null;
+ let gl=null,active=false,stopped=false,queued=false,syncing=false,lineSignature='',trafficSignature='',timer,popup=null,popupLayer=null;
  const status=document.createElement('button');
  status.type='button';status.disabled=true;status.id='jalan-map-status';status.setAttribute('aria-live','polite');
  status.addEventListener('click',fallback);
@@ -187,18 +187,29 @@
    }else if(pin.label){pin.label.remove();pin.label=null;}
  }
  function syncLayers(){
-   const features=[],seen=new Set(),tileIds=new Set();
+   const features=[],trafficFeatures=[],seen=new Set(),tileIds=new Set();
    original.eachLayer(layer=>{
      watch(layer);const id=L.stamp(layer);
      if(layer instanceof L.Polyline&&layer.options.opacity!==0){
        const feature=layer.toGeoJSON();feature.properties={leafletId:id,color:layer.options.color||'#087af5',
-         width:layer.options.weight||5,opacity:layer.options.opacity??1};features.push(feature);
+         width:layer.options.weight||5,opacity:layer.options.opacity??1};
+       // Traffic must be above the blue route, never competing with it in
+       // the base layer's line-sort-key by opacity. Both originate from the
+       // same selected TomTom route geometry and share its map projection.
+       if(layer.options.className?.split(' ').includes('jalan-selected-traffic-colour'))
+         trafficFeatures.push(feature);
+       else features.push(feature);
      }else if(layer instanceof L.Marker||layer instanceof L.CircleMarker){seen.add(id);pinFor(layer,id);}
    });
    pins.forEach((pin,id)=>{if(!seen.has(id)){pin.marker.remove();pin.label?.remove();pins.delete(id);}});
    if(popupLayer&&!original.hasLayer(popupLayer)){popup?.remove();popup=null;popupLayer=null;}
    const signature=JSON.stringify(features);
    if(signature!==lineSignature){lineSignature=signature;gl.getSource('jalan-routes').setData({type:'FeatureCollection',features});}
+   const coloredSignature=JSON.stringify(trafficFeatures);
+   if(coloredSignature!==trafficSignature){
+     trafficSignature=coloredSignature;
+     gl.getSource('jalan-selected-traffic').setData({type:'FeatureCollection',features:trafficFeatures});
+   }
    virtualTiles.forEach(layer=>{
      // Replace only the base map. Preserve the existing TomTom flow overlay.
      if(!layer._url?.startsWith('https://api.tomtom.com/traffic/map/'))return;
@@ -242,6 +253,17 @@
    gl.addLayer({id:'jalan-route-lines',type:'line',source:'jalan-routes',
      layout:{'line-cap':'round','line-join':'round','line-sort-key':['get','opacity']},
      paint:{'line-color':['get','color'],'line-width':['get','width'],'line-opacity':['get','opacity']}});
+   // Dedicated TOP layers guarantee coloured segments replace the blue line
+   // on identical road geometry. Never let base line-sort-key bury them.
+   gl.addSource('jalan-selected-traffic',{type:'geojson',
+     data:{type:'FeatureCollection',features:[]}});
+   gl.addLayer({id:'jalan-selected-traffic-casing',type:'line',source:'jalan-selected-traffic',
+     layout:{'line-cap':'round','line-join':'round'},
+     paint:{'line-color':'#ffffff','line-width':15,'line-opacity':['get','opacity']}});
+   gl.addLayer({id:'jalan-selected-traffic-lines',type:'line',source:'jalan-selected-traffic',
+     layout:{'line-cap':'round','line-join':'round'},
+     paint:{'line-color':['get','color'],'line-width':10,
+       'line-opacity':['get','opacity']}});
  }
  function dependency(tag,url,integrity){return new Promise((resolve,reject)=>{
    const node=document.createElement(tag);node.crossOrigin='anonymous';node.integrity=integrity;
