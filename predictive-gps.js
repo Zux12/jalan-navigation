@@ -15,16 +15,26 @@
    const score=d+(near===null?0:Math.min(160,Math.abs(along-near)*0.18));
    if(score<(best.score??Infinity))best={distance:d,along,position:interpolate(a,b,t),score};
   }return best;}
-  let lastTime=null,lastGood=null,along=0,velocity=0,offCount=0,offSince=null,lastMode='waiting';
+  let lastTime=null,lastGood=null,along=0,velocity=0,offCount=0,offSince=null,lastMode='waiting',initialOff=null;
   function feed(fix){const time=Number(fix.time),raw=fix.position,acc=Number(fix.accuracy),speed=Number.isFinite(fix.speed)&&fix.speed>=0?Math.min(fix.speed,45):null;
    if(!Number.isFinite(time)||!raw||!raw.every(Number.isFinite))return {mode:'invalid',position:at(along),along,offCount};
    let dt=lastTime===null?0:Math.max(0,Math.min(30,(time-lastTime)/1000));if(lastTime!==null&&time<=lastTime)return {mode:'stale',position:at(along),along,offCount};lastTime=time;
    // Predict only for a short period. Never pretend the route position is precise.
    const advance=Math.min(dt,12)*Math.min(velocity,38);const predicted=Math.min(total,along+advance);
-   if(!Number.isFinite(acc)||acc>65){along=predicted;lastMode='uncertain';offCount=0;offSince=null;return {mode:'uncertain',position:at(along),along,offCount,confidence:'low'};}
+   if(!Number.isFinite(acc)||acc>65){along=predicted;lastMode='uncertain';offCount=0;offSince=null;initialOff=null;return {mode:'uncertain',position:at(along),along,offCount,confidence:'low'};}
    const match=snap(raw,predicted);const threshold=Math.max(45,acc*2.2);
-   if(lastGood===null){if(match.distance<=threshold){along=match.along;lastGood={time,position:raw};velocity=speed??0;lastMode='matched';return {mode:'matched',position:at(along),along,offCount:0,confidence:'high'};}
-    return {mode:'waiting',position:at(along),along,offCount:0,confidence:'low'};}
+   if(lastGood===null){if(match.distance<=threshold){along=match.along;lastGood={time,position:raw};velocity=speed??0;offCount=0;offSince=null;initialOff=null;lastMode='matched';return {mode:'matched',position:at(along),along,offCount:0,confidence:'high'};}
+    // A journey can acquire its first accurate GPS only after the user has
+    // already left the planned road. Require sustained, mutually plausible
+    // readings rather than waiting forever for a match to that old route.
+    const gap=initialOff?Math.max(.2,(time-initialOff.time)/1000):0;
+    const plausible=initialOff&&dist(initialOff.position,raw)<=Math.max(40,((speed??0)+12)*gap+acc*2);
+    if(!plausible){offCount=1;offSince=time;}else offCount++;
+    initialOff={time,position:[...raw]};
+    const confirmed=offCount>=4&&time-offSince>=8000;
+    return {mode:confirmed?'deviation':'waiting',position:at(along),along,offCount,
+      confidence:'low',raw:confirmed?raw:null,offset:Math.round(match.distance)};}
+
    const gap=Math.max(0.2,(time-lastGood.time)/1000),jump=dist(lastGood.position,raw),maxTravel=Math.max(40,(Math.max(velocity,speed??0)+12)*gap+acc*2);
    const plausible=jump<=maxTravel;
    if(match.distance<=threshold&&plausible){const prev=along;along=Math.max(along,Math.min(match.along,predicted+Math.max(35,acc*2,dt*12)));velocity=speed??Math.min(38,Math.max(0,(along-prev)/Math.max(dt,0.5)));lastGood={time,position:raw};offCount=0;offSince=null;lastMode='matched';return {mode:'matched',position:at(along),along,offCount:0,confidence:'high'};}

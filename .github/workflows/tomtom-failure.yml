@@ -5,6 +5,9 @@ on:
       - 'tomtom-live.js'
       - 'proactive-routing.js'
       - 'gps-navigation.js'
+      - 'predictive-gps.js'
+      - 'app.js'
+      - 'tests/off-route-reroute.test.js'
       - 'tests/proactive-reroute.test.js'
       - 'tests/gps-match-contract.test.js'
       - 'tests/tomtom-failure.test.js'
@@ -15,6 +18,9 @@ on:
       - 'tomtom-live.js'
       - 'proactive-routing.js'
       - 'gps-navigation.js'
+      - 'predictive-gps.js'
+      - 'app.js'
+      - 'tests/off-route-reroute.test.js'
       - 'tests/proactive-reroute.test.js'
       - 'tests/gps-match-contract.test.js'
       - 'tests/tomtom-failure.test.js'
@@ -31,4 +37,4 @@ jobs:
         with:
           node-version: '24'
       - run: node --check tomtom-live.js && node --check proactive-routing.js && node --check gps-navigation.js
-      - run: node --test tests/tomtom-failure.test.js tests/proactive-reroute.test.js tests/gps-match-contract.test.js
+      - run: node --test tests/tomtom-failure.test.js tests/proactive-reroute.test.js tests/gps-match-contract.test.js tests/off-route-reroute.test.js

@@ -28,7 +28,7 @@ test('JalanGPS match confidence is cleared on predicted fixes, stop and restart'
   selectedRoute:0,destination:[3.1478,101.6953],startPoint:null,renderRoutes(){},
   updateLocation(){},fmtDist:m=>String(m),fmtTime:s=>String(s),
   statusEl:{textContent:''},CustomEvent:class{constructor(type){this.type=type}},
-  Date,Math,setTimeout(){},console
+  Date,Math,AbortController,setTimeout(){},clearTimeout(){},console
  };
  vm.runInNewContext(source,ctx,{filename:'gps-navigation.js'});
  const state=()=>browserWindow.JalanGPS.getState();
@@ -81,8 +81,8 @@ test('JalanGPS match confidence is cleared on predicted fixes, stop and restart'
  updateGPS(fix());
  const previousWatchClears=cleared;
  const previousRoute=state().route;
- ctx.calculateRoutes=async()=>{ctx.routes=[{...previousRoute,
-   geometry:{type:'LineString',coordinates:[[101.6869,3.139],[101.6955,3.148]]}}];};
+ ctx.requestDrivingRoutes=async()=>[{...previousRoute,
+   geometry:{type:'LineString',coordinates:[[101.6869,3.139],[101.6955,3.148]]}}];
  await get('gps-reroute').onclick();
  assert.ok(cleared>previousWatchClears,
    'successful reroute must stop the previous GPS watcher');
