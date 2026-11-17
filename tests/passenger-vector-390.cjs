@@ -83,11 +83,32 @@ async function main(){
   assert.ok(placement.dx<2&&placement.dy<2,'vehicle shares native pitched projection with route');
   assert.ok(placement.y>450&&placement.y<700,'vehicle is in lower visible map area');
   await page.screenshot({path:path.join(artifacts,'vector-fixture-navigation.png')});
-  // Physical mouse drag hits MapLibre canvas, pauses follow, and preserves pitch.
-  await page.mouse.move(150,380);await page.mouse.down();await page.mouse.move(240,430,{steps:8});await page.mouse.up();
+  // Native gestures must actually change the camera. A former vector-gesture
+  // handler called gl.stop() on dragstart, cancelling the map movement.
+  const initialCenter=await page.evaluate(()=>[map.getCenter().lat,map.getCenter().lng]);
+  await page.mouse.move(150,380);await page.mouse.down();
+  await page.mouse.move(240,430,{steps:12});await page.mouse.up();
   await page.waitForTimeout(250);
   assert.match(await page.locator('#passenger-gesture-hint').textContent(),/Exploring map/);
+  const draggedCenter=await page.evaluate(()=>[map.getCenter().lat,map.getCenter().lng]);
+  assert.ok(Math.hypot(draggedCenter[0]-initialCenter[0],draggedCenter[1]-initialCenter[1])>0.00001,
+    'native mouse drag must move the actual map center');
   await page.evaluate(fix);
+  await page.waitForTimeout(100);
+  const afterGPS=await page.evaluate(()=>[map.getCenter().lat,map.getCenter().lng]);
+  assert.ok(Math.hypot(afterGPS[0]-draggedCenter[0],afterGPS[1]-draggedCenter[1])<0.00001,
+    'GPS updates must not seize the camera during manual exploration');
+  const zoomBeforeWheel=await page.evaluate(()=>JalanVectorMap.getState().zoom);
+  await page.mouse.move(210,350);await page.mouse.wheel(0,-420);
+  await page.waitForTimeout(650);
+  assert.ok(await page.evaluate(()=>JalanVectorMap.getState().zoom)>zoomBeforeWheel+0.1,
+    'native wheel zoom must change map zoom');
+  const bearingBeforeRotate=await page.evaluate(()=>JalanVectorMap.getBearing());
+  await page.mouse.move(200,340);await page.mouse.down({button:'right'});
+  await page.mouse.move(280,380,{steps:12});await page.mouse.up({button:'right'});
+  await page.waitForTimeout(200);
+  assert.ok(Math.abs(await page.evaluate(()=>JalanVectorMap.getBearing())-bearingBeforeRotate)>1,
+    'native right-drag must rotate the vector map');
   await page.locator('#passenger-recenter-floating').click();
   assert.equal(await page.evaluate(()=>Math.round(map.getZoom())),17);
   await page.locator('#passenger-options > summary').click();
