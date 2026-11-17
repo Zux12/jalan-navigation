@@ -393,6 +393,24 @@ async function main(){
   await live.waitForTimeout(5000);
   await live.evaluate(fix);
   assert.deepEqual(mapFailures,[],'public vector resources must load');
+  assert.ok(await live.evaluate(()=>Math.abs(map.getZoom()-(17+Math.log2(1.5)))<.001),'navigation scale is 50% closer');
+  assert.equal(await live.locator('#passenger-vehicle-screen').evaluate(x=>getComputedStyle(x).fontSize),'70px','navigation triangle is doubled');
+  // Exercise the display boundary using trusted controller progress, without
+  // inventing a road match or waiting for physical travel in this fixture.
+  await live.evaluate(()=>{
+   window.__originalState=JalanGPS.getState;
+   const state=JalanGPS.getState();
+   JalanGPS.getState=()=>({...state,matched:true,accuracy:8,fixAgeMs:0,remainingMeters:state.route.distance/2});
+   window.dispatchEvent(new CustomEvent('jalan:gps-fix',{detail:{matched:false}}));
+  });
+  await live.waitForFunction(()=>Object.values(map._layers).some(x=>x.options?.className==='jalan-travelled-route'));
+  const trail=await live.evaluate(()=>{
+   const line=Object.values(map._layers).find(x=>x.options?.className==='jalan-travelled-route');
+   return {color:line.options.color,last:line.getLatLngs().at(-1),end:JalanGPS.getState().route.geometry.coordinates.at(-1)};
+  });
+  assert.equal(trail.color,'#8293aa');assert.ok(trail.last.lng<trail.end[0],'travelled colour stops before the destination');
+  await live.screenshot({path:path.join(artifacts,'vector-travelled-route.png')});
+  await live.evaluate(()=>{JalanGPS.getState=window.__originalState;});
   assert.ok(tileResponses.some(code=>code===200),'actual vector/glyph resources received');
   assert.equal(await live.evaluate(()=>JalanVectorMap.active),true);
   assert.ok(await live.evaluate(()=>document.querySelector('.passenger-bottom').getBoundingClientRect().bottom<=
