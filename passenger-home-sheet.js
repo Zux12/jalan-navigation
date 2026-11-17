@@ -84,9 +84,28 @@
  handle.addEventListener('pointerdown',start);
  handle.addEventListener('pointerup',end);
  handle.addEventListener('pointercancel',()=>{dragStart=null;});
- // A/B use a stationary search trigger; after its click the real input
- // appears in C and receives focus, without moving the touch target mid-tap.
- searchTrigger.addEventListener('click',()=>{
+ // A/B search allows a gradual swipe as well as a direct tap. The
+ // pointer is captured so the touch target does not move during expansion.
+ let searchSwipe=null,swallowSwipeClick=false;
+ searchTrigger.addEventListener('pointerdown',e=>{
+   if(e.button!==undefined&&e.button!==0)return;
+   swallowSwipeClick=false;
+   searchSwipe={y:e.clientY,at:sheet.dataset.state};
+   searchTrigger.setPointerCapture?.(e.pointerId);
+ });
+ searchTrigger.addEventListener('pointerup',e=>{
+   if(!searchSwipe)return;
+   const delta=e.clientY-searchSwipe.y,prior=searchSwipe.at;
+   searchSwipe=null;
+   if(Math.abs(delta)<32)return;
+   swallowSwipeClick=true;
+   setState(delta<0?(prior==='a'?'b':'c'):(prior==='c'?'b':'a'));
+   e.preventDefault();
+ });
+ searchTrigger.addEventListener('pointercancel',()=>{searchSwipe=null;});
+ // A/B taps open C directly; a real swipe must not synthesize a tap to C.
+ searchTrigger.addEventListener('click',e=>{
+   if(swallowSwipeClick){swallowSwipeClick=false;e.preventDefault();return;}
    setState('c');input.focus({preventScroll:true});
  });
  input.addEventListener('focus',()=>setState('c'));

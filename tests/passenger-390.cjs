@@ -63,6 +63,20 @@ async function main(){
   await page.locator('#jalan-home-menu').click();
   assert.equal(await page.locator('#jalan-home-menu-panel').isVisible(),true);
   await page.locator('#jalan-home-menu-close').click();
+  // The search banner must support progressive A→B (not jump to C) on
+  // an actual pointer swipe, while B exposes the session-only Recent area.
+  const swipeSearch=async dy=>{
+    const b=await page.locator('#jalan-search-trigger').boundingBox();
+    const x=b.x+b.width/2,y=b.y+b.height/2;
+    await page.mouse.move(x,y);await page.mouse.down();
+    await page.mouse.move(x,y+dy,{steps:8});await page.mouse.up();
+  };
+  await swipeSearch(-88);
+  assert.equal(await sheetState(),'b','swiping up on search banner expands A to B');
+  assert.equal(await page.locator('.jalan-sheet-recent').isVisible(),true,
+    'B displays Recent beneath Home/Work/New, even for a new session');
+  await swipeSearch(88);
+  assert.equal(await sheetState(),'a','swiping down on search banner collapses B to A');
   await page.locator('#jalan-sheet-handle').click();
   assert.equal(await sheetState(),'b','handle expands to B quick shortcuts');
   assert.equal(await page.locator('.jalan-sheet-quick button').count(),3);
