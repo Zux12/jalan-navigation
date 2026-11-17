@@ -6,7 +6,7 @@
  if(params.get('mode')!=='passenger'||params.get('renderer')==='raster')return;
  const host=map.getContainer(),original={},virtualTiles=new Set(),pins=new Map(),rasters=new Map();
  const watched=new WeakSet(),handlers=[],zoomSnap=map.options.zoomSnap;
- let gl=null,active=false,stopped=false,queued=false,syncing=false,lineSignature='',trafficSignature='',timer,popup=null,popupLayer=null;
+ let gl=null,active=false,stopped=false,queued=false,syncing=false,lineSignature='',trafficSignature='',trafficFeatureCount=0,timer,popup=null,popupLayer=null;
  const status=document.createElement('button');
  status.type='button';status.disabled=true;status.id='jalan-map-status';status.setAttribute('aria-live','polite');
  status.addEventListener('click',fallback);
@@ -66,7 +66,7 @@
    handlers.forEach(handler=>handler.enable());
    pins.forEach(pin=>{pin.marker.remove();pin.label?.remove();});pins.clear();
    if(gl){gl.remove();gl=null;}popup=null;popupLayer=null;container.remove();
-   status.disabled=true;status.textContent='Basic map · detailed view unavailable';
+   trafficFeatureCount=0;status.disabled=true;status.textContent='Basic map · detailed view unavailable';
    original.invalidateSize({animate:false});emit();
  }
  window.JalanVectorMap={
@@ -76,8 +76,14 @@
    getPitch(){return active?gl.getPitch():0;},
    setCamera(options){if(active)gl.jumpTo(options);},
    // Read-only diagnostic snapshot, without tile URLs, keys or stored locations.
-   getState(){return {active,pitch:active?gl.getPitch():0,bearing:active?gl.getBearing():0,
-     zoom:active?gl.getZoom()+1:null,markers:pins.size,trafficLayers:rasters.size};},
+   getState(){
+     const layers=active?gl.getStyle().layers.map(x=>x.id):[];
+     return {active,pitch:active?gl.getPitch():0,bearing:active?gl.getBearing():0,
+       zoom:active?gl.getZoom()+1:null,markers:pins.size,trafficLayers:rasters.size,
+       selectedTrafficSegments:active?trafficFeatureCount:0,
+       trafficAboveRoute:active&&layers.indexOf('jalan-selected-traffic-lines')>
+         layers.indexOf('jalan-route-lines')};
+   },
    useBasicMap:fallback
  };
  function installCamera(){
@@ -207,7 +213,7 @@
    if(signature!==lineSignature){lineSignature=signature;gl.getSource('jalan-routes').setData({type:'FeatureCollection',features});}
    const coloredSignature=JSON.stringify(trafficFeatures);
    if(coloredSignature!==trafficSignature){
-     trafficSignature=coloredSignature;
+     trafficSignature=coloredSignature;trafficFeatureCount=trafficFeatures.length;
      gl.getSource('jalan-selected-traffic').setData({type:'FeatureCollection',features:trafficFeatures});
    }
    virtualTiles.forEach(layer=>{
