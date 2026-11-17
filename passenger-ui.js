@@ -515,7 +515,7 @@
      'GPS matched · direction held or unavailable';
    // Before the first GPS callback the chosen route remains clearly visible.
    // Dim it only once a fix shows the old road alignment is unverified.
-   if(fix)setRouteMuted(!matched);
+   if(fix&&(matched||measured))setRouteMuted(!matched);
    const speed=fix?.gpsReliable&&Number.isFinite(fix.speedMps)&&fix.speedMps>=0?
      String(Math.round(fix.speedMps*3.6)):'—';
    el('passenger-speed').textContent=speed;
