@@ -101,6 +101,26 @@ async function main(){
   await page.locator('#passenger-route-list button').first().click();
   await page.locator('#passenger-go').click();
   assert.equal(await page.evaluate(()=>JalanVectorMap.getPitch()),48,'Go uses native pitch');
+  for(const height of [844,560]){
+   await page.setViewportSize({width:390,height});
+   const layout=await page.evaluate(()=>{
+    const speed=document.getElementById('passenger-speed-floating').getBoundingClientRect(),
+      recenter=document.getElementById('passenger-recenter-floating').getBoundingClientRect(),
+      bottom=document.querySelector('.passenger-bottom').getBoundingClientRect();
+    return {aligned:Math.abs(speed.top+speed.height/2-recenter.top-recenter.height/2)<2,
+      clear:speed.bottom<bottom.top&&recenter.bottom<bottom.top,separated:speed.right<recenter.left};
+   });
+   assert.deepEqual(layout,{aligned:true,clear:true,separated:true},
+     'speed and Recenter stay opposite and above the vector map bottom bar');
+  }
+  await page.setViewportSize({width:390,height:844});
+  await page.locator('#passenger-search').click();
+  assert.equal(await page.locator('#jalan-home-sheet').getAttribute('data-state'),'c');
+  assert.equal(await page.evaluate(()=>JalanVectorMap.active&&JalanGPS.getState().active),true);
+  await page.keyboard.press('Escape');
+  assert.equal(await page.locator('#jalan-home-sheet').isVisible(),false);
+  assert.equal(await page.evaluate(()=>JalanVectorMap.getPitch()),48,
+    'opening and dismissing Stage C preserves the native pitched map');
   assert.equal(await page.locator('#passenger-map-gestures').isVisible(),false,'native gestures get the touch surface');
   const fix=()=>window.__fix({timestamp:Date.now(),coords:{latitude:3.139,longitude:101.6869,accuracy:8,speed:5,heading:45}});
   await page.evaluate(fix);

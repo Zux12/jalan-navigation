@@ -170,7 +170,6 @@ async function main(){
   await page.locator('#jalan-sheet-handle').focus();await page.keyboard.press('Enter');
   assert.equal(await sheetState(),'b');
   await page.keyboard.press('Enter');assert.equal(await sheetState(),'c');
-  await sheetTouch.detach();
   console.log('PASS sheet touch gestures: A/B/C content swipes, native list scrolling, top collapse, no accidental selection, keyboard and search taps');
   await page.evaluate(()=>{
    // Deliberately out-of-order synthetic provider returns, NOT live roads.
@@ -247,12 +246,92 @@ async function main(){
   })),{startVisible:false,locationVisible:false},
   'start and legacy location circles must not overlap the passenger vehicle marker');
   assert.equal(await page.locator('#passenger-navigation').isVisible(),true);
+  assert.equal(await page.locator('.passenger-stats #passenger-speed').count(),0,
+    'speed no longer occupies the bottom metrics row');
+  assert.equal(await page.locator('.passenger-stats #passenger-search').isVisible(),true);
+  assert.equal(await page.locator('#passenger-speed-floating').isVisible(),true);
+  assert.equal(await page.locator('#passenger-speed').textContent(),'—',
+    'moving speed must not invent a value without a matched GPS fix');
+  for(const height of [844,560]){
+    await page.setViewportSize({width:390,height});
+    const positions=await page.evaluate(()=>{
+      const a=document.getElementById('passenger-speed-floating').getBoundingClientRect();
+      const b=document.getElementById('passenger-recenter-floating').getBoundingClientRect();
+      return {left:a.left,right:b.right,ay:a.top+a.height/2,by:b.top+b.height/2,
+        separated:a.right<b.left,aboveBar:a.bottom<document.querySelector('.passenger-bottom').getBoundingClientRect().top};
+    });
+    assert.ok(positions.left>=0&&positions.right<=390&&positions.separated);
+    assert.ok(Math.abs(positions.ay-positions.by)<2,'speed sits opposite Recenter at the same height');
+    assert.ok(positions.aboveBar,'speed stays clear of bottom metrics');
+  }
+  await page.setViewportSize({width:390,height:844});
+  await page.evaluate(()=>{
+    document.getElementById('destination').value='Existing selected destination';
+    if(!destinationMarker)destinationMarker=L.marker(destination).addTo(pointLayer);
+    window.__beforeRouteSearch={routes,selected:routes[selectedRoute],index:selectedRoute,
+      destination,destinationMarker,gpsRoute:window.JalanGPS.getState().route,
+      center:map.getCenter(),zoom:map.getZoom()};
+    window.__routeSearchLifecycle=[];
+    for(const name of ['jalan:journey-start','jalan:journey-stop','jalan:route-cleared'])
+      window.addEventListener(name,()=>window.__routeSearchLifecycle.push(name));
+  });
+  const assertJourneyPreserved=async()=>{
+    assert.deepEqual(await page.evaluate(()=>{
+      const before=window.__beforeRouteSearch,state=window.JalanGPS.getState();
+      return {routes:routes===before.routes,selected:routes[selectedRoute]===before.selected,
+        index:selectedRoute===before.index,destination:destination===before.destination,
+        marker:destinationMarker===before.destinationMarker,gpsRoute:state.route===before.gpsRoute,
+        active:state.active,guiding:document.body.classList.contains('passenger-guiding'),
+        lifecycle:window.__routeSearchLifecycle};
+    }),{routes:true,selected:true,index:true,destination:true,marker:true,gpsRoute:true,
+      active:true,guiding:true,lifecycle:[]});
+  };
+  await page.locator('#passenger-search').tap();
+  assert.equal(await sheetState(),'c','navigation magnifier opens full Stage C');
+  assert.equal(await page.locator('#jalan-home-sheet').isVisible(),true);
+  assert.equal(await page.locator('#destination').isVisible(),true);
+  assert.equal(await page.locator('#destination').inputValue(),'','navigation search starts with a blank query');
+  assert.equal(await page.locator('#destination').evaluate(x=>x===document.activeElement),true);
+  assert.equal(await page.locator('#passenger-navigation').evaluate(x=>x.inert),true);
+  await assertJourneyPreserved();
+  // Swipe while the empty search input still has focus; dismissal must blur it.
+  await swipeInside('.jalan-sheet-recent h2',90);
+  assert.equal(await page.locator('#jalan-home-sheet').isVisible(),false,
+    'one downward swipe with no query returns directly to the existing map');
+  assert.equal(await page.locator('#passenger-navigation').isVisible(),true);
+  assert.equal(await page.locator('#passenger-navigation').evaluate(x=>x.inert),false);
+  assert.equal(await page.locator('#destination').inputValue(),'Existing selected destination');
+  assert.equal(await page.locator('#passenger-search').getAttribute('aria-expanded'),'false');
+  assert.equal(await page.locator('#passenger-search').evaluate(x=>x===document.activeElement),true);
+  await assertJourneyPreserved();
+  // Cancelling an unsubmitted query is also safe; Escape is keyboard-accessible.
+  await page.locator('#passenger-search').click();
+  await page.locator('#destination').fill('Unsubmitted new destination');
+  await page.keyboard.press('Escape');
+  assert.equal(await page.locator('#jalan-home-sheet').isVisible(),false);
+  await assertJourneyPreserved();
+  // Verify the expanded search form works while navigation remains active.
+  await page.route('https://nominatim.openstreetmap.org/search?**',route=>route.fulfill({
+    status:200,contentType:'application/json',body:JSON.stringify([
+      {display_name:'Synthetic replacement destination',lat:'3.15',lon:'101.70'}])}));
+  await page.locator('#passenger-search').click();
+  await page.locator('#destination').fill('Synthetic replacement');
+  await page.locator('#search-form button[type="submit"]').click();
+  await page.waitForSelector('#results:not(.hidden) button');
+  assert.equal(await page.locator('#results button').isVisible(),true,
+    'search results are usable in the reopened C panel');
+  await assertJourneyPreserved();
+  await page.keyboard.press('Escape');
+  await assertJourneyPreserved();
+  await page.unroute('https://nominatim.openstreetmap.org/search?**');
+  await sheetTouch.detach();
+  console.log('PASS navigation search: speed opposite Recenter, magnifier opens C, blank swipe and Escape preserve active route/destination/GPS, results visible');
   const activeStyles=await page.evaluate(()=>routeLayer.getLayers().map(x=>x.options.opacity));
   assert.equal(activeStyles.filter(x=>x>0.9).length,1,
     'Go hides unselected alternatives and highlights the chosen road');
   assert.equal(await page.locator('#gps-hud').isVisible(),false,'engineering HUD hidden in clean view');
   assert.equal(await page.locator('#passenger-options').evaluate(x=>x.open),false,
-    'Go keeps the menu collapsed, showing only minutes, km and speed');
+    'Go keeps the menu collapsed, showing minutes, km and search');
   assert.equal(await page.locator('.passenger-turn').isVisible(),true,
     'top next-turn guidance must be visible even with compact metrics');
   assert.equal(await page.locator('#passenger-turn-list').isVisible(),false,
@@ -323,6 +402,7 @@ async function main(){
     'uncertain GPS cannot drive passenger camera');
   assert.equal(await page.locator('.jalan-vehicle-marker').count(),0,
     'poor GPS must not display a claimed vehicle position');
+  assert.equal(await page.locator('#passenger-speed').textContent(),'—');
   await page.evaluate(()=>{
     window.__offlineGPSWatch({timestamp:Date.now()+1000,coords:{
       latitude:3.139,longitude:101.6869,accuracy:8,speed:2,heading:0}});
@@ -333,6 +413,8 @@ async function main(){
   await page.waitForTimeout(1200);
   assert.ok(await page.evaluate(()=>map.getZoom()>=17),
     'passenger follow zoom must persist after delayed route overview settling');
+  assert.equal(await page.locator('#passenger-speed').textContent(),'7','floating speed still uses the matched GPS fix');
+  assert.equal(await page.locator('#passenger-speed-floating').getAttribute('aria-label'),'7 kilometres per hour');
   assert.equal(await page.evaluate(()=>document.getElementById('passenger-fix').textContent.includes('GPS matched')),true);
   // Actual proactive engine denies missing key and never offers a route
   // after a blocked TomTom request, even with matched synthetic GPS.

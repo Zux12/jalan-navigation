@@ -202,9 +202,9 @@ body.passenger-guiding .passenger-turn{position:fixed;top:0;left:0;right:0}
 .passenger-report-button:active{background:#344b64}
 .passenger-report-button:focus-visible{outline:2px solid #9edbff;outline-offset:-2px;background:#344b64}
 .jalan-report-focus-label{max-width:220px;white-space:normal;text-align:center;border:2px solid #d85800;font-weight:700;color:#3c260f}
-.passenger-recenter-floating{pointer-events:auto;position:fixed;right:14px;bottom:calc(115px + env(safe-area-inset-bottom,0px));z-index:7;width:50px;height:50px;border-radius:50%;border:2px solid #e7eef5;background:#fffffff2;color:#166b9d;font-size:32px;line-height:1;display:grid;place-items:center;box-shadow:0 4px 15px #0a2c5260;touch-action:manipulation}
+.passenger-recenter-floating{pointer-events:auto;position:fixed;right:14px;bottom:calc(115px + var(--passenger-map-footer-offset,0px) + env(safe-area-inset-bottom,0px));z-index:7;width:50px;height:50px;border-radius:50%;border:2px solid #e7eef5;background:#fffffff2;color:#166b9d;font-size:32px;line-height:1;display:grid;place-items:center;box-shadow:0 4px 15px #0a2c5260;touch-action:manipulation}
 .passenger-recenter-floating:active{background:#dceefb}
-@media(max-height:650px){.passenger-recenter-floating{bottom:calc(105px + env(safe-area-inset-bottom,0px))}}
+@media(max-height:650px){.passenger-recenter-floating{bottom:calc(105px + var(--passenger-map-footer-offset,0px) + env(safe-area-inset-bottom,0px))}}
 
 /* Native vector camera owns pitch, bearing and hit testing. Keep the Leaflet
    data model available without drawing or downloading a second basemap. */
@@ -240,3 +240,19 @@ body.passenger-vector-active.passenger-guiding .passenger-bottom{bottom:calc(18p
  font:700 12px system-ui,sans-serif;pointer-events:none}
 body.passenger-guiding #passenger-startup-location-status,
 #passenger-startup-location-status.hidden{display:none!important}
+
+/* Search replaces speed in the bottom metrics. Speed mirrors right Recenter. */
+body.passenger-vector-active{--passenger-map-footer-offset:8px}
+.passenger-search{flex:0 0 44px;width:44px;height:44px;display:grid;place-items:center;
+ border:0;border-radius:50%;background:#edf4fa;color:#166b9d;cursor:pointer;touch-action:manipulation}
+.passenger-search svg{width:25px;height:25px;fill:none;stroke:currentColor;stroke-width:2.4;stroke-linecap:round}
+.passenger-search:focus-visible{outline:3px solid #1674dd;outline-offset:2px}
+.passenger-speed-floating{position:fixed;left:14px;bottom:calc(108px + var(--passenger-map-footer-offset,0px) + env(safe-area-inset-bottom,0px));
+ width:64px;height:64px;z-index:7;display:flex;flex-direction:column;align-items:center;justify-content:center;
+ border-radius:50%;border:3px solid #e7eef5;background:#fffffff2;color:#213b52;box-shadow:0 4px 15px #0a2c5260}
+.passenger-speed-floating strong{font:800 24px/1 system-ui}
+.passenger-speed-floating small{font:700 10px/1.2 system-ui;margin-top:3px}
+@media(max-height:650px){.passenger-speed-floating{bottom:calc(98px + var(--passenger-map-footer-offset,0px) + env(safe-area-inset-bottom,0px))}}
+/* The map and GPS remain active behind a temporary destination search. */
+body.passenger-route-search .passenger-navigation{visibility:hidden}
+body.passenger-route-search .interface-switch{display:none!important}
