@@ -74,7 +74,6 @@
  }
  function update(fix){
   if(!active)return;
-  publishQuality(fix);
   const now=Date.now(),sampleTime=Number(fix.timestamp);
   // A cached/background Safari location must not be advertised as a fresh
   // route match. Do not feed expired or far-future samples to the predictor.
@@ -112,6 +111,7 @@
    warn('GPS jump or inaccurate location rejected. Turn guidance paused.');
    return;
   }
+  publishQuality(fix);
   const result=predictor.feed({position:raw,accuracy,time:fix.timestamp||Date.now(),speed:fix.coords.speed});
   const p=result.position;lastFixAt=now;latestMode=result.mode;
   // Never ask a route provider to start from a rejected raw GPS jump.
