@@ -1,0 +1,43 @@
+/* Active journey details share the existing time/distance/search banner. */
+body.passenger-guiding .passenger-bottom{
+ --journey-peek:88px;--journey-full:340px;box-sizing:border-box;
+ height:var(--journey-full);
+ display:flex;flex-direction:column;padding:0 14px 14px;
+ max-height:calc(100dvh - 180px - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px));
+ overflow:hidden;background:#fff;touch-action:pan-y;
+ transform:none;transition:height .22s ease;
+}
+body.passenger-guiding .passenger-bottom[data-expanded="false"]{height:var(--journey-peek)}
+.passenger-journey-handle{border:0;background:transparent;height:24px;min-height:24px;
+ flex:none;width:100%;padding:0;display:grid;place-items:center;cursor:grab;touch-action:none}
+.passenger-journey-handle span{width:44px;height:4px;border-radius:5px;background:#a3adb8}
+.passenger-journey-handle:focus-visible{outline:2px solid #136dec;outline-offset:-2px;border-radius:8px}
+.passenger-bottom .passenger-stats{flex:none;touch-action:none}
+.passenger-journey-content{overflow-y:auto;min-height:0;overscroll-behavior:contain;
+ -webkit-overflow-scrolling:touch;padding-top:20px;touch-action:pan-y}
+.passenger-bottom[data-expanded="false"] .passenger-journey-content{visibility:hidden}
+.passenger-journey-destination{font-size:18px;line-height:1.35;margin:0 0 7px;overflow-wrap:anywhere}
+.passenger-journey-via{font-size:14px;line-height:1.4;color:#5a6b7b;margin:0 0 23px;overflow-wrap:anywhere}
+.passenger-journey-track{display:flex;align-items:center;gap:10px;margin:0 1px}
+.passenger-journey-car{color:#079ccd;font-size:30px;line-height:1;width:26px;flex:none}
+.passenger-journey-flag{width:30px;height:32px;flex:none}
+.passenger-journey-line{position:relative;flex:1;height:10px;min-width:0;border-radius:8px;background:#cbd4df;overflow:hidden}
+.passenger-journey-line span{position:absolute;height:100%;top:0}
+.passenger-journey-line [data-traffic="light"]{background:#ffe68a}
+.passenger-journey-line [data-traffic="moderate"]{background:#f59b24}
+.passenger-journey-line [data-traffic="heavy"]{background:#de3d35}
+.passenger-journey-line [data-traffic="closed"]{background:#801c2a}
+.passenger-journey-ends{display:flex;justify-content:space-between;font-size:11px;color:#586979;margin-top:4px}
+.passenger-journey-traffic-note{color:#647487;font-size:11px;margin:10px 0 20px}
+.passenger-journey-actions{display:flex;gap:12px;padding-bottom:2px}
+.passenger-journey-actions button{flex:1;min-height:50px;border:0;border-radius:14px;
+ padding:12px;font:750 17px system-ui;color:#fff;cursor:pointer;touch-action:manipulation}
+#passenger-journey-stop{background:#ce343c}#passenger-journey-resume{background:#136dec}
+body.passenger-guiding .passenger-bottom.passenger-journey-dragging{
+ height:calc(var(--journey-full) - var(--journey-drag,0px));transition:none;user-select:none;-webkit-user-select:none}
+/* Keep map controls above the collapsed strip; the expanded sheet covers them. */
+body.passenger-journey-open .passenger-recenter-floating,
+body.passenger-journey-open .passenger-speed-floating{visibility:hidden}
+@media(prefers-reduced-motion:reduce){body.passenger-guiding .passenger-bottom{transition:none}}
+
+.passenger-bottom.passenger-journey-dragging .passenger-journey-content{visibility:visible}
