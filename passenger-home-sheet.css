@@ -79,7 +79,7 @@ body.passenger-guiding #jalan-home-report{display:none!important}
 #jalan-home-notice{position:fixed;z-index:1550;top:calc(85px + env(safe-area-inset-top,0px));
  left:50%;transform:translateX(-50%);width:max-content;max-width:calc(100vw - 24px);
  padding:11px 14px;background:#fffaee;border:1px solid #e9b556;border-radius:11px;
- color:#664812;font:600 12px system-ui;box-shadow:0 4px 18px #25364738}
+ color:#664812;font:600 12px system-ui;box-shadow:0 4px 18px #25364738;pointer-events:none}
 body.passenger-guiding #jalan-home-notice{display:none!important}
 @media(max-height:650px){
  body.passenger-mode .jalan-home-sheet[data-state="b"]{--sheet-height:52dvh}
