@@ -113,6 +113,27 @@ test('repeated impossible GPS teleports never relocate the vehicle or trigger a 
  assert.equal(s.state().active,true);
  assert.equal(s.watches,1);
 });
+test('GPS short-range and post-outage teleports cannot bypass travel plausibility',async()=>{
+ // Before this fix a 189 m displacement at t=2.1 s passed the old 250 m
+ // floor after three consistent samples, despite no plausible vehicle travel.
+ const near=scene();near.feed([3,101.6],0);
+ const first=near.state().gpsPosition;
+ for(const delta of [0,1050,1050])near.feed([3,101.6017],delta);
+ assert.deepEqual(near.state().gpsPosition,first,
+   '189 m in 2.1 s is not evidence of safe vehicle motion');
+ assert.equal(near.state().gpsReliable,false);
+ assert.equal(near.requests.length,0,'rejected short teleport cannot route from a false origin');
+ // The former dt<30 condition also allowed an impossible 40 km position
+ // after a 35 s GPS outage, merely because it repeated three times.
+ const long=scene();long.feed([3,101.6],0);long.advance(35000);
+ const original=long.state().gpsPosition;
+ for(const delta of [0,1000,1000])long.feed([3.2,101.9],delta);
+ assert.deepEqual(long.state().gpsPosition,original,
+   'post-outage 40 km relocation must remain unverified');
+ assert.equal(long.state().gpsReliable,false);
+ assert.equal(long.requests.length,0,'no provider request from post-outage teleport');
+ assert.equal(long.state().active,true,'preserve GPS watcher and existing journey');
+});
 test('HTTP and invalid-route failures retain the route/GPS, throttle retries, then recover',async()=>{
  for(const failure of [{ok:false},{invalid:true}]){
   const s=scene();s.detour();await s.finish(failure);

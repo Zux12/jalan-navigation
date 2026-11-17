@@ -22,11 +22,12 @@
    const dt=Math.max(0,(now-lastPositionFix.at)/1000);
    const ceiling=Math.max(35,2*(accuracy+lastPositionFix.accuracy))+
      Math.max(15,metresPerSecond,lastPositionFix.speed)*1.8*dt;
-   // Several consistent GPS samples cannot justify physically impossible travel.
-   // A distant position is eligible only after the accepted fix has aged 30s.
+   // Consistent samples cannot prove travel faster than a generous
+   // road-speed allowance. This remains enforced after long GPS outages:
+   // otherwise three identical 40 km jumps become trusted after 30 seconds.
    const distanceFromLast=meters(raw,lastPositionFix.position);
-   const plausibleTravel=Math.max(250,55*dt+3*(accuracy+lastPositionFix.accuracy));
-   if(dt<30&&distanceFromLast>plausibleTravel){
+   const plausibleTravel=Math.max(60,45*dt+2*(accuracy+lastPositionFix.accuracy));
+   if(distanceFromLast>plausibleTravel){
     pendingPositionFix=null;
     return false;
    }
