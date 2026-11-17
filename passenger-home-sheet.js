@@ -80,11 +80,16 @@
  handle.addEventListener('pointerup',end);
  handle.addEventListener('pointercancel',()=>{dragStart=null;});
  // Search always opens C, regardless of A/B/C, before the keyboard appears.
- input.addEventListener('pointerdown',()=>{setState('c');input.focus({preventScroll:true});});
- // On Safari the sheet may move beneath the initial touch. Refocus in the
- // actual click gesture as well as on pointerdown, after layout settles.
+ // Do not move the search input while a finger is still pressing it:
+ // Safari may cancel focus when its target jumps toward the top of the sheet.
+ let searchPointerActive=false;
+ input.addEventListener('pointerdown',()=>{searchPointerActive=true;});
+ input.addEventListener('pointerup',()=>{
+   searchPointerActive=false;setState('c');input.focus({preventScroll:true});
+ });
+ input.addEventListener('pointercancel',()=>{searchPointerActive=false;});
  input.addEventListener('click',()=>{setState('c');input.focus({preventScroll:true});});
- input.addEventListener('focus',()=>setState('c'));
+ input.addEventListener('focus',()=>{if(!searchPointerActive)setState('c');});
  form.addEventListener('submit',()=>setState('c'));
  sheet.addEventListener('pointerdown',e=>{
    if(e.target===sheet&&e.pointerType==='touch')start(e);
