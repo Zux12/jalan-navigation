@@ -12,13 +12,17 @@
  handle.setAttribute('aria-expanded','false');
  handle.innerHTML='<span aria-hidden="true"></span>';
  const header=document.querySelector('.topbar'),results=$('results');
+ const searchTrigger=document.createElement('button');
+ searchTrigger.id='jalan-search-trigger';searchTrigger.type='button';
+ searchTrigger.setAttribute('aria-label','Search destination, expand full search panel');
+ searchTrigger.innerHTML='<span aria-hidden="true">⌕</span><strong>Where to?</strong>';
  const quick=document.createElement('div');quick.className='jalan-sheet-quick';
  quick.innerHTML='<button type="button" data-shortcut="home">🏠 <strong>Home</strong></button>'+
   '<button type="button" data-shortcut="work">💼 <strong>Work</strong></button>'+
   '<button type="button" data-shortcut="new">＋ <strong>New</strong></button>';
  const recent=document.createElement('section');recent.className='jalan-sheet-recent';
  recent.innerHTML='<h2>Recent</h2><ol id="jalan-recent-list"></ol>';
- sheet.append(handle,header,results,quick,recent);document.body.append(sheet);
+ sheet.append(handle,searchTrigger,header,results,quick,recent);document.body.append(sheet);
  const menu=document.createElement('button');menu.id='jalan-home-menu';menu.type='button';
  menu.setAttribute('aria-label','Open user menu');menu.textContent='☰';
  const speed=document.createElement('div');speed.id='jalan-home-speed';
@@ -61,6 +65,7 @@
  const setState=next=>{
    const state=['a','b','c'].includes(next)?next:'a';
    sheet.dataset.state=state;
+   header.inert=state!=='c';
    handle.setAttribute('aria-expanded',String(state!=='a'));
    handle.setAttribute('aria-label',state==='c'?'Collapse destination panel':'Expand destination panel');
    sheet.setAttribute('aria-label','Destination search bottom sheet · state '+state.toUpperCase());
@@ -79,17 +84,12 @@
  handle.addEventListener('pointerdown',start);
  handle.addEventListener('pointerup',end);
  handle.addEventListener('pointercancel',()=>{dragStart=null;});
- // Search always opens C, regardless of A/B/C, before the keyboard appears.
- // Do not move the search input while a finger is still pressing it:
- // Safari may cancel focus when its target jumps toward the top of the sheet.
- let searchPointerActive=false;
- input.addEventListener('pointerdown',()=>{searchPointerActive=true;});
- input.addEventListener('pointerup',()=>{
-   searchPointerActive=false;setState('c');input.focus({preventScroll:true});
+ // A/B use a stationary search trigger; after its click the real input
+ // appears in C and receives focus, without moving the touch target mid-tap.
+ searchTrigger.addEventListener('click',()=>{
+   setState('c');input.focus({preventScroll:true});
  });
- input.addEventListener('pointercancel',()=>{searchPointerActive=false;});
- input.addEventListener('click',()=>{setState('c');input.focus({preventScroll:true});});
- input.addEventListener('focus',()=>{if(!searchPointerActive)setState('c');});
+ input.addEventListener('focus',()=>setState('c'));
  form.addEventListener('submit',()=>setState('c'));
  sheet.addEventListener('pointerdown',e=>{
    if(e.target===sheet&&e.pointerType==='touch')start(e);
