@@ -212,6 +212,10 @@ async function main(){
   assert.equal(await page.evaluate(()=>routes[0].duration),600,'provider routes sorted by ETA');
   assert.equal(await page.locator('#passenger-overview').isVisible(),true);
   assert.equal(await page.locator('#passenger-route-list button').count(),3);
+  assert.equal(await page.locator('#passenger-settings').count(),0,'route settings are only in the shared menu');
+  assert.equal(await page.locator('#passenger-route-provider').count(),0,'provider subtitle is removed');
+  assert.equal(await page.locator('#passenger-overview small').count(),3,'only route-card details remain, with no writing below Go');
+  assert.equal(await page.locator('#jalan-route-traffic-legend').count(),0,'traffic legend no longer covers the map');
   // A shorter Safari-like visible viewport must never clip the Go button.
   // A long list should scroll inside the card instead of pushing Go below it.
   await page.setViewportSize({width:390,height:560});
@@ -234,9 +238,19 @@ async function main(){
     'Go action must remain visible above mobile Safari browser chrome');
   assert.ok(layout.listScrollHeight>layout.listClientHeight,
     'only alternative cards should scroll; Go stays pinned');
+  await swipeInside('#passenger-route-list',-85,{offsetY:95});
+  await page.waitForFunction(()=>document.getElementById('passenger-route-list').scrollTop>20);
+  assert.equal(await page.locator('#passenger-overview').getAttribute('data-collapsed'),'false',
+    'scrolling alternatives upward does not collapse the panel');
+  await page.waitForTimeout(250);
+  await page.locator('#passenger-route-list').evaluate(x=>x.scrollTop=180);
+  await swipeInside('#passenger-route-list',60,{offsetY:60});
+  assert.equal(await page.locator('#passenger-overview').getAttribute('data-collapsed'),'false',
+    'a scrolled route list scrolls down before the panel can collapse');
   await page.setViewportSize({width:390,height:844});
   await page.evaluate(()=>{
     const list=document.getElementById('passenger-route-list');
+    list.scrollTop=0;
     while(list.children.length>3)list.lastElementChild.remove();
   });
   assert.match(await page.locator('#passenger-route-list').innerText(),/\+2 min/);
@@ -246,6 +260,58 @@ async function main(){
   await page.locator('#passenger-route-list button').nth(1).click();
   assert.equal(await page.evaluate(()=>selectedRoute),1,'alternative selectable');
   await page.locator('#passenger-route-list button').first().click();
+  await page.waitForTimeout(100);
+  await page.evaluate(()=>{
+    window.__routeChoiceBeforeDrag={routes,chosen:routes[selectedRoute],destination,index:selectedRoute,
+      lat:map.getCenter().lat,lng:map.getCenter().lng,zoom:map.getZoom()};
+  });
+  const assertChoicePreserved=async()=>assert.equal(await page.evaluate(()=>{
+    const before=window.__routeChoiceBeforeDrag,center=map.getCenter();
+    return routes===before.routes&&routes[selectedRoute]===before.chosen&&destination===before.destination&&
+      selectedRoute===before.index&&map.getZoom()===before.zoom&&center.lat===before.lat&&center.lng===before.lng;
+  }),true,'panel gestures preserve destination, chosen route and map camera');
+  await swipeInside('#passenger-route-list button:nth-child(2)',90);
+  assert.equal(await page.locator('#passenger-overview').getAttribute('data-collapsed'),'true');
+  assert.equal(await page.locator('#passenger-route-handle').getAttribute('aria-expanded'),'false');
+  assert.equal(await page.locator('#passenger-go').isVisible(),false,'collapsed controls cannot accidentally start GPS');
+  assert.equal(await page.locator('#passenger-route-content').evaluate(x=>x.inert),true);
+  const peek=await page.locator('#passenger-overview').boundingBox();
+  assert.ok(peek.y>740&&peek.y<810,'collapsed panel leaves only a small visible bottom strip');
+  const planningControls=await page.evaluate(()=>{
+    const panel=document.getElementById('passenger-overview').getBoundingClientRect();
+    return ['jalan-home-speed','jalan-home-report'].every(id=>{
+      const box=document.getElementById(id).getBoundingClientRect();
+      return box.top>100&&box.bottom<panel.top;
+    });
+  });
+  assert.equal(planningControls,true,'map controls stay on screen above the collapsed route strip');
+  await assertChoicePreserved();
+  await page.screenshot({path:path.join(root,'test-artifacts/passenger-routes-collapsed.png')});
+  await swipeInside('#passenger-route-handle',-100,{cancel:true});
+  assert.equal(await page.locator('#passenger-overview').getAttribute('data-collapsed'),'true','cancelled drag keeps the previous state');
+  await swipeInside('#passenger-route-handle',-100);
+  assert.equal(await page.locator('#passenger-overview').getAttribute('data-collapsed'),'false');
+  assert.equal(await page.locator('#passenger-go').isVisible(),true);
+  await assertChoicePreserved();
+  // A mouse drag follows the pointer before snapping, and cannot become a handle tap.
+  const grip=await page.locator('#passenger-route-handle').boundingBox();
+  const panelBefore=await page.locator('#passenger-overview').boundingBox();
+  await page.mouse.move(grip.x+grip.width/2,grip.y+grip.height/2);await page.mouse.down();
+  await page.mouse.move(grip.x+grip.width/2,grip.y+grip.height/2+60,{steps:8});
+  const panelDuring=await page.locator('#passenger-overview').boundingBox();
+  assert.ok(panelDuring.y>panelBefore.y+45,'route panel follows the drag in real time');
+  await page.mouse.up();
+  assert.equal(await page.locator('#passenger-overview').getAttribute('data-collapsed'),'true');
+  await assertChoicePreserved();
+  // A map-selected alternative stays selected while the panel remains tucked away.
+  await page.evaluate(()=>selectRoute(1));
+  assert.equal(await page.locator('#passenger-overview').getAttribute('data-collapsed'),'true');
+  assert.equal(await page.evaluate(()=>selectedRoute),1);
+  await page.locator('#passenger-route-handle').focus();await page.keyboard.press('Enter');
+  assert.equal(await page.locator('#passenger-overview').getAttribute('data-collapsed'),'false','keyboard opens the panel');
+  await page.locator('#passenger-route-list button').first().click();
+  await page.screenshot({path:path.join(root,'test-artifacts/passenger-routes-expanded.png')});
+  console.log('PASS route choice sheet: clean panel, live pointer drag, touch collapse/expand, list scrolling, cancellation, keyboard and selected route retained');
   assert.deepEqual(await page.evaluate(()=>({
     startVisible:!!startMarker&&pointLayer.hasLayer(startMarker),
     locationVisible:!!locationMarker&&pointLayer.hasLayer(locationMarker)

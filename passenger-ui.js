@@ -175,7 +175,6 @@
  const hideSettings=()=>settings.classList.add('hidden');
  const showSettings=()=>settings.classList.remove('hidden');
  el('passenger-settings-top').addEventListener('click',showSettings);
- el('passenger-settings').addEventListener('click',showSettings);
  el('passenger-setup-close').addEventListener('click',hideSettings);
  el('passenger-use-osrm').addEventListener('click',()=>{
    const toggle=el('tt-primary');
@@ -237,10 +236,8 @@
      overview.classList.add('hidden');return;
    }
    overview.classList.remove('hidden');
-   const chosen=routes[selectedRoute],valid=routes.filter(r=>Number.isFinite(r.duration));
+   const valid=routes.filter(r=>Number.isFinite(r.duration));
    const fastest=valid.length?Math.min(...valid.map(r=>r.duration)):null;
-   const name=chosen?.provider==='tomtom'?'TomTom · traffic-aware ETA':'OSRM · no live traffic';
-   el('passenger-route-provider').textContent=name+' · experimental, not approved for driving';
    list.replaceChildren();
    routes.forEach((r,i)=>{
      if(!r?.geometry?.coordinates?.length||!Number.isFinite(r.duration))return;
@@ -629,7 +626,7 @@
    syncNavigationSettings();
    el('gps-start').click();
    if(!window.JalanGPS?.getState()?.active){
-     el('passenger-route-provider').textContent='GPS preview could not start. Check browser permissions or use Engineering tests.';
+     el('passenger-route-title').textContent='GPS unavailable · check browser permissions';
    }
  });
  window.addEventListener('jalan:journey-start',()=>{
