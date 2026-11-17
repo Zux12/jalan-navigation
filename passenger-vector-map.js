@@ -196,7 +196,7 @@
    }else if(pin.label){pin.label.remove();pin.label=null;}
  }
  function syncLayers(){
-   const features=[],trafficFeatures=[],seen=new Set(),tileIds=new Set();
+   const features=[],trafficFeatures=[],travelledFeatures=[],seen=new Set(),tileIds=new Set();
    original.eachLayer(layer=>{
      watch(layer);const id=L.stamp(layer);
      if(layer instanceof L.Polyline&&layer.options.opacity!==0){
@@ -205,7 +205,8 @@
        // Traffic must be above the blue route, never competing with it in
        // the base layer's line-sort-key by opacity. Both originate from the
        // same selected TomTom route geometry and share its map projection.
-       if(layer.options.className?.split(' ').includes('jalan-selected-traffic-colour'))
+       if(layer.options.className?.split(' ').includes('jalan-travelled-route'))travelledFeatures.push(feature);
+       else if(layer.options.className?.split(' ').includes('jalan-selected-traffic-colour'))
          trafficFeatures.push(feature);
        else features.push(feature);
      }else if(layer instanceof L.Marker||layer instanceof L.CircleMarker){seen.add(id);pinFor(layer,id);}
@@ -214,6 +215,7 @@
    if(popupLayer&&!original.hasLayer(popupLayer)){popup?.remove();popup=null;popupLayer=null;}
    const signature=JSON.stringify(features);
    if(signature!==lineSignature){lineSignature=signature;gl.getSource('jalan-routes').setData({type:'FeatureCollection',features});}
+   trafficFeatures.push(...travelledFeatures);
    const coloredSignature=JSON.stringify(trafficFeatures);
    if(coloredSignature!==trafficSignature){
      trafficSignature=coloredSignature;trafficFeatureCount=trafficFeatures.length;
