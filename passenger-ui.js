@@ -353,15 +353,22 @@
      Date.now()-incidentSnapshot.checkedAt<=10*60*1000?incidentSnapshot.incidents:[];
    for(const incident of freshIncidents){
      items.push({lat:Number(incident.lat),lng:Number(incident.lng),
-       title:'TomTom traffic incident',detail:String(incident.description||'Traffic event').slice(0,160),
-       source:'tomtom'});
+       title:'TomTom route traffic · '+String(incident.roadName||'selected road').slice(0,80),
+       detail:String(incident.description||'Traffic section').slice(0,160),
+       routeAlong:incident.routeAlong,routeTotal:incident.routeTotal,source:'tomtom'});
    }
    const positioned=[];
    for(const item of items){
      if(!Number.isFinite(item.lat)||!Number.isFinite(item.lng)||
         Math.abs(item.lat)>90||Math.abs(item.lng)>180)continue;
-     const projected=pointOnRoute([item.lat,item.lng],coords);
-     if(!projected||projected.offset>window.JalanTomTom.reportRouteTolerance||
+     // A provider TRAFFIC section is associated with this exact TomTom route.
+     // Never re-filter that section with the old 25m corridor.
+     // The local unverified demo reports retain their own proximity check.
+     const projected=item.source==='tomtom'&&Number.isFinite(item.routeAlong)&&
+       Number.isFinite(item.routeTotal)?{along:item.routeAlong,total:item.routeTotal,offset:0}:
+       pointOnRoute([item.lat,item.lng],coords);
+     if(!projected||(item.source!=='tomtom'&&
+        projected.offset>window.JalanTomTom.reportRouteTolerance)||
         (current&&projected.along<current.along-30))continue;
      positioned.push({...item,ahead:current?Math.max(0,projected.along-current.along):null,routeAlong:projected.along,
        fromReportToDestination:Math.max(0,projected.total-projected.along)});
@@ -387,7 +394,7 @@
    const hasIncidents=incidentSnapshot.route===route&&
      Date.now()-incidentSnapshot.checkedAt<=10*60*1000;
    reportNote.textContent=positioned.length?
-     'Reports closely match the blue route. Traffic colours also show surrounding roads. Demo reports are unverified. '+
+     'TomTom traffic sections are route-linked, not selected by a 25m radius. Demo reports remain unverified and proximity-filtered. '+
        (current?'Distances are approximate along-route values.':'Showing the selected route; distance from you awaits verified GPS.'):
      'No applicable reports ahead on this selected route.'+
        (hasIncidents?' TomTom incident check returned no applicable items.':
