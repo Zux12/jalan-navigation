@@ -79,13 +79,13 @@ async function main(){
   await page.mouse.move(handleBox.x+handleBox.width/2,handleBox.y+115,{steps:8});
   await page.mouse.up();
   assert.equal(await sheetState(),'a','downward drag collapses B to A');
-  await page.locator('#destination').tap();
+  await page.locator('#jalan-search-trigger').tap();
   assert.equal(await sheetState(),'c','search tap opens C directly from A');
   assert.equal(await page.locator('#destination').evaluate(x=>x===document.activeElement),true);
   await page.evaluate(()=>document.activeElement?.blur());
   await page.locator('#jalan-sheet-handle').click();
   assert.equal(await sheetState(),'b');
-  await page.locator('#destination').tap();
+  await page.locator('#jalan-search-trigger').tap();
   assert.equal(await sheetState(),'c','search tap opens C directly from B');
   await page.evaluate(()=>document.activeElement?.blur());
   await page.evaluate(()=>{
