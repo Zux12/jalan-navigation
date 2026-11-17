@@ -106,7 +106,7 @@ test('selected TomTom route requests bounded flow samples only; no nearby road o
  s.ctx.routes=[r];s.dispatch('jalan:routes-rendered');await s.tick();
  assert.equal(s.urls.length,0,'route preview must not make extra flow calls before live traffic opt-in');
  assert.ok(s.api.getState().overlayCount>0,'route-indexed snapshot remains visible before Go');
- s.dispatch('jalan:traffic-layer-status',{state:'loading'});await s.tick();
+ s.dispatch('jalan:traffic-layer-status',{state:'loading',route:r});await s.tick();
  const requests=s.urls.length;
  s.dispatch('jalan:routes-rendered');await s.tick();
  assert.equal(s.urls.length,requests,'repaint must not spend more key-bearing flow requests');
@@ -129,7 +129,7 @@ test('revoking TomTom key while provider response is pending prevents stale flow
   coordinates:{coordinate:geometry.map(([longitude,latitude])=>({longitude,latitude}))}};
  const s=scene({flow}),r=route([]);
  s.ctx.routes=[r];s.dispatch('jalan:routes-rendered');
- s.dispatch('jalan:traffic-layer-status',{state:'loading'});
+ s.dispatch('jalan:traffic-layer-status',{state:'loading',route:r});
  assert.ok(s.urls.length>0,'request begins only after live traffic opt-in');
  s.setKey('');await s.tick();
  assert.equal(s.api.getState().active,false,'key revocation clears selected traffic layer');
@@ -196,7 +196,7 @@ test('parallel/opposite/coincident geometry remains explicitly unverified, never
 test('rejected crossing flow does not reach coloured overlays while route incidents remain',async()=>{
  const s=scene({flow:flowOn([point(150,-100),point(150,100)])}),r=route([]);
  s.ctx.routes=[r];s.dispatch('jalan:routes-rendered');
- s.dispatch('jalan:traffic-layer-status',{state:'loading'});await s.tick();
+ s.dispatch('jalan:traffic-layer-status',{state:'loading',route:r});await s.tick();
  assert.equal(s.api.getState().sampledFlow,false);
  assert.equal(s.api.getState().overlayCount,0);
  r.trafficSections=[section(0,1,2)];s.dispatch('jalan:incidents-updated');
@@ -206,7 +206,7 @@ test('rejected crossing flow does not reach coloured overlays while route incide
 test('rendered flow and incidents end at exact evidence boundaries, without 20m cell expansion',async()=>{
  const s=scene({flow:flowOn([point(125),point(175)])}),r=route([]);
  s.ctx.routes=[r];s.dispatch('jalan:routes-rendered');
- s.dispatch('jalan:traffic-layer-status',{state:'loading'});await s.tick();
+ s.dispatch('jalan:traffic-layer-status',{state:'loading',route:r});await s.tick();
  const line=s.all.at(-1);
  assert.ok(line);
  assert.ok(Math.abs(line.points[0][1]-point(125)[0])<1e-9);
@@ -236,7 +236,7 @@ test('traffic Off stays opted out after later route repaints while route-indexed
  const s=scene({flow:flowOn(geometry)}),r=route([section(0,1,1)]);
  s.ctx.routes=[r];s.dispatch('jalan:routes-rendered');await s.tick();
  assert.equal(s.urls.length,0,'planning alone must not request Flow Segment');
- s.dispatch('jalan:traffic-layer-status',{state:'loading'});await s.tick();
+ s.dispatch('jalan:traffic-layer-status',{state:'loading',route:r});await s.tick();
  assert.ok(s.urls.length>0,'explicit activation permits bounded Flow Segment');
  const requestCount=s.urls.length;
  s.dispatch('jalan:traffic-layer-status',{state:'off'});
@@ -248,10 +248,32 @@ test('traffic Off stays opted out after later route repaints while route-indexed
 test('silent key replacement prevents pending abort-ignoring flow response from painting',async()=>{
  const s=scene({flow:flowOn(geometry)}),r=route([]);
  s.ctx.routes=[r];s.dispatch('jalan:routes-rendered');
- s.dispatch('jalan:traffic-layer-status',{state:'loading'});
+ s.dispatch('jalan:traffic-layer-status',{state:'loading',route:r});
  assert.ok(s.urls.length>0,'sampling begins after opt-in');
  s.ctx.document.getElementById('tt-key').value='REPLACED_TEST_KEY_1234';
  await s.tick();
  assert.equal(s.api.getState().active,false,'silent replacement invalidates pending flow');
  assert.equal(s.api.getState().overlayCount,0);
+});
+
+test('route-cleared revokes flow consent and stale route status cannot reactivate it',async()=>{
+ const s=scene({flow:flowOn(geometry)}),r=route([section(0,1,1)]),old=route([]);
+ s.ctx.routes=[r];s.dispatch('jalan:routes-rendered');await s.tick();
+ assert.equal(s.urls.length,0);
+ s.dispatch('jalan:traffic-layer-status',{state:'loading',route:old});await s.tick();
+ assert.equal(s.urls.length,0,'stale route status cannot authorize key-bearing fetch');
+ s.dispatch('jalan:traffic-layer-status',{state:'loading'});await s.tick();
+ assert.equal(s.urls.length,0,'route-less status cannot authorize key-bearing fetch');
+ s.dispatch('jalan:traffic-layer-status',{state:'loading',route:r});await s.tick();
+ assert.ok(s.urls.length>0,'current route event from TomTom enables sampling');
+ const count=s.urls.length;
+ s.dispatch('jalan:route-cleared');
+ const next=route([section(0,1,2)]);
+ s.ctx.routes=[next];s.dispatch('jalan:routes-rendered');await s.tick();
+ assert.equal(s.urls.length,count,'clearing route revokes consent for next route');
+ assert.ok(s.api.getState().overlayCount>0,'new route-indexed snapshot renders without flow');
+ s.dispatch('jalan:traffic-layer-status',{state:'ready',route:r});await s.tick();
+ assert.equal(s.urls.length,count,'late status for previous route cannot restart sampling');
+ s.dispatch('jalan:traffic-layer-status',{state:'ready',route:next});await s.tick();
+ assert.ok(s.urls.length>count,'explicit new route status re-enables sampling');
 });

@@ -255,15 +255,18 @@
  window.addEventListener('jalan:journey-start',()=>{
    if(route!==routes?.[selectedRoute])choose();
  });
- window.addEventListener('jalan:route-cleared',reset);
+ window.addEventListener('jalan:route-cleared',()=>{trafficSamplingAllowed=false;reset();});
  window.addEventListener('jalan:journey-stop',()=>{if(route)draw();});
  window.addEventListener('jalan:traffic-layer-status',event=>{
    const state=event.detail?.state;
    if(state==='off'||state==='error'){
      trafficSamplingAllowed=false;reset();return;
    }
-   if((state==='loading'||state==='ready')&&
-      routes?.[selectedRoute]?.provider==='tomtom'){
+   // Only an event for the currently selected route can authorize extra
+   // key-bearing samples. Late status for a superseded route fails closed.
+   const candidate=routes?.[selectedRoute];
+   if((state==='loading'||state==='ready')&&candidate?.provider==='tomtom'&&
+      event.detail?.route===candidate){
      trafficSamplingAllowed=true;choose();
    }
  });
