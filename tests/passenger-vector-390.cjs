@@ -109,6 +109,30 @@ async function main(){
   await page.waitForTimeout(200);
   assert.ok(Math.abs(await page.evaluate(()=>JalanVectorMap.getBearing())-bearingBeforeRotate)>1,
     'native right-drag must rotate the vector map');
+  // Mobile Safari uses touch, not desktop right-drag or wheel. Exercise
+  // native two-finger pinch and twist on the actual 390px WebGL canvas.
+  const cdp=await context.newCDPSession(page);
+  const gesture=async(from,to)=>{
+    const points=(pair)=>pair.map(([x,y],id)=>({x,y,id:id+1}));
+    await cdp.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:points(from)});
+    for(let step=1;step<=10;step++){
+      const intermediate=from.map(([x,y],i)=>[x+(to[i][0]-x)*step/10,y+(to[i][1]-y)*step/10]);
+      await cdp.send('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:points(intermediate)});
+      await page.waitForTimeout(18);
+    }
+    await cdp.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});
+  };
+  const pinchBefore=await page.evaluate(()=>JalanVectorMap.getState().zoom);
+  await gesture([[160,355],[230,355]],[[95,355],[295,355]]);
+  await page.waitForTimeout(350);
+  assert.ok(await page.evaluate(()=>JalanVectorMap.getState().zoom)>pinchBefore+0.1,
+    'native two-finger pinch must zoom the vector map on mobile');
+  const twistBefore=await page.evaluate(()=>JalanVectorMap.getBearing());
+  await gesture([[150,355],[240,355]],[[195,310],[195,400]]);
+  await page.waitForTimeout(250);
+  assert.ok(Math.abs(await page.evaluate(()=>JalanVectorMap.getBearing())-twistBefore)>3,
+    'native two-finger twist must rotate the vector map on mobile');
+  await cdp.detach();
   await page.locator('#passenger-recenter-floating').click();
   assert.equal(await page.evaluate(()=>Math.round(map.getZoom())),17);
   await page.locator('#passenger-options > summary').click();
