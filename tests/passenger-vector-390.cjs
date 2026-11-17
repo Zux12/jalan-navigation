@@ -300,6 +300,17 @@ async function main(){
   assert.equal(await startup.locator('#passenger-startup-location-status').count(),0);
   await startupContext.setGeolocation({latitude:3.13900001,longitude:101.6869,accuracy:8});
   await startup.waitForFunction(()=>document.getElementById('passenger-gps-status').dataset.quality==='green');
+  await startup.evaluate(()=>{window.__freeMarker=Object.values(map._layers).find(x=>x.options?.icon?.options.className==='passenger-startup-pin');});
+  await startupContext.setGeolocation({latitude:3.1394,longitude:101.6873,accuracy:8});
+  await startup.waitForFunction(()=>Math.abs(window.__freeMarker.getLatLng().lat-3.1394)<.000001);
+  assert.equal(await startup.evaluate(()=>Object.values(map._layers).filter(x=>x.options?.icon?.options.className==='passenger-startup-pin').length),1,
+    'pre-route GPS moves the same triangle without duplicate markers');
+  assert.equal(await startup.evaluate(()=>routes.length===0&&!JalanGPS.getState().active),true,
+    'moving before a destination never starts navigation or calculates a route');
+  assert.ok(await startup.evaluate(()=>Math.abs(map.getCenter().lat-3.139)<.00001),
+    'live triangle movement preserves the map view while exploring');
+  await startup.evaluate(()=>window.dispatchEvent(new CustomEvent('jalan:free-location',{detail:{point:[4,102],accuracy:180,timestamp:Date.now()}})));
+  assert.equal(await startup.evaluate(()=>window.__freeMarker.getLatLng().lat),3.1394,'poor GPS cannot move the triangle');
   await startup.screenshot({path:path.join(artifacts,'gps-badge-startup-green.png')});
   await startupContext.setGeolocation({latitude:3.13900002,longitude:101.6869,accuracy:80});
   await startup.waitForFunction(()=>document.getElementById('passenger-gps-status').dataset.quality==='yellow');
