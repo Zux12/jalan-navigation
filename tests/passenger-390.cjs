@@ -156,7 +156,7 @@ async function main(){
   assert.equal(await sheetState(),'c','downward swipe within a scrolled list scrolls it first');
   await page.waitForTimeout(250);
   await page.locator('.jalan-sheet-recent').evaluate(x=>x.scrollTop=0);
-  await swipeInside('#jalan-recent-list button:first-child',80);
+  await swipeInside('#jalan-recent-list li:first-child button',80);
   assert.equal(await sheetState(),'b','downward swipe at list top collapses C to B');
   assert.equal(await page.evaluate(()=>window.__recentSwipeClicks),0,
     'swiping a recent row never selects a destination');
@@ -171,6 +171,7 @@ async function main(){
   assert.equal(await sheetState(),'b');
   await page.keyboard.press('Enter');assert.equal(await sheetState(),'c');
   await sheetTouch.detach();
+  console.log('PASS sheet touch gestures: A/B/C content swipes, native list scrolling, top collapse, no accidental selection, keyboard and search taps');
   await page.evaluate(()=>{
    // Deliberately out-of-order synthetic provider returns, NOT live roads.
    const points=[[101.6869,3.139],[101.6953,3.1478]];
