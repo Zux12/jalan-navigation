@@ -235,10 +235,29 @@
    });
    rasters.forEach((entry,id)=>{if(!tileIds.has(id)){gl.removeLayer(id);gl.removeSource(id);rasters.delete(id);}});
  }
+ function broaderRoadWidth(value){
+   const scale=width=>typeof width==='number'?width*1.5:['*',width,1.5];
+   if(typeof value==='number')return scale(value);
+   // Keep zoom expressions outermost; scaling the entire expression is invalid.
+   if(Array.isArray(value)&&['interpolate','step'].includes(value[0])){
+     const first=value[0]==='interpolate'?4:2;
+     return value.map((part,index)=>index>=first&&index%2===0?scale(part):part);
+   }
+   if(value?.stops)return {...value,stops:value.stops.map(([zoom,width])=>[zoom,scale(width)])};
+   return value;
+ }
  function styleMap(){
    // A light, quiet road map. Provider attribution remains in the source metadata.
    const layers=gl.getStyle().layers;
    layers.forEach(layer=>{
+     if(layer.type==='line'&&layer['source-layer']==='transportation'&&
+       /^(highway_(minor|major|motorway)|tunnel_motorway)/.test(layer.id)){
+       // Widen the road surface and its casing together, including bridges/tunnels.
+       for(const property of ['line-width','line-gap-width']){
+         const width=layer.paint?.[property];
+         if(width!==undefined)gl.setPaintProperty(layer.id,property,broaderRoadWidth(width));
+       }
+     }
      if(layer.type==='background')gl.setPaintProperty(layer.id,'background-color','#f5f3ee');
      if(layer.type==='fill'&&layer['source-layer']==='water')gl.setPaintProperty(layer.id,'fill-color','#b4e0ec');
      if(layer.type==='fill'&&layer['source-layer']==='park')gl.setPaintProperty(layer.id,'fill-color','#d5e8cb');
