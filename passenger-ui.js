@@ -513,7 +513,9 @@
      directionSource==='gps'?'GPS matched · heading-up experimental preview':
      directionSource==='route'?'GPS matched · road direction estimated from route':
      'GPS matched · direction held or unavailable';
-   setRouteMuted(!matched);
+   // Before the first GPS callback the chosen route remains clearly visible.
+   // Dim it only once a fix shows the old road alignment is unverified.
+   if(fix)setRouteMuted(!matched);
    const speed=fix?.gpsReliable&&Number.isFinite(fix.speedMps)&&fix.speedMps>=0?
      String(Math.round(fix.speedMps*3.6)):'—';
    el('passenger-speed').textContent=speed;
