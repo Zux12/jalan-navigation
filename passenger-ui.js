@@ -124,7 +124,7 @@
    const guiding=document.body.classList.contains('passenger-guiding')&&
      !document.body.classList.contains('passenger-map-flat');
    if(!exploring)applyCameraAngle(guiding&&lastValidHeading!==null?-lastValidHeading:0);
-   else applyCameraAngle(currentCameraAngle());
+   // GPS must not jump the native camera while passenger manually explores.
    scheduleScreenVehicle();
    return true;
  }
@@ -713,13 +713,16 @@
    return {x,y,n:touches.length,distance:b?Math.hypot(b.clientX-a.clientX,b.clientY-a.clientY):0,
      angle:b?Math.atan2(b.clientY-a.clientY,b.clientX-a.clientX)*180/Math.PI:0};
  };
- const startExplore=()=>{
+ const startExplore=(stopCamera=true)=>{
    if(!document.body.classList.contains('passenger-guiding'))return false;
-   exploring=true;map.stop();
+   exploring=true;
+   // A MapLibre gesture is already underway when its start event fires.
+   // Calling gl.stop() here would interrupt drag, pinch or rotation.
+   if(stopCamera)map.stop();
    hint.textContent='Exploring map · tap Recenter to follow GPS again';
    return true;
  };
- window.addEventListener('jalan:vector-gesture',()=>{startExplore();});
+ window.addEventListener('jalan:vector-gesture',()=>{startExplore(false);});
  window.addEventListener('jalan:map-renderer',()=>{
    applyCameraAngle(focusedReport||document.body.classList.contains('passenger-map-flat')?
      0:lastValidHeading===null?0:-lastValidHeading);
