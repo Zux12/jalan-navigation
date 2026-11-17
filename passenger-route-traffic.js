@@ -52,17 +52,51 @@
    coords.push(interpolated(path,end));
    return coords;
  }
- function closest(point,line){
-   let best=Infinity;
-   const origin=point,scale=111320*Math.cos(origin[1]*degrees);
-   for(let i=1;i<line.length;i++){
-     const a=line[i-1],b=line[i];
-     const ax=(a[0]-origin[0])*scale,ay=(a[1]-origin[1])*111320;
-     const dx=(b[0]-a[0])*scale,dy=(b[1]-a[1])*111320;
-     const t=Math.max(0,Math.min(1,-(ax*dx+ay*dy)/(dx*dx+dy*dy||1)));
-     best=Math.min(best,Math.hypot(ax+t*dx,ay+t*dy));
+ // Clip actual projected segment overlap, never the radius around its ends.
+ // Coordinates describe display geometry; their order is NOT treated as a
+ // documented traffic-direction contract. Absolute alignment only rejects
+ // crossing roads; close parallel/opposite/stacked roads remain unresolved.
+ function flowOverlap(path,geometry,from,to){
+   const intervals=[],cosLimit=Math.cos(30*degrees),epsilon=1e-6;
+   for(let i=1;i<path.coords.length;i++){
+     const start=Math.max(from,path.distance[i-1]),end=Math.min(to,path.distance[i]);
+     if(end-start<=epsilon)continue;
+     const a=interpolated(path,start),b=interpolated(path,end);
+     const scale=111320*Math.cos((a[1]+b[1])/2*degrees);
+     const rx=(b[0]-a[0])*scale,ry=(b[1]-a[1])*111320,len=Math.hypot(rx,ry);
+     if(len<=epsilon)continue;
+     const ux=rx/len,uy=ry/len;
+     for(let j=1;j<geometry.length;j++){
+       const c=geometry[j-1],d=geometry[j];
+       const cx=(c[0]-a[0])*scale,cy=(c[1]-a[1])*111320;
+       const dx=(d[0]-c[0])*scale,dy=(d[1]-c[1])*111320;
+       const flowLength=Math.hypot(dx,dy),along=dx*ux+dy*uy;
+       if(flowLength<=epsilon||Math.abs(along)/flowLength<cosLimit)continue;
+       const x=cx*ux+cy*uy,y=-cx*uy+cy*ux,lateral=-dx*uy+dy*ux;
+       let lo=0,hi=1;
+       for(const [origin,delta,min,max] of [[x,along,0,len],[y,lateral,-maxOffsetMeters,maxOffsetMeters]]){
+         if(Math.abs(delta)<=epsilon){
+           if(origin<min-epsilon||origin>max+epsilon){hi=-1;break;}
+         }else{
+           const t1=(min-origin)/delta,t2=(max-origin)/delta;
+           lo=Math.max(lo,Math.min(t1,t2));hi=Math.min(hi,Math.max(t1,t2));
+         }
+       }
+       if(hi<=lo)continue;
+       const p=Math.max(0,Math.min(len,x+along*lo));
+       const q=Math.max(0,Math.min(len,x+along*hi));
+       const factor=(end-start)/len;
+       intervals.push([start+Math.min(p,q)*factor,start+Math.max(p,q)*factor]);
+     }
    }
-   return best;
+   intervals.sort((a,b)=>a[0]-b[0]);
+   const merged=[];
+   for(const [start,end] of intervals){
+     const last=merged.at(-1);
+     if(last&&start<=last[1]+epsilon)last[1]=Math.max(last[1],end);
+     else merged.push([start,end]);
+   }
+   return merged;
  }
  // A flow-segment sample is accepted ONLY when TomTom returns road geometry
  // overlapping that local part of the selected route. It still does not prove
@@ -70,26 +104,25 @@
  function makeFlowMatch(path,sample,data){
    const speed=data?.currentSpeed,free=data?.freeFlowSpeed;
    if(!Number.isFinite(speed)||!Number.isFinite(free)||free<=0||speed<0||
-      !Number.isFinite(data.confidence)||data.confidence<.5)return null;
+      !Number.isFinite(data.confidence)||data.confidence<.5||data.confidence>1||
+      !Number.isFinite(sample)||sample<0||sample>path.total)return null;
    const line=data.coordinates?.coordinate;
    if(!Array.isArray(line)||line.length<2)return null;
    const geometry=line.map(p=>[p.longitude,p.latitude]);
    if(!geometry.every(goodPoint))return null;
    const from=Math.max(0,sample-windowMeters),to=Math.min(path.total,sample+windowMeters);
-   if(closest(interpolated(path,sample),geometry)>maxOffsetMeters)return null;
-   const matching=[];
-   for(let m=from;m<to;m+=20){
-     const end=Math.min(to,m+20),a=interpolated(path,m),b=interpolated(path,end);
-     if(closest(a,geometry)<=maxOffsetMeters&&
-        closest(b,geometry)<=maxOffsetMeters)matching.push([m,end]);
-   }
+   // Require >=40m of continuous aligned overlap containing the queried point.
+   // Disjoint touches cannot add up to a trusted stretch. Short/ambiguous
+   // geometry stays unclassified; provider route-indexed incidents still work.
+   const matching=flowOverlap(path,geometry,from,to).filter(([a,b])=>
+     b-a>=40-1e-6&&a<=sample+1e-6&&b>=sample-1e-6);
    if(!matching.length)return null;
    // Actual flow speed / free-flow ratio; NOT a TomTom-published three-band
    // classification. No slowing = blue, never imply "light congestion".
    const ratio=speed/free;
    const type=ratio>=.90?null:ratio>=.70?'light':ratio>=.45?'moderate':'heavy';
-   return {type,ratio,segments:matching,confidence:
-     Number.isFinite(data.confidence)?data.confidence:null};
+   return {type,ratio,segments:matching,confidence:data.confidence,
+     directionVerified:false,gradeVerified:false};
  }
  function severity(section){
    if(section?.simpleCategory==='ROAD_CLOSURE')return 'closed';
@@ -102,35 +135,42 @@
  function classify(route,flows=[],now=Date.now()){
    const path=makePath(route?.geometry?.coordinates);
    if(!path||route?.provider!=='tomtom'||!Number.isFinite(path.total)||path.total<=0)return [];
-   // Render only real route line pieces, subdivided for accurate overlay.
-   const pieces=[];
-   for(let from=0;from<path.total;from+=20){
-     const to=Math.min(path.total,from+20);
-     let type=null;
-     if(flowAt&&now-flowAt<=flowTTL){
-       for(const match of flows){
-         if(match.type&&match.segments.some(([a,b])=>Math.min(b,to)-Math.max(a,from)>=10))
-           if(!type||priority[match.type]>priority[type])type=match.type;
-       }
+   // Sweep evidence boundaries rather than rounding them to 20m cells. A
+   // colour must not leak past a provider point index or matched flow endpoint.
+   const events=[];
+   function add(start,end,type){
+     if(!priority[type]||!Number.isFinite(start)||!Number.isFinite(end))return;
+     start=Math.max(0,start);end=Math.min(path.total,end);
+     if(end<=start)return;
+     events.push({at:start,type,delta:1},{at:end,type,delta:-1});
+   }
+   if(flowAt&&now-flowAt<=flowTTL){
+     for(const match of flows)for(const [start,end] of match.segments||[])
+       add(start,end,match.type);
+   }
+   if(Array.isArray(route.trafficSections)&&now-route.trafficSectionsCheckedAt<=incidentTTL){
+     for(const section of route.trafficSections){
+       if(section?.sectionType!=='TRAFFIC')continue;
+       const a=section.startPointIndex,b=section.endPointIndex;
+       if(!Number.isInteger(a)||!Number.isInteger(b)||a<0||b<=a||b>=path.distance.length)continue;
+       add(path.distance[a],path.distance[b],severity(section));
      }
-     if(Array.isArray(route.trafficSections)&&
-        now-route.trafficSectionsCheckedAt<=incidentTTL){
-       for(const section of route.trafficSections){
-         if(section?.sectionType!=='TRAFFIC')continue;
-         const a=section.startPointIndex,b=section.endPointIndex;
-         if(!Number.isInteger(a)||!Number.isInteger(b)||a<0||b<=a||
-            b>=path.distance.length)continue;
-         if(path.distance[a]>=to||path.distance[b]<=from)continue;
-         const incident=severity(section);
-         if(incident&&(!type||priority[incident]>priority[type]))type=incident;
-       }
-     }
-     if(type){
+   }
+   events.sort((a,b)=>a.at-b.at);
+   const pieces=[],active={light:0,moderate:0,heavy:0,closed:0};
+   let from=0;
+   for(let i=0;i<events.length;){
+     const to=events[i].at;
+     const type=['closed','heavy','moderate','light'].find(t=>active[t]>0);
+     if(type&&to>from){
        const previous=pieces.at(-1);
-       if(previous?.type===type&&Math.abs(previous.end-from)<.01)
-         previous.end=to;
+       if(previous?.type===type&&previous.end===from)previous.end=to;
        else pieces.push({type,start:from,end:to});
      }
+     while(i<events.length&&events[i].at===to){
+       active[events[i].type]+=events[i].delta;i++;
+     }
+     from=to;
    }
    return pieces.map(piece=>({...piece,
      coordinates:originalSubpath(path,piece.start,piece.end)}));
@@ -221,3 +261,4 @@
    classify,makeFlowMatch,makePath,originalSubpath,samplesFor,severity,reset
  };
 })();
+
