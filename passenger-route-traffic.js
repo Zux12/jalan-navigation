@@ -40,6 +40,18 @@
    const f=(distance-start)/span,a=path.coords[i-1],b=path.coords[i];
    return [a[0]+(b[0]-a[0])*f,a[1]+(b[1]-a[1])*f];
  }
+ // Exact route subpath: include every original TomTom geometry vertex between
+ // the two along-route distances. Never replace a bend with one long chord.
+ function originalSubpath(path,start,end){
+   if(!(end>start))return [];
+   const coords=[interpolated(path,start)];
+   for(let i=1;i<path.distance.length-1;i++){
+     if(path.distance[i]>start+1e-6&&path.distance[i]<end-1e-6)
+       coords.push(path.coords[i].slice());
+   }
+   coords.push(interpolated(path,end));
+   return coords;
+ }
  function closest(point,line){
    let best=Infinity;
    const origin=point,scale=111320*Math.cos(origin[1]*degrees);
@@ -115,13 +127,13 @@
      }
      if(type){
        const previous=pieces.at(-1);
-       const coordinate=interpolated(path,to);
-       if(previous?.type===type&&Math.abs(previous.end-from)<.01){
-         previous.coordinates.push(coordinate);previous.end=to;
-       }else pieces.push({type,end:to,coordinates:[interpolated(path,from),coordinate]});
+       if(previous?.type===type&&Math.abs(previous.end-from)<.01)
+         previous.end=to;
+       else pieces.push({type,start:from,end:to});
      }
    }
-   return pieces;
+   return pieces.map(piece=>({...piece,
+     coordinates:originalSubpath(path,piece.start,piece.end)}));
  }
  function draw(){
    overlay.clearLayers();
@@ -206,6 +218,6 @@
  window.addEventListener('jalan:incidents-updated',()=>{if(route)draw();});
  window.JalanRouteTraffic={
    getState:()=>({active:!!route,sampledFlow:hasFlow,overlayCount:overlay.getLayers().length}),
-   classify,makeFlowMatch,makePath,samplesFor,severity,reset
+   classify,makeFlowMatch,makePath,originalSubpath,samplesFor,severity,reset
  };
 })();
