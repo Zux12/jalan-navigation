@@ -100,3 +100,8 @@ body.passenger-guiding #jalan-home-notice{display:none!important}
 body.passenger-mode .jalan-home-sheet:not([data-state="c"]) .topbar{
  opacity:0;pointer-events:none}
 body.passenger-mode .jalan-home-sheet[data-state="c"] #jalan-search-trigger{display:none}
+
+/* Reopen C during a journey without stopping or clearing the selected route. */
+body.passenger-mode.passenger-route-search .jalan-home-sheet{display:flex!important;z-index:1802}
+body.passenger-mode.passenger-route-search .jalan-home-sheet .topbar{display:block!important}
+body.passenger-mode.passenger-route-search .jalan-home-sheet .results:not(.hidden){display:block!important}

@@ -44,6 +44,8 @@
  document.body.append(menu,speed,report,notice,menuPanel);
  const input=$('destination'),form=$('search-form'),list=$('jalan-recent-list');
  const recentNames=[];
+ const routeSearchButton=$('passenger-search'),navigation=$('passenger-navigation');
+ let routeSearch=null;
  const showNotice=message=>{
    notice.textContent=message;notice.classList.remove('hidden');
  };
@@ -64,20 +66,53 @@
  };
  const setState=next=>{
    const state=['a','b','c'].includes(next)?next:'a';
+   if(routeSearch&&state!=='c'){closeRouteSearch();return;}
    if(state!=='c'&&document.activeElement===input)input.blur();
    sheet.dataset.state=state;
    header.inert=state!=='c';
    handle.setAttribute('aria-expanded',String(state!=='a'));
-   handle.setAttribute('aria-label',state==='c'?'Collapse destination panel':'Expand destination panel');
+   handle.setAttribute('aria-label',routeSearch?'Return to current route':
+     state==='c'?'Collapse destination panel':'Expand destination panel');
    sheet.setAttribute('aria-label','Destination search bottom sheet · state '+state.toUpperCase());
  };
+ // Opening search is a temporary layer over the active journey. It must not
+ // call clearRoute(), stop GPS, select a route or change the map camera.
+ function closeRouteSearch(restoreInput=true,restoreFocus=true){
+   if(!routeSearch)return;
+   const saved=routeSearch;routeSearch=null;
+   cancelGesture();input.blur();
+   if(restoreInput)input.value=saved.inputValue;
+   results.classList.add('hidden');
+   document.body.classList.remove('passenger-route-search');
+   navigation.inert=false;
+   sheet.classList.add('jalan-sheet-route');
+   routeSearchButton.setAttribute('aria-expanded','false');
+   setState('a');
+   if(restoreFocus&&document.body.classList.contains('passenger-guiding'))
+     routeSearchButton.focus({preventScroll:true});
+ }
+ routeSearchButton.addEventListener('click',()=>{
+   if(routeSearch||!document.body.classList.contains('passenger-guiding')||!routes[selectedRoute])return;
+   routeSearch={inputValue:input.value};
+   input.value='';results.replaceChildren();results.classList.add('hidden');
+   $('passenger-options').open=false;
+   sheet.classList.remove('jalan-sheet-route');
+   document.body.classList.add('passenger-route-search');
+   routeSearchButton.setAttribute('aria-expanded','true');
+   setState('c');input.focus({preventScroll:true});
+   navigation.inert=true;
+ });
+ document.addEventListener('keydown',e=>{
+   if(e.key==='Escape'&&routeSearch){e.preventDefault();closeRouteSearch();}
+ });
  // One gesture controller for the whole sheet, including child buttons and
  // list rows. A/B swipes resize the panel; C gives native lists scroll priority.
  // Touch events are separate from mouse/pen pointers because native scrolling
  // can cancel PointerEvents before a C-at-top downward swipe finishes.
  let gesture=null,suppressClickUntil=0;
  const beginGesture=(point,target,kind,id)=>{
-   if(sheet.classList.contains('jalan-sheet-route')||document.body.classList.contains('passenger-guiding'))return;
+   if(sheet.classList.contains('jalan-sheet-route')||
+      (document.body.classList.contains('passenger-guiding')&&!routeSearch))return;
    const scroller=target.closest?.('.results,.jalan-sheet-recent');
    gesture={x:point.clientX,y:point.clientY,at:sheet.dataset.state,kind,id,
      atTop:!scroller||scroller.scrollTop<=1,claimed:false};
@@ -175,11 +210,13 @@
    const unique=[...new Set(recentNames)].slice(0,7);
    recentNames.splice(0,recentNames.length,...unique);
    renderRecent();
+   // A deliberate result selection keeps the new query and uses normal routing.
+   closeRouteSearch(false,false);
  },true);
- window.addEventListener('jalan:routes-rendered',()=>{cancelGesture();sheet.classList.add('jalan-sheet-route');input.blur();});
- window.addEventListener('jalan:route-cleared',()=>{cancelGesture();sheet.classList.remove('jalan-sheet-route');setState('a');});
- window.addEventListener('jalan:journey-start',()=>{sheet.classList.add('jalan-sheet-route');toggleMenu(false);});
- window.addEventListener('jalan:journey-stop',()=>{sheet.classList.toggle('jalan-sheet-route',routes.length>0);});
+ window.addEventListener('jalan:routes-rendered',()=>{closeRouteSearch(false,false);cancelGesture();sheet.classList.add('jalan-sheet-route');input.blur();});
+ window.addEventListener('jalan:route-cleared',()=>{closeRouteSearch(false,false);cancelGesture();sheet.classList.remove('jalan-sheet-route');setState('a');});
+ window.addEventListener('jalan:journey-start',()=>{closeRouteSearch(false,false);sheet.classList.add('jalan-sheet-route');toggleMenu(false);});
+ window.addEventListener('jalan:journey-stop',()=>{closeRouteSearch(false,false);sheet.classList.toggle('jalan-sheet-route',routes.length>0);});
  window.addEventListener('jalan:gps-fix',e=>{
    const d=e.detail,valid=d?.matched&&Number.isFinite(d.speedMps)&&d.speedMps>=0&&
      Number.isFinite(d.accuracy)&&d.accuracy<=75;

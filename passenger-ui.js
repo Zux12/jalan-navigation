@@ -472,8 +472,10 @@
      directionSource==='route'?'GPS matched · road direction estimated from route':
      'GPS matched · direction unavailable; north-up preview';
    const speed=fix?.matched&&Number.isFinite(fix.speedMps)&&fix.speedMps>=0?
-     Math.round(fix.speedMps*3.6)+' km/h':'— km/h';
+     String(Math.round(fix.speedMps*3.6)):'—';
    el('passenger-speed').textContent=speed;
+   el('passenger-speed-floating').setAttribute('aria-label',speed==='—'?
+     'Speed unavailable':speed+' kilometres per hour');
    const message=el('passenger-instruction').textContent;
    el('passenger-turn-arrow').textContent=turnIcon(message);
    if(!turnList.classList.contains('hidden')){

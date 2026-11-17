@@ -240,3 +240,18 @@ body.passenger-vector-active.passenger-guiding .passenger-bottom{bottom:calc(18p
  font:700 12px system-ui,sans-serif;pointer-events:none}
 body.passenger-guiding #passenger-startup-location-status,
 #passenger-startup-location-status.hidden{display:none!important}
+
+/* Search replaces speed in the bottom metrics. Speed mirrors right Recenter. */
+.passenger-search{flex:0 0 44px;width:44px;height:44px;display:grid;place-items:center;
+ border:0;border-radius:50%;background:#edf4fa;color:#166b9d;cursor:pointer;touch-action:manipulation}
+.passenger-search svg{width:25px;height:25px;fill:none;stroke:currentColor;stroke-width:2.4;stroke-linecap:round}
+.passenger-search:focus-visible{outline:3px solid #1674dd;outline-offset:2px}
+.passenger-speed-floating{position:fixed;left:14px;bottom:calc(108px + env(safe-area-inset-bottom,0px));
+ width:64px;height:64px;z-index:7;display:flex;flex-direction:column;align-items:center;justify-content:center;
+ border-radius:50%;border:3px solid #e7eef5;background:#fffffff2;color:#213b52;box-shadow:0 4px 15px #0a2c5260}
+.passenger-speed-floating strong{font:800 24px/1 system-ui}
+.passenger-speed-floating small{font:700 10px/1.2 system-ui;margin-top:3px}
+@media(max-height:650px){.passenger-speed-floating{bottom:calc(98px + env(safe-area-inset-bottom,0px))}}
+/* The map and GPS remain active behind a temporary destination search. */
+body.passenger-route-search .passenger-navigation{visibility:hidden}
+body.passenger-route-search .interface-switch{display:none!important}
