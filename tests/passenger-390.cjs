@@ -613,7 +613,7 @@ async function main(){
   assert.match(await page.locator('#passenger-live-eta').innerText(),/6 min/,
     'expired estimate message cannot override the last validated quote');
   assert.equal(await page.locator('.jalan-vehicle-symbol').getAttribute('data-heading'),
-    'route','slow GPS uses clearly estimated route direction, not fake compass');
+    'held','slow GPS retains last reliable bearing rather than snapping to old road geometry');
   assert.equal(await page.locator('.jalan-vehicle-symbol').textContent(),'▲',
     'triangle appears after a verified GPS match even when stationary');
   const slowDirection=await page.evaluate(()=>{
