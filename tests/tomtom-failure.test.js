@@ -112,6 +112,19 @@ test('route-linked sections use road metadata and route point indices, not a 25m
  assert.equal(api.trafficSectionsForRoute({...route,trafficSections:[]}).length,0,
   'missing provider traffic sections never fall back to nearby unverified incidents');
 });
+test('route-linked section distance follows point index when the route revisits identical coordinates',()=>{
+ const api=scene().ctx.window.JalanTomTom;
+ const coords=[coordinate(0,0),coordinate(100,0),coordinate(200,0),
+  coordinate(200,100),coordinate(100,0),coordinate(0,0),coordinate(100,0)];
+ const route={provider:'tomtom',geometry:{type:'LineString',coordinates:coords},
+  trafficSections:[{sectionType:'TRAFFIC',startPointIndex:5,endPointIndex:6,
+    simpleCategory:'JAM',delayInSeconds:60}],legs:[{steps:[]}]};
+ const [matched]=api.trafficSectionsForRoute(route);
+ assert.ok(matched,'a valid later-section index remains eligible');
+ assert.equal(matched.startPointIndex,5);
+ assert.ok(matched.routeAlong>500,'later pass at repeated coordinates must not snap to first road segment');
+ assert.ok(matched.routeAlong<matched.routeTotal);
+});
 test('valid traffic-aware TomTom route remains primary on successful response',async()=>{
  const s=scene(),n=s.nodes;
  await n['tt-route'].onclick();await s.tick();
