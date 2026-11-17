@@ -803,7 +803,9 @@ async function main(){
     let setCount=0,panCount=0;
     map.setView=(...args)=>{setCount++;return originalSet(...args);};
     map.panTo=(...args)=>{panCount++;return originalPan(...args);};
-    const position=window.JalanGPS.getState().position;
+    // Passenger camera follows measured GPS, not the old route-snapped predictor.
+    const position=window.JalanGPS.getState().gpsPosition;
+    if(!Array.isArray(position))throw Error('measured GPS unavailable for camera stability check');
     for(let i=0;i<3;i++){
       window.__offlineGPSWatch({timestamp:Date.now()+3900+i*100,coords:{
         latitude:position[0],longitude:position[1],accuracy:8,speed:0,heading:0}});
