@@ -104,7 +104,7 @@
     accuracy:Infinity,matched:false,matchedPosition:null,speedMps:null,
     heading:null,reason:'rejected-measured-fix',...positionEvidence()
    }}));
-   el('gps-accuracy').textContent='Unverified';
+   el('gps-accuracy').textContent=Number.isFinite(accuracy)?'Unverified':'Unknown';
    el('gps-match-status').textContent='GPS measurement rejected';
    el('gps-instruction').textContent='Route alignment pending · turn guidance paused';
    el('gps-detail').textContent='Last known position retained; waiting for plausible GPS';
