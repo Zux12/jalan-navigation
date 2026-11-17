@@ -137,6 +137,18 @@ const trafficSectionsForRoute=r=>{
  const coords=r.geometry.coordinates,steps=(r.legs||[]).flatMap(x=>x.steps||[])
   .filter(x=>Number.isInteger(x.pointIndex)&&x.pointIndex>=0&&x.pointIndex<coords.length)
   .sort((a,b)=>a.pointIndex-b.pointIndex);
+ // Keep along-route distance in provider point-index order. Projecting a
+ // location onto the nearest polyline segment is ambiguous at flyovers,
+ // self-crossings, loops and repeated coordinates.
+ const origin=coords[0],sx=111320*Math.cos(origin[1]*Math.PI/180),sy=111320;
+ const cumulative=[0];
+ for(let i=1;i<coords.length;i++){
+  if(!validPoint(coords[i-1])||!validPoint(coords[i]))return [];
+  const dx=(coords[i][0]-coords[i-1][0])*sx,dy=(coords[i][1]-coords[i-1][1])*sy;
+  cumulative.push(cumulative[i-1]+Math.hypot(dx,dy));
+ }
+ const total=cumulative.at(-1);
+ if(!Number.isFinite(total)||total<=0)return [];
  const output=[],seen=new Set();
  for(const section of r.trafficSections||[]){
   if(section?.sectionType!=='TRAFFIC')continue;
@@ -155,11 +167,11 @@ const trafficSectionsForRoute=r=>{
     Math.round(section.delayInSeconds):null;
   const speed=Number.isFinite(section.effectiveSpeedInKmh)&&section.effectiveSpeedInKmh>=0?
     Math.round(section.effectiveSpeedInKmh):null;
-  const projected=projectReportPoint(point,coords);
-  if(!projected)continue;
+  const routeAlong=cumulative[middle];
+  if(!Number.isFinite(routeAlong))continue;
   output.push({lat:point[1],lng:point[0],startPointIndex:start,endPointIndex:end,
    roadName:name,roadNumbers:instruction?.roadNumbers||[],category,delaySeconds:delay,
-   effectiveSpeedKmh:speed,routeAlong:projected.along,routeTotal:projected.total});
+   effectiveSpeedKmh:speed,routeAlong,routeTotal:total});
  }
  return output.sort((a,b)=>a.startPointIndex-b.startPointIndex).slice(0,60);
 };
