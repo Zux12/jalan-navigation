@@ -389,6 +389,14 @@ async function main(){
   await live.locator('.maplibregl-ctrl-attrib-button').click();
   assert.equal(await creditControl.evaluate(x=>x.classList.contains('maplibregl-compact-show')),false);
   await live.screenshot({path:path.join(artifacts,'vector-live-kl-mobile.png')});
+  await live.evaluate(()=>{window.__journeyVectorBefore={route:JalanGPS.getState().route,bearing:JalanVectorMap.getBearing()};});
+  await live.locator('#passenger-journey-handle').click();
+  assert.equal(await live.locator('#passenger-journey-content').isVisible(),true);
+  await live.screenshot({path:path.join(artifacts,'vector-live-journey-details.png')});
+  await live.locator('#passenger-journey-resume').click();
+  assert.equal(await live.evaluate(()=>JalanGPS.getState().active&&JalanGPS.getState().route===window.__journeyVectorBefore.route),true);
+  assert.equal(await live.locator('#passenger-journey-sheet').getAttribute('data-expanded'),'false');
+
   await live.setViewportSize({width:1280,height:800});
   await live.screenshot({path:path.join(artifacts,'vector-live-kl-desktop.png')});
   console.log('PASS: native WebGL map, GPS projection, gestures, report zoom, traffic lifecycle, graphics and post-style tile-outage fallback, live OpenFreeMap');

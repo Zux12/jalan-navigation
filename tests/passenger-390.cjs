@@ -138,7 +138,7 @@ async function main(){
   await page.evaluate(()=>document.activeElement?.blur());
   // Real browser touch input (not dispatched PointerEvents) must work from
   // sheet descendants without clicking them, and preserve native C scrolling.
-  const sheetTouch=await context.newCDPSession(page);
+  let sheetTouch=await context.newCDPSession(page);
   const swipeInside=async(selector,dy,{dx=0,offsetY=null,cancel=false}={})=>{
     const b=await page.locator(selector).boundingBox();
     assert.ok(b,`visible swipe target ${selector}`);
@@ -1054,6 +1054,7 @@ async function main(){
   assert.equal(await page.locator('#passenger-go').isVisible(),false,'new route resumes guidance without another Go');
   assert.match(await page.locator('#passenger-reroute-status').textContent(),/Route updated/);
   console.log('PASS off-route recovery: Go enables auto, sustained detour requests from real GPS, pending route retained, same destination, guidance resumes');
+  sheetTouch=await context.newCDPSession(page);
   // Active journey sheet: genuine pointer/touch gestures, read-only traffic
   // presentation, Resume continuity and Stop clearing the entire journey.
   await page.goto(base+'/index.html?mode=passenger',{waitUntil:'load'});
