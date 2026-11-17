@@ -9,6 +9,36 @@
        list=el('passenger-route-list'),settings=el('passenger-setup'),
        navigation=el('passenger-navigation');
  const routeLabels=L.layerGroup().addTo(map);
+ const navigationZoom=17+Math.log2(1.5);
+ map.createPane('passenger-travelled');map.getPane('passenger-travelled').style.zIndex='460';
+ map.getPane('passenger-travelled').style.pointerEvents='none';
+ let travelled=null,travelRoute=null,travelFraction=0;
+ const clearTravelled=()=>{if(travelled)map.removeLayer(travelled);travelled=null;travelRoute=null;travelFraction=0;};
+ const paintTravelled=()=>{
+   const state=window.JalanGPS?.getState(),route=state?.route;
+   if(!state?.active||!document.body.classList.contains('passenger-guiding')){clearTravelled();return;}
+   if(route!==travelRoute){clearTravelled();travelRoute=route;}
+   if(!state.matched||state.accuracy>75||state.fixAgeMs>10000||
+      !Number.isFinite(state.remainingMeters)||!(route?.distance>0))return;
+   travelFraction=Math.max(travelFraction,Math.min(1,Math.max(0,1-state.remainingMeters/route.distance)));
+   const points=route.geometry.coordinates.map(p=>L.latLng(p[1],p[0])),lengths=[];
+   let total=0;for(let i=1;i<points.length;i++){const length=points[i-1].distanceTo(points[i]);lengths.push(length);total+=length;}
+   let left=total*travelFraction;const passed=[points[0]];
+   for(let i=1;i<points.length&&left>0;i++){
+     const length=lengths[i-1];
+     if(left>=length){passed.push(points[i]);left-=length;}
+     else{const t=left/length;passed.push(L.latLng(points[i-1].lat+(points[i].lat-points[i-1].lat)*t,
+       points[i-1].lng+(points[i].lng-points[i-1].lng)*t));break;}
+   }
+   if(passed.length<2)return;
+   if(!travelled)travelled=L.polyline(passed,{color:'#8293aa',weight:10,opacity:1,interactive:false,
+     pane:'passenger-travelled',className:'jalan-travelled-route'}).addTo(map);
+   else travelled.setLatLngs(passed);
+ };
+ window.addEventListener('jalan:gps-fix',()=>requestAnimationFrame(paintTravelled));
+ window.addEventListener('jalan:journey-start',clearTravelled);
+ window.addEventListener('jalan:journey-stop',clearTravelled);
+ window.addEventListener('jalan:route-cleared',clearTravelled);
  // Reuse the existing opt-in page-load one-shot geolocation. A pre-route
  // location triangle represents a measured position, never inferred heading
  // or route-matched driving accuracy.
@@ -35,7 +65,7 @@
      return;
    }
    const icon=L.divIcon({className:'passenger-startup-pin',
-     html:'<span aria-hidden="true">▲</span>',iconSize:[42,42],iconAnchor:[21,21]});
+     html:'<span aria-hidden="true">▲</span>',iconSize:[84,84],iconAnchor:[42,42]});
    startupMarker=L.marker(detail.point,{icon,interactive:false,keyboard:false,
      title:'GPS location measured; direction not yet verified'}).addTo(map);
  });
@@ -683,6 +713,7 @@
    }
  });
  window.addEventListener('jalan:journey-start',()=>{
+   map.options.zoomSnap=0;
    closeDirections();
    clearReportFocus();
    incidentSnapshot={route:null,incidents:[],checkedAt:0};
@@ -795,7 +826,7 @@
    const zoom=map.getZoom();
    const camera=map.getCenter(),dx=(camera.lng-center[1])*111320*Math.cos(center[0]*Math.PI/180),
          dy=(camera.lat-center[0])*111320;
-   if(!Number.isFinite(zoom)||zoom<17)map.setView(center,17,{animate:false});
+   if(!Number.isFinite(zoom)||zoom<navigationZoom)map.setView(center,navigationZoom,{animate:false});
    else if(Math.hypot(dx,dy)>8)map.panTo(center,{animate:false});
    scheduleScreenVehicle();
  };
@@ -941,7 +972,7 @@
    applyCameraAngle(flat?0:lastValidHeading===null?0:-lastValidHeading);
    const target=state.gpsPosition;
    map.stop();
-   map.setView(target,17,{animate:false,reset:true});
+   map.setView(target,navigationZoom,{animate:false,reset:true});
    scheduleScreenVehicle();
  };
  el('passenger-recenter').addEventListener('click',recenterPassenger);
