@@ -212,7 +212,7 @@ async function main(){
   // window. Recenter should require a fresh fix rather than bypassing it.
   await page.evaluate(fix);
   await page.locator('#passenger-recenter-floating').click();
-  assert.equal(await page.evaluate(()=>Math.round(map.getZoom())),17);
+  assert.equal(await page.evaluate(()=>Math.round(map.getZoom())),18);
   await page.waitForFunction(()=>document.body.classList.contains('passenger-following-location'));
   assert.equal(await page.locator('#jalan-home-report').isVisible(),true);
   await page.mouse.move(180,360);await page.mouse.down();await page.mouse.move(270,415,{steps:8});

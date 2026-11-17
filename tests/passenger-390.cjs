@@ -808,7 +808,7 @@ async function main(){
     'stationary GPS updates must not redraw the entire route camera');
   await menuClick('#passenger-recenter');
   assert.match(await page.locator('#passenger-gesture-hint').innerText(),/Following GPS/);
-  assert.equal(await page.evaluate(()=>map.getZoom()),17,
+  assert.equal(await page.evaluate(()=>map.getZoom()),17+Math.log2(1.5),
     'Recenter explicitly restores navigation zoom after exploration');
   const restored=await page.evaluate(()=>[map.getCenter().lat,map.getCenter().lng]);
   assert.notDeepEqual(restored,exploreCenter,
@@ -844,7 +844,7 @@ async function main(){
   await menuClick('#passenger-recenter');
   assert.equal(await page.evaluate(()=>document.getElementById('map').style.getPropertyValue('--jalan-camera-turn')),
     '0deg','2D Recenter restores north-up');
-  assert.equal(await page.evaluate(()=>map.getZoom()),17,'2D Recenter returns to GPS zoom');
+  assert.equal(await page.evaluate(()=>map.getZoom()),17+Math.log2(1.5),'2D Recenter returns to GPS zoom');
   await menuClick('#passenger-2d');
   const headingAfterReturn=await page.evaluate(()=>({
     camera:Number.parseFloat(document.getElementById('map').style.getPropertyValue('--jalan-camera-turn')),

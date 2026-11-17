@@ -49,10 +49,10 @@ body.passenger-guiding .interface-switch{display:none}
 .passenger-turn>span{font-size:48px;font-weight:900}.passenger-turn strong{font-size:clamp(19px,4.8vw,26px);display:block}.passenger-turn small{font-size:14px;color:#61d7fc}
 .passenger-heading{position:absolute;top:calc(139px + env(safe-area-inset-top,0px));left:10px;right:10px;text-align:center;color:#273d58;background:#ffffffd9;padding:6px 9px;border-radius:12px;font-size:11px;font-weight:750}
 .jalan-vehicle-marker{border:0;background:transparent;pointer-events:none;opacity:0}
-.passenger-vehicle-screen{position:absolute;z-index:2;pointer-events:none;width:42px;height:42px;display:grid;place-items:center;transform:translate(-50%,-50%);color:#05a6d5;font:900 35px system-ui,sans-serif;text-shadow:-2px -2px 0 white,2px -2px 0 white,-2px 2px 0 white,2px 2px 0 white,0 4px 9px #122e4999}
+.passenger-vehicle-screen{position:absolute;z-index:2;pointer-events:none;width:84px;height:84px;display:grid;place-items:center;transform:translate(-50%,-50%);color:#05a6d5;font:900 70px system-ui,sans-serif;text-shadow:-2px -2px 0 white,2px -2px 0 white,-2px 2px 0 white,2px 2px 0 white,0 4px 9px #122e4999}
 /* GPS-anchored vehicle triangle, counter-rotated to remain screen-up while
    the experimental passenger camera visually turns the map underneath. */
-.jalan-vehicle-marker .jalan-vehicle-symbol{display:grid;place-items:center;width:40px;height:40px;color:#00a1cd;background:transparent;font:900 34px system-ui,sans-serif;text-shadow:-2px -2px 0 white,2px -2px 0 white,-2px 2px 0 white,2px 2px 0 white,0 5px 10px #19324a88;transform:rotate(var(--jalan-vehicle-heading,0deg));transform-origin:center center}
+.jalan-vehicle-marker .jalan-vehicle-symbol{display:grid;place-items:center;width:80px;height:80px;color:#00a1cd;background:transparent;font:900 68px system-ui,sans-serif;text-shadow:-2px -2px 0 white,2px -2px 0 white,-2px 2px 0 white,2px 2px 0 white,0 5px 10px #19324a88;transform:rotate(var(--jalan-vehicle-heading,0deg));transform-origin:center center}
 .jalan-vehicle-marker .jalan-vehicle-symbol[data-heading="route"]{color:#128dc6}
 .jalan-vehicle-marker .jalan-vehicle-symbol[data-heading="unavailable"]{color:#8797a6}
 
@@ -217,9 +217,9 @@ body.passenger-vector-active.passenger-guiding .passenger-bottom{bottom:calc(32p
 
 /* Stationary/passenger pre-route GPS: position only, never inferred heading. */
 .passenger-startup-pin{background:transparent;border:0;pointer-events:none}
-.passenger-startup-pin span{width:42px;height:42px;display:grid;place-items:center;
+.passenger-startup-pin span{width:84px;height:84px;display:grid;place-items:center;
  border:3px solid #fff;border-radius:50%;box-sizing:border-box;
- background:#087ab8;color:#fff;font:900 24px system-ui,sans-serif;
+ background:#087ab8;color:#fff;font:900 48px system-ui,sans-serif;
  text-shadow:0 1px 3px #123b5b99;box-shadow:0 3px 12px #102d5580}
 
 /* Search replaces speed in the bottom metrics. Speed mirrors right Recenter. */
