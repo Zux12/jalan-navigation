@@ -24,7 +24,7 @@ module.exports=async(browser,base,root)=>{
   await page.goto(base+'/index.html?mode=passenger');
   // This fixture pauses browser time; let the deliberate reading hold finish
   // before measuring Go's separate seven-second idle countdown.
-  await page.clock.runFor(2000);
+  await page.clock.runFor(5000);
   await page.locator('#jalan-launch').waitFor({state:'hidden'});
   const fixture=()=>page.evaluate(()=>{
    JalanPassengerJourney.stop();document.getElementById('tt-primary').checked=false;

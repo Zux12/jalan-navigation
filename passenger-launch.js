@@ -13,7 +13,7 @@
    const splash=document.getElementById('jalan-launch');
    root.classList.remove('passenger-launching');
    if(splash){splash.setAttribute('aria-hidden','true');splash.classList.add('jalan-launch-finished');setTimeout(()=>splash.remove(),200);}
-  })),1500);
+  })),4000);
  }
  function timedOut(){
   basicOnly=true;
