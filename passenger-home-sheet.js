@@ -36,14 +36,32 @@
  notice.setAttribute('role','status');
  const menuPanel=document.createElement('section');menuPanel.id='jalan-home-menu-panel';
  menuPanel.className='hidden';menuPanel.setAttribute('aria-label','User menu');
- menuPanel.innerHTML='<div class="jalan-home-menu-head"><strong>JALAN menu</strong>'+
-  '<button type="button" id="jalan-home-menu-close" aria-label="Close user menu">✕</button></div>'+
-  '<div id="jalan-menu-sound"></div><button type="button" id="passenger-about" aria-haspopup="dialog" aria-controls="passenger-about-dialog">About</button>';
+ menuPanel.innerHTML='<div class="jalan-home-menu-head"><strong>JALAN menu</strong></div>'+
+  '<div id="jalan-menu-sound"></div>'+
+  '<details id="passenger-navigation-settings"><summary>Navigation</summary><div class="jalan-navigation-view">'+
+  '<label for="passenger-nav-zoom">Zoom <output id="passenger-nav-zoom-value" for="passenger-nav-zoom">80%</output></label>'+
+  '<input id="passenger-nav-zoom" type="range" min="0" max="100" step="5" value="80">'+
+  '<label for="passenger-nav-tilt">3D tilt <output id="passenger-nav-tilt-value" for="passenger-nav-tilt">100%</output></label>'+
+  '<input id="passenger-nav-tilt" type="range" min="0" max="100" step="5" value="100"></div></details>'+
+  '<button type="button" id="passenger-about" aria-haspopup="dialog" aria-controls="passenger-about-dialog">About</button>'+
+  '<button type="button" id="jalan-home-menu-close">Close</button>';
  $('passenger-voice').setAttribute('aria-haspopup','dialog');
  $('passenger-voice').setAttribute('aria-controls','passenger-sound-dialog');
  menuPanel.querySelector('#jalan-menu-sound').append($('passenger-voice'));
- menuPanel.append($('passenger-journey-options'));
+ menuPanel.querySelector('#passenger-navigation-settings').append($('passenger-journey-options'));
+ menuPanel.querySelector('#passenger-journey-options h2').textContent='Journey controls';
  document.body.append(menu,speed,report,notice,menuPanel);
+ const paintNavigation=()=>{
+   const settings=window.JalanPassengerCamera.getSettings();
+   for(const key of ['zoom','tilt']){$('passenger-nav-'+key).value=settings[key];$('passenger-nav-'+key+'-value').textContent=settings[key]+'%';}
+   const active=!!window.JalanGPS?.getState?.().active;
+   for(const button of $('passenger-journey-options').querySelectorAll('button'))button.disabled=!active;
+ };
+ for(const key of ['zoom','tilt'])$('passenger-nav-'+key).addEventListener('input',event=>window.JalanPassengerCamera.setSetting(key,Number(event.target.value)));
+ window.addEventListener('jalan:navigation-view',paintNavigation);
+ window.addEventListener('jalan:journey-start',paintNavigation);
+ window.addEventListener('jalan:journey-stop',()=>requestAnimationFrame(paintNavigation));
+ paintNavigation();
  const input=$('destination'),form=$('search-form'),list=$('jalan-recent-list');
  const recentPlaces=[];
  const routeSearchButton=$('passenger-search'),navigation=$('passenger-navigation');
@@ -199,7 +217,7 @@
    if(visible){$('passenger-turn-close').click();notice.classList.add('hidden');}
    menuPanel.classList.toggle('hidden',!visible);
    menu.setAttribute('aria-expanded',String(visible));
-   if(visible){menuPanel.scrollTop=0;$('jalan-home-menu-close').focus({preventScroll:true});}
+   if(visible){$('passenger-navigation-settings').open=false;paintNavigation();menuPanel.scrollTop=0;$('jalan-home-menu-close').focus({preventScroll:true});}
  };
  window.JalanPassengerMenu={close:()=>toggleMenu(false)};
  document.addEventListener('keydown',e=>{

@@ -39,7 +39,7 @@ body.passenger-mode .passenger-overview{position:fixed;z-index:1300;bottom:calc(
 .passenger-delta-pin{background:#fff;border:2px solid #e2e8f0;border-radius:10px;padding:5px 8px;white-space:nowrap;font:bold 12px system-ui,sans-serif;box-shadow:0 4px 10px #10243c4d;color:#172d45}
 /* Reduce the artificial empty horizon seen in the initial passenger desktop
    preview. This is still a flat Leaflet map with visual perspective ONLY. */
-body.passenger-guiding #map{transform:perspective(1200px) rotateX(17deg) rotateZ(var(--jalan-camera-turn,0deg)) scale(1.35) translateY(0);transform-origin:50% 50%;pointer-events:none!important}
+body.passenger-guiding #map{transform:perspective(1200px) rotateX(var(--jalan-raster-pitch,17deg)) rotateZ(var(--jalan-camera-turn,0deg)) scale(1.35) translateY(0);transform-origin:50% 50%;pointer-events:none!important}
 body.passenger-guiding{background:#dbe4eb}
 body.passenger-guiding.passenger-map-flat #map{transform:rotateZ(var(--jalan-camera-turn,0deg));pointer-events:none!important}
 body.passenger-guiding .topbar,body.passenger-guiding .results,body.passenger-guiding .passenger-overview{display:none!important}
