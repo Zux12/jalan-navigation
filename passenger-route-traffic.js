@@ -12,6 +12,8 @@
  const windowMeters=80, maxOffsetMeters=16;
  let route=null,epoch=0,aborters=[],flowAt=0,lastRequestAt=0,refreshId=null,flowMatches=[],
      overlay=L.layerGroup().addTo(map),hasFlow=false,trafficSamplingAllowed=false;
+  // Used by the passenger journey sheet; preserve the public snapshot contract.
+  let journeySnapshot={route:null,total:0,segments:[]},journeyExpires=Infinity;
  const status=document.createElement('div');
  status.id='jalan-route-traffic-legend';
  status.setAttribute('role','status');
@@ -175,9 +177,17 @@
    return pieces.map(piece=>({...piece,
      coordinates:originalSubpath(path,piece.start,piece.end)}));
  }
+ function cacheJourney(pieces){
+   const now=Date.now();
+   journeySnapshot={route,total:makePath(route?.geometry?.coordinates)?.total||0,
+     segments:pieces.map(({type,start,end})=>({type,start,end}))};
+   journeyExpires=Math.min(...[flowAt?flowAt+flowTTL:0,
+     (route?.trafficSectionsCheckedAt||0)+incidentTTL].filter(t=>t>=now));
+ }
  function draw(){
    overlay.clearLayers();
    const pieces=classify(route,flowMatches);
+   cacheJourney(pieces);
    for(const segment of pieces){
      L.polyline(segment.coordinates.map(point=>[point[1],point[0]]),{
        color:palette[segment.type],weight:10,opacity:.94,
@@ -192,7 +202,7 @@
  function reset(){
    epoch++;aborters.forEach(a=>a.abort());aborters=[];flowMatches=[];flowAt=0;lastRequestAt=0;hasFlow=false;
    if(refreshId){clearInterval(refreshId);refreshId=null;}
-   overlay.clearLayers();route=null;
+   overlay.clearLayers();route=null;cacheJourney([]);
    status.textContent='Traffic: blue = unclassified';
  }
  function samplesFor(path){
@@ -273,6 +283,10 @@
  window.addEventListener('jalan:incidents-updated',()=>{if(route)draw();});
  window.JalanRouteTraffic={
    getState:()=>({active:!!route,sampledFlow:hasFlow,overlayCount:overlay.getLayers().length}),
+   getJourneySnapshot:()=>{
+     if(Date.now()>journeyExpires)cacheJourney(classify(route,flowMatches));
+     return {...journeySnapshot,segments:journeySnapshot.segments.map(s=>({...s}))};
+   },
    classify,makeFlowMatch,makePath,originalSubpath,samplesFor,severity,reset
  };
 })();

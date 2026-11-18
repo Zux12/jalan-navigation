@@ -277,3 +277,22 @@ test('route-cleared revokes flow consent and stale route status cannot reactivat
  s.dispatch('jalan:traffic-layer-status',{state:'ready',route:next});await s.tick();
  assert.ok(s.urls.length>count,'explicit new route status re-enables sampling');
 });
+
+
+test('journey-sheet snapshot remains available after draft traffic matcher integration',()=>{
+ const s=scene(),r=route([section(0,1,1),section(1,2,3)]);
+ assert.equal(typeof s.api.getJourneySnapshot,'function','existing journey sheet API cannot be removed');
+ s.ctx.routes=[r];s.dispatch('jalan:routes-rendered');
+ const snapshot=s.api.getJourneySnapshot();
+ assert.equal(snapshot.route,r);
+ assert.ok(snapshot.total>290&&snapshot.total<310);
+ assert.deepEqual(Array.from(snapshot.segments,x=>x.type),['light','heavy']);
+ assert.ok(Math.abs(snapshot.segments[0].end-100)<.1);
+ snapshot.segments[0].type='corrupted';
+ assert.equal(s.api.getJourneySnapshot().segments[0].type,'light','consumer mutation must not alter cached evidence');
+ s.dispatch('jalan:route-cleared');
+ const cleared=s.api.getJourneySnapshot();
+ assert.equal(cleared.route,null);
+ assert.equal(cleared.total,0);
+ assert.equal(cleared.segments.length,0);
+});
