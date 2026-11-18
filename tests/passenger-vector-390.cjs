@@ -305,6 +305,12 @@ async function main(){
     }}));
   });
   await page.locator('#passenger-turn-toggle').click();
+  await page.locator('#passenger-tab-directions').tap();
+  const directions=await page.locator('#passenger-turn-list').boundingBox();
+  await page.touchscreen.tap(70,Math.ceil(directions.y+directions.height)+20);
+  await page.locator('#passenger-turn-list').waitFor({state:'hidden'});
+  assert.equal(await page.locator('#passenger-turn-toggle').getAttribute('aria-expanded'),'false');
+  await page.locator('#passenger-turn-toggle').tap();
   await page.locator('#passenger-report-list button').first().tap();
   await page.waitForFunction(()=>document.querySelector('.jalan-vector-report-label'));
   assert.equal(await page.evaluate(()=>map.getZoom()),18);

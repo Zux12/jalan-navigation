@@ -60,18 +60,17 @@ module.exports=async function({context,base,root}){
  await boot();await input.fill('KLCC');await page.locator('#results [role=option]').waitFor();
  await page.waitForFunction(()=>window.__googleQueries.some(request=>request.query==='KLCC'));
  await widget.waitFor({state:'detached'});
- assert.equal(await page.getByRole('heading',{name:'JALAN Result',exact:true}).count(),1);
- assert.equal(await page.getByRole('heading',{name:'Google Maps Result',exact:true}).count(),0);
+ assert.equal(await page.getByRole('heading',{name:'JALAN Result',exact:true}).count(),0);
+ assert.equal(await page.getByRole('heading',{name:'Google Maps Results',exact:true}).count(),0);
  assert.equal(sdkLoads,1,'Google is checked even for a TomTom match');
  await input.fill('q bistro');
  await widget.getByRole('button',{name:'Q Bistro Taman Melati'}).waitFor();
  assert.deepEqual(await page.locator('#results [role=option] strong').allTextContents(),['Q Bistro TTDI','Q Bistro Cheras']);
  const jalanHeading=page.getByRole('heading',{name:'JALAN Result',exact:true});
- const googleHeading=page.getByRole('heading',{name:'Google Maps Result',exact:true});
+ const googleHeading=page.getByRole('heading',{name:'Google Maps Results',exact:true});
  await googleHeading.waitFor();
- assert.equal(await googleHeading.innerText(),'Result','the provider supplies its own Google Maps wordmark');
- const typography=el=>{const s=getComputedStyle(el);return [s.fontFamily,s.fontSize,s.fontWeight,s.lineHeight,s.letterSpacing,s.color];};
- assert.deepEqual(await jalanHeading.evaluate(typography),await googleHeading.evaluate(typography),'both headings use identical typography');
+ assert.equal(await googleHeading.innerText(),'Results','the provider supplies its own Google Maps wordmark');
+ assert.equal(await jalanHeading.count(),0,'TomTom branches appear without a heading');
  assert.equal(await googleHeading.evaluate(el=>getComputedStyle(el).pointerEvents),'none','caption cannot intercept the info button');
  const rowStyle=await widget.evaluate(el=>{
   const style=getComputedStyle(el);

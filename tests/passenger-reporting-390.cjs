@@ -13,6 +13,8 @@ module.exports=async(browser,base,root)=>{
  else if(kind==='nearby'){nearbyPosts++;data={events:nearby};}else{responses.push(body);data={event:event(body.id,'accident',[101.689,3.139])};}
  await r.fulfill({status,contentType:'application/json',headers:{'access-control-allow-origin':'*'},body:JSON.stringify(data)});});
  await page.goto(base+'/index.html?mode=passenger');
+ assert.equal(await page.locator('#passenger-reports-panel input[type=checkbox]').count(),0);
+ assert.equal(await page.locator('#passenger-navigation-settings #passenger-nearby-consent').count(),1);
  await page.evaluate(()=>{JalanVectorMap.getReportRoad=()=>({key:'fixture-road',level:'0:surface'});});
  await page.locator('#jalan-home-report').click();await page.locator('[data-type=weather]').click();await page.locator('[data-type=flood]').click();
  assert.equal(await page.locator('#passenger-report-location').count(),0);

@@ -171,7 +171,6 @@ body.passenger-guiding .passenger-stats span{font-size:clamp(12px,3.3vw,16px);wh
 .passenger-turn-list{pointer-events:auto;z-index:6;position:absolute;top:calc(112px + env(safe-area-inset-top,0px));left:0;right:0;max-height:min(62dvh,560px);overflow-y:auto;overscroll-behavior:contain;background:#192333f7;color:#f6fbff;box-shadow:0 10px 25px #07101d90;border-radius:0 0 16px 16px;padding:12px 16px 18px}
 .passenger-turn-list.hidden{display:none!important}
 .passenger-turn-list-header{display:flex;justify-content:space-between;align-items:center;gap:16px;padding-bottom:10px;border-bottom:1px solid #60748b}
-.passenger-turn-list-header button{background:#334b65;color:white;border:1px solid #7692a8;border-radius:9px;padding:7px 13px;font-weight:700;touch-action:manipulation}
 .passenger-turn-list ol{list-style:none;padding:0;margin:0}
 .passenger-turn-list li{display:flex;gap:12px;align-items:flex-start;border-bottom:1px solid #48566b;padding:10px 3px;font-size:13px}
 .passenger-turn-list li .turn-list-arrow{font-size:25px;min-width:34px;text-align:center}

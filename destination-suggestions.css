@@ -18,18 +18,6 @@
 #tomtom-destination-results .destination-suggestion-pin {
   display: none;
 }
-.destination-result-heading {
-  box-sizing: border-box;
-  display: flex;
-  align-items: center;
-  min-height: 50px;
-  margin: 0;
-  padding-inline: 16px;
-  border-bottom: 1px solid #e6ebf2;
-  color: #505050;
-  font: 500 1rem/1.25 system-ui, sans-serif;
-  letter-spacing: normal;
-}
 .destination-google-section {
   position: relative;
   container: google-results / inline-size;
@@ -40,6 +28,13 @@
 /* The provider owns the logo and info button. This noninteractive sibling
    uses the clear space after both controls in the 50px attribution row. */
 .destination-google-caption {
+  display: flex;
+  align-items: center;
+  min-height: 50px;
+  margin: 0;
+  color: #505050;
+  font: 500 1rem/1.25 system-ui, sans-serif;
+  letter-spacing: normal;
   position: absolute;
   z-index: 1;
   inset-block-start: 0;

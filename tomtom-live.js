@@ -236,17 +236,18 @@ function incidents(force=false){
  for(const section of sections){
   const emoji=section.category==='JAM'?'🚗':
     ['ROAD WORK','ROAD CLOSURE'].includes(section.category)?'🚧':'⚠️';
-  const summary=section.category[0]+section.category.slice(1).toLowerCase()+
-    ' · '+section.roadName+
+  const issue=section.category==='JAM'?'Traffic Jam':section.category==='OTHER'?'Traffic Incident':
+    section.category.toLowerCase().replace(/\b[a-z]/g,letter=>letter.toUpperCase());
+  const detail=section.roadName+
     (section.delaySeconds===null?'':' · delay '+Math.round(section.delaySeconds/60)+' min')+
     (section.effectiveSpeedKmh===null?'':' · '+section.effectiveSpeedKmh+' km/h');
   const popup=document.createElement('div'),heading=document.createElement('strong'),desc=document.createElement('p');
-  heading.textContent='TomTom traffic on selected route';desc.textContent=summary;
+  heading.textContent=issue;desc.textContent=detail;
   popup.append(heading,desc);
   L.marker([section.lat,section.lng],{icon:L.divIcon({
     className:'report-marker',html:emoji,iconSize:[28,28],iconAnchor:[14,14]})})
    .bindPopup(popup).addTo(incidentLayer);
-  reportItems.push({...section,description:summary,category:emoji,source:'tomtom-route-section'});
+  reportItems.push({...section,issue,detail,description:issue+' · '+detail,category:emoji,source:'tomtom-route-section'});
  }
  lastIncidents=checkedAt;
  publishIncidents({route:r,incidents:reportItems,checkedAt:lastIncidents});
