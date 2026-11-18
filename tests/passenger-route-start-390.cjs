@@ -22,6 +22,10 @@ module.exports=async(browser,base,root)=>{
    r=>r.fulfill({contentType:ext==='js'?'application/javascript':'text/css',
     body:fs.readFileSync(path.join(root,'node_modules/leaflet/dist/leaflet.'+ext))}));
   await page.goto(base+'/index.html?mode=passenger');
+  // This fixture pauses browser time; let the deliberate reading hold finish
+  // before measuring Go's separate seven-second idle countdown.
+  await page.clock.runFor(2000);
+  await page.locator('#jalan-launch').waitFor({state:'hidden'});
   const fixture=()=>page.evaluate(()=>{
    JalanPassengerJourney.stop();document.getElementById('tt-primary').checked=false;
    setStart([3.139,101.6869],'Fixture start');destination=[3.1478,101.6953];destinationName='KLCC';
