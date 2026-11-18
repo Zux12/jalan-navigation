@@ -16,7 +16,7 @@ module.exports=async(browser,base,root)=>{
  await page.evaluate(()=>{JalanVectorMap.getReportRoad=()=>({key:'fixture-road',level:'0:surface'});});
  await page.locator('#jalan-home-report').click();await page.locator('[data-type=weather]').click();await page.locator('[data-type=flood]').click();
  assert.match(await page.locator('#passenger-report-status').innerText(),/120 minutes/);
- await page.locator('#passenger-report-submit').click();await page.waitForFunction(()=>document.getElementById('passenger-report-status').textContent.includes('Not submitted'));
+ await page.locator('#passenger-report-submit').click();await page.waitForFunction(()=>document.getElementById('passenger-report-status').textContent.includes('Could not confirm submission'));
  assert.equal(await page.locator('.jalan-community-report-pin').count(),0,'server failure cannot claim success or add an icon');
  failed=false;await page.locator('#passenger-report-submit').click();await page.waitForFunction(()=>!document.getElementById('passenger-report-dialog').open);
  assert.deepEqual(submissions.at(-1).position,[101.687,3.139]);assert.equal(submissions.at(-1).heading,90);assert.equal(submissions.at(-1).type,'flood');
@@ -42,7 +42,7 @@ module.exports=async(browser,base,root)=>{
  await page.screenshot({path:path.join(root,'test-artifacts/passenger-report-confirm.png')});
  await page.waitForTimeout(10200);assert.equal(await page.locator('#passenger-report-confirm').isVisible(),false);assert.equal(responses.length,1,'timeout sends no vote');
  await page.evaluate(()=>document.getElementById('jalan-home-report').click());await page.locator('[data-type=hazard]').click();await page.evaluate(()=>window.__reportAccuracy=200);const count=submissions.length;
- await page.locator('#passenger-report-submit').click();await page.waitForFunction(()=>document.getElementById('passenger-report-status').textContent.includes('Not submitted'));
+ await page.locator('#passenger-report-submit').click();await page.waitForFunction(()=>document.getElementById('passenger-report-status').textContent.includes('Could not confirm submission'));
  assert.equal(submissions.length,count,'poor GPS cannot submit');await page.keyboard.press('Escape');assert.equal(await page.locator('#passenger-report-dialog').isVisible(),false);
  assert.deepEqual(errors,[]);console.log('PASS community reports: weather, submit-time GPS, failed upload, merged icon, directional 50m prompt, once per journey, timeout and inaccurate GPS');
  }finally{await context.close();}
