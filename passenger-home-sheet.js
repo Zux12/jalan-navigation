@@ -42,7 +42,8 @@
   '<label for="passenger-nav-zoom">Zoom <output id="passenger-nav-zoom-value" for="passenger-nav-zoom">80%</output></label>'+
   '<input id="passenger-nav-zoom" type="range" min="0" max="100" step="5" value="80">'+
   '<label for="passenger-nav-tilt">3D tilt <output id="passenger-nav-tilt-value" for="passenger-nav-tilt">100%</output></label>'+
-  '<input id="passenger-nav-tilt" type="range" min="0" max="100" step="5" value="100"></div></details>'+
+  '<input id="passenger-nav-tilt" type="range" min="0" max="100" step="5" value="100"></div>'+
+  '<label class="passenger-nearby-consent"><input id="passenger-nearby-consent" type="checkbox"> Share my location for nearby community reports during this journey</label></details>'+
   '<button type="button" id="passenger-about" aria-haspopup="dialog" aria-controls="passenger-about-dialog">About</button>'+
   '<button type="button" id="jalan-home-menu-close">Close</button>';
  $('passenger-voice').setAttribute('aria-haspopup','dialog');
@@ -213,7 +214,7 @@
    else showNotice((shortcut==='home'?'Home':'Work')+' shortcut is a placeholder. Address setup comes later.');
  });
  const toggleMenu=visible=>{
-   if(visible){window.JalanDestinationSuggestions?.cancel();$('passenger-turn-close').click();notice.classList.add('hidden');}
+   if(visible){window.JalanDestinationSuggestions?.cancel();window.JalanPassengerRouteInfo.close();notice.classList.add('hidden');}
    menuPanel.classList.toggle('hidden',!visible);
    menu.setAttribute('aria-expanded',String(visible));
    if(visible){$('passenger-navigation-settings').open=false;paintNavigation();menuPanel.scrollTop=0;$('jalan-home-menu-close').focus({preventScroll:true});}

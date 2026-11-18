@@ -62,7 +62,7 @@
   if(!expanded&&content.contains(document.activeElement))handle.focus({preventScroll:true});
   content.inert=!expanded;content.setAttribute('aria-hidden',String(!expanded));
   document.body.classList.toggle('passenger-journey-open',expanded);
-  if(expanded){window.JalanPassengerMenu?.close();el('passenger-turn-close').click();paint();}
+  if(expanded){window.JalanPassengerMenu?.close();window.JalanPassengerRouteInfo.close();paint();}
   measure();if(focus)handle.focus({preventScroll:true});
  }
  function begin(point,target,kind,id){

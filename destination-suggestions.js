@@ -20,24 +20,16 @@
  function open(){ownsList=true;list.classList.remove('hidden');list.setAttribute('role','listbox');list.setAttribute('aria-label','Destination suggestions');input.setAttribute('aria-expanded','true');}
  function message(text){list.replaceChildren();const row=document.createElement('p');row.className='destination-search-note';row.setAttribute('role','status');row.textContent=text;list.append(row);open();}
  function select(index){const place=items[index];if(!place)return;cancel();input.blur();selectDestinationPlace(place);}
- function resultHeading(text){
-  const heading=document.createElement('h3');
-  heading.className='destination-result-heading';
-  heading.textContent=text;
-  return heading;
- }
  function render(places){
   list.replaceChildren();items=places;active=-1;input.removeAttribute('aria-activedescendant');
   if(!places.length){message('No suggestions yet. Try a fuller place name or tap Search.');return;}
   open();
   list.setAttribute('role','region');
-  const heading=resultHeading('JALAN Result');
-  heading.id='jalan-result-heading';
   const container=document.createElement('div');
   container.id='tomtom-destination-results';
   container.setAttribute('role','listbox');
-  container.setAttribute('aria-labelledby',heading.id);
-  list.append(heading,container);
+  container.setAttribute('aria-label','Destination suggestions');
+  list.append(container);
   input.setAttribute('aria-controls',container.id);
   places.forEach((place,index)=>{
    const button=document.createElement('button');button.type='button';button.id='destination-suggestion-'+index;
@@ -119,7 +111,7 @@
   const section=document.createElement('div');
   section.className='destination-google-section';
   section.setAttribute('role','region');
-  section.setAttribute('aria-label','Google Maps Result');
+  section.setAttribute('aria-label','Google Maps Results');
   section.setAttribute('aria-busy','true');
   list.append(section);
   function googleNote(text){
@@ -130,9 +122,10 @@
    section.replaceChildren(note);
   }
   googleNote('Checking Google for places…');
-  const caption=resultHeading('Result');
-  caption.classList.add('destination-google-caption');
-  caption.setAttribute('aria-label','Google Maps Result');
+  const caption=document.createElement('h3');
+  caption.className='destination-google-caption';
+  caption.textContent='Results';
+  caption.setAttribute('aria-label','Google Maps Results');
   function finished(){section.removeAttribute('aria-busy');}
   function googleReady(){
    if(!current())return;

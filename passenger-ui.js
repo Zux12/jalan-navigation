@@ -413,7 +413,7 @@
    const state=window.JalanGPS?.getState?.(),route=state?.route,
          coords=route?.geometry?.coordinates;
    if(!state?.active||!Array.isArray(coords)){
-     reportNote.textContent='Choose a route to see traffic reports.';
+     reportNote.hidden=false;reportNote.textContent='Choose a route to see reports.';
      return;
    }
    const current=state.matched&&state.fixAgeMs<=10000&&state.accuracy<=75&&Array.isArray(state.position)?
@@ -434,8 +434,9 @@
      Date.now()-incidentSnapshot.checkedAt<=10*60*1000?incidentSnapshot.incidents:[];
    for(const incident of freshIncidents){
      items.push({lat:Number(incident.lat),lng:Number(incident.lng),
-       title:'TomTom route traffic · '+String(incident.roadName||'selected road').slice(0,80),
-       detail:String(incident.description||'Traffic section').slice(0,160),
+       title:String(incident.issue||'Traffic Incident').slice(0,80),
+       detail:String(incident.detail||incident.description||incident.roadName||'').slice(0,180),
+       icon:incident.category,
        routeAlong:incident.routeAlong,routeTotal:incident.routeTotal,source:'tomtom'});
    }
    const positioned=[];
@@ -454,8 +455,7 @@
      if(!projected||(item.source==='demo'&&
         projected.offset>window.JalanTomTom.reportRouteTolerance)||
         (current&&projected.along<current.along-30))continue;
-     positioned.push({...item,ahead:current?Math.max(0,projected.along-current.along):null,routeAlong:projected.along,
-       fromReportToDestination:Math.max(0,projected.total-projected.along)});
+     positioned.push({...item,ahead:current?Math.max(0,projected.along-current.along):null,routeAlong:projected.along});
    }
    positioned.sort((a,b)=>a.routeAlong-b.routeAlong);
    for(const item of positioned.slice(0,40)){
@@ -466,23 +466,15 @@
      marker.className='turn-list-arrow';marker.textContent=item.icon||(item.source==='demo'?'⚠️':'🚧');
      marker.setAttribute('aria-hidden','true');
      button.type='button';button.className='passenger-report-button';
-     button.setAttribute('aria-label','View report on map: '+item.title+' · '+item.detail);
      button.addEventListener('click',()=>focusReport(item,route));
      title.textContent=item.title;
-     distances.textContent=(item.ahead===null?'Distance from you pending GPS':'In '+fmtDist(item.ahead))+
-       ' · '+fmtDist(item.fromReportToDestination)+' from report to destination';
+     distances.textContent=item.ahead===null?'Waiting for GPS distance':'In '+fmtDist(item.ahead);
      detail.textContent=item.detail;
-     info.append(title,distances,detail);button.append(marker,info);
+     info.append(title,distances);if(item.detail)info.append(detail);button.append(marker,info);
      li.appendChild(button);reportList.appendChild(li);
    }
-   const hasIncidents=incidentSnapshot.route===route&&
-     Date.now()-incidentSnapshot.checkedAt<=10*60*1000;
-   reportNote.textContent=positioned.length?
-     'TomTom traffic sections are route-linked, not selected by a 25m radius. Demo reports remain unverified and proximity-filtered. '+
-       (current?'Distances are approximate along-route values.':'Showing the selected route; distance from you awaits verified GPS.'):
-     'No applicable reports ahead on this selected route.'+
-       (hasIncidents?' TomTom incident check returned no applicable items.':
-        ' '+trafficSummary.message);
+   reportNote.hidden=positioned.length>0;
+   reportNote.textContent=positioned.length?'':'No reports to show on this route.';
  };
  const selectInfoTab=tab=>{
    activeInfoTab=tab==='directions'?'directions':'reports';
@@ -506,9 +498,13 @@
    /left/i.test(action)?'↰':/right/i.test(action)?'↱':
    /u.turn|u-turn/i.test(action)?'↶':'↑';
  const closeDirections=()=>{
+   if(turnList.classList.contains('hidden'))return false;
    turnList.classList.add('hidden');
    turnToggle.setAttribute('aria-expanded','false');
+   if(turnList.contains(document.activeElement))turnToggle.focus({preventScroll:true});
+   return true;
  };
+ window.JalanPassengerRouteInfo={close:closeDirections};
  const renderDirections=()=>{
    if(!document.body.classList.contains('passenger-guiding'))return;
    const steps=window.JalanGPS?.getDirections?.()||[];
@@ -536,7 +532,16 @@
    else closeDirections();
    turnToggle.setAttribute('aria-expanded',String(open));
  });
- el('passenger-turn-close').addEventListener('click',closeDirections);
+ // Consume a map click used to dismiss the panel before it selects a route or marker.
+ const dismissOnMapClick=event=>{
+   if(event.target.closest('a,.leaflet-control,.maplibregl-ctrl')||!closeDirections())return;
+   event.preventDefault();event.stopPropagation();
+ };
+ map.getContainer().addEventListener('click',dismissOnMapClick,true);
+ gestureSurface.addEventListener('click',dismissOnMapClick,true);
+ document.addEventListener('keydown',event=>{
+   if(event.key==='Escape'&&closeDirections()){event.preventDefault();turnToggle.focus({preventScroll:true});}
+ });
   const syncGPS=(fix=null)=>{
    if(!document.body.classList.contains('passenger-guiding'))return;
    el('passenger-instruction').textContent=el('gps-instruction').textContent||'Acquiring GPS…';
@@ -618,16 +623,7 @@
  const trafficToggle=el('passenger-traffic-toggle'),
        trafficStatus=el('passenger-traffic-status'),
        trafficOffer=el('passenger-traffic-offer');
- const trafficSummary={state:'off',message:'Traffic starts with Go'};
  let trafficOptOut=false;
- window.addEventListener('jalan:traffic-layer-status',event=>{
-   if(!document.body.classList.contains('passenger-guiding'))return;
-   const detail=event.detail||{},state=window.JalanGPS?.getState?.();
-   if(detail.route&&detail.route!==state?.route)return;
-   trafficSummary.state=detail.state||'off';
-   trafficSummary.message=String(detail.message||'Traffic unavailable');
-   if(!turnList.classList.contains('hidden')&&activeInfoTab==='reports')renderReports();
- });
  const liveEta=el('passenger-live-eta');
  const clearLiveEta=()=>{
    liveEta.textContent='No recent TomTom estimate. Selected-route minutes remain the active guidance estimate.';
@@ -916,12 +912,28 @@
    if(heading)heading.textContent=window.JalanVectorMap?.active?
      'PASSENGER PREVIEW · 3D map':'PASSENGER PREVIEW · 2.5D map, not true 3D';
  });
+ // The raster gesture surface suppresses synthetic clicks. Recognise a tap
+ // here and pass a drag or pinch through to the existing map gesture handling.
+ let panelTouch=null;
  gestureSurface.addEventListener('touchstart',event=>{
+   panelTouch=null;
+   if(!turnList.classList.contains('hidden')&&event.touches.length===1){
+     panelTouch=snapshot(event.touches);
+     if(event.cancelable)event.preventDefault();
+     return;
+   }
    if(!startExplore())return;
    if(event.cancelable)event.preventDefault();
    gesture={...snapshot(event.touches),pinchTotal:0};
  },{passive:false});
  gestureSurface.addEventListener('touchmove',event=>{
+   if(panelTouch){
+     const next=snapshot(event.touches);
+     if(next.n===1&&Math.hypot(next.x-panelTouch.x,next.y-panelTouch.y)<10)return;
+     const start=panelTouch;panelTouch=null;
+     if(!startExplore())return;
+     gesture={...start,pinchTotal:0};
+   }
    if(!gesture||!document.body.classList.contains('passenger-guiding'))return;
    if(event.cancelable)event.preventDefault();
    const next=snapshot(event.touches);
@@ -957,10 +969,15 @@
  },{passive:false});
  gestureSurface.addEventListener('touchend',event=>{
    if(event.cancelable)event.preventDefault();
+   if(panelTouch){
+     const end=event.changedTouches[0],start=panelTouch;panelTouch=null;
+     if(end&&!event.touches.length&&Math.hypot(end.clientX-start.x,end.clientY-start.y)<10)closeDirections();
+     return;
+   }
    gesture=event.touches.length?{...snapshot(event.touches),pinchTotal:0}:null;
    if(!gesture)queueAutoReturn();
  },{passive:false});
- gestureSurface.addEventListener('touchcancel',()=>{gesture=null;queueAutoReturn();});
+ gestureSurface.addEventListener('touchcancel',()=>{panelTouch=null;gesture=null;queueAutoReturn();});
  // Both 2D and 2.5D views use this gesture surface so rotating the map
  // does not invalidate Leaflet's original hit-testing.
  const recenterPassenger=()=>{

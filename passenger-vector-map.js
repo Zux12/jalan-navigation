@@ -156,6 +156,7 @@
      if(e.originalEvent)window.dispatchEvent(new Event('jalan:vector-gesture-end'));
    }));
    gl.on('click',event=>{
+     if(window.JalanPassengerRouteInfo?.close())return;
      const hit=gl.queryRenderedFeatures(event.point,{layers:['jalan-route-lines']})[0];
      const layer=hit&&map._layers[hit.properties.leafletId];
      const data={latlng:L.latLng(event.lngLat.lat,event.lngLat.lng),originalEvent:event.originalEvent};

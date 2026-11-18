@@ -599,7 +599,9 @@ async function main(){
   assert.equal(await page.locator('#passenger-report-list li').count(),1,
     'only demo reports projected near the selected road appear');
   assert.match(await page.locator('#passenger-report-list').innerText(),
-    /unverified demo report|from report to destination/i);
+    /unverified demo report/i);
+  assert.equal(await page.locator('#passenger-turn-list input[type=checkbox],#passenger-turn-close').count(),0);
+  assert.equal(await page.locator('#passenger-report-note').isVisible(),false);
   // A TomTom incident must belong to the same selected route and its
   // original provider fetch. Never invent an incident if traffic unavailable.
   await page.evaluate(()=>{
@@ -650,12 +652,13 @@ async function main(){
   assert.match(await page.locator('#passenger-maneuver-list').innerText(),/Test segment|left|destination/i);
   await page.locator('#passenger-tab-reports').click();
   assert.equal(await page.locator('#passenger-report-list li').count(),2);
-  await page.locator('#passenger-turn-close').click();
+  const reportPanel=await page.locator('#passenger-turn-list').boundingBox();
+  await page.touchscreen.tap(70,Math.ceil(reportPanel.y+reportPanel.height)+20);
   assert.equal(await page.locator('#passenger-turn-list').isVisible(),false);
   await page.locator('#passenger-turn-toggle').click();
   assert.equal(await page.locator('#passenger-tab-reports').getAttribute('aria-selected'),'true',
     'reopened turn banner defaults back to Reports');
-  await page.locator('#passenger-turn-close').click();
+  await page.locator('#passenger-turn-toggle').click();
   assert.equal(await page.locator('.jalan-vehicle-marker').count(),1,
     'verified GPS must create one georeferenced marker');
   assert.equal(await page.locator('#passenger-vehicle-screen').isVisible(),true,
@@ -891,7 +894,8 @@ async function main(){
   const cameraBeforeWeak=await page.evaluate(()=>
     document.getElementById('map').style.getPropertyValue('--jalan-camera-turn'));
   await page.evaluate(()=>{
-    window.__offlineGPSWatch({timestamp:Date.now()+4000,coords:{
+    // Follow the last stationary fixture sample (+4100 ms) even on fast runners.
+    window.__offlineGPSWatch({timestamp:Date.now()+4200,coords:{
       latitude:3.1391,longitude:101.6870,accuracy:180,speed:5,heading:90}});
   });
   await page.waitForFunction(()=>
@@ -984,7 +988,11 @@ async function main(){
   assert.equal(await trafficLayers(),0,
     'Passenger Preview hides all-road TomTom traffic tiles; coloured route lines remain separate');
   await page.locator('#passenger-turn-toggle').click();
-  assert.match(await page.locator('#passenger-report-list').innerText(),/Fixture second road/);
+  const roadWork=page.getByRole('button',{name:/Fixture second road/});
+  assert.equal(await roadWork.locator('strong').innerText(),'Road Work');
+  assert.equal(await roadWork.locator('small').first().innerText(),'Waiting for GPS distance');
+  assert.match(await roadWork.locator('small').last().innerText(),/Fixture second road.*delay 1 min/);
+  assert.doesNotMatch(await page.locator('#passenger-reports-panel').innerText(),/TomTom route traffic|from report to destination|TomTom traffic sections/i);
   assert.equal(await page.locator('#passenger-report-list li').count(),2);
   await page.getByRole('button',{name:/Fixture second road/}).tap();
   await assertReportCenter(3.145,101.6925);
@@ -997,6 +1005,10 @@ async function main(){
   await page.locator('#passenger-recenter-floating').click();
   assert.equal(await page.locator('.jalan-report-focus-marker').count(),0);
   assert.equal(trafficRouteRequests,1,'trusted GPS triggers one traffic route comparison');
+  await page.locator('#passenger-turn-toggle').click();
+  assert.match(await roadWork.locator('small').first().innerText(),/^In [\d.]+ (km|m)$/);
+  await page.screenshot({path:path.join(root,'test-artifacts/passenger-reports-panel.png')});
+  await page.locator('#passenger-turn-toggle').click();
   await menuClick('#passenger-traffic-details summary');
   await menuClick('#passenger-traffic-toggle');
   assert.equal(await trafficLayers(),0,'Off removes traffic colour overlay');
@@ -1004,7 +1016,7 @@ async function main(){
   assert.equal(await page.evaluate(()=>window.__trafficLayerStatus?.state),'off');
   await page.locator('#passenger-turn-toggle').click();
   assert.equal(await page.locator('#passenger-report-list li').count(),0);
-  await page.locator('#passenger-turn-close').click();
+  await page.locator('#passenger-turn-toggle').click();
   await page.evaluate(()=>{routes[selectedRoute].trafficSectionsCheckedAt=Date.now()-11*60*1000;});
   await menuClick('#passenger-traffic-toggle');
   await page.waitForFunction(()=>window.__trafficLayerStatus?.message.includes('Recalculate route'));
