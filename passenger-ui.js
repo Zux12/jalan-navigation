@@ -732,6 +732,11 @@
    routeLineMuted=false;
    setRouteMuted(!window.JalanGPS?.getState()?.matched);
    hideTrafficOffer();clearLiveEta();clearReportFocus();refreshDemoReportMarkers();
+   const state=window.JalanGPS?.getState();
+   if(state?.active&&state.vehiclePosition&&lastGPSDetail){
+     lastGPSDetail={...lastGPSDetail,vehiclePosition:state.vehiclePosition,vehicleCertain:false,matched:false};
+     updateVehicle(lastGPSDetail);followPassengerGPS(lastGPSDetail);
+   }
  });
  window.addEventListener('jalan:route-cleared',()=>{clearReportFocus();passengerDemoReports.clearLayers();});
  window.addEventListener('jalan:route-decline',hideTrafficOffer);

@@ -77,6 +77,8 @@ for(const tomtom of [true,false])test(`sustained detour replaces ${tomtom?'TomTo
  assert.equal(s.requests.length,1,'one request after confirmed deviation, not each GPS callback');
  assert.equal(s.state().matched,false,'off-route location must not claim a match to the old road');
  assert.equal(s.state().deviationConfirmed,true);
+ assert.equal(s.state().vehiclePosition[0],3,'display remains on the selected route during a real detour');
+ assert.ok(s.state().gpsPosition[0]>3,'measured GPS remains off route for recovery');
  assert.equal(s.state().route,s.original);assert.equal(s.state().active,true);
  assert.equal(s.watches,1);assert.equal(s.watchClears,0);assert.equal(s.clears,0);
  const request=s.requests[0].url;
@@ -85,6 +87,7 @@ for(const tomtom of [true,false])test(`sustained detour replaces ${tomtom?'TomTo
  else assert.match(request.pathname,/101\.600[0-9]+,3\.0008;101\.61,3/);
  await s.finish();
  assert.notEqual(s.state().route,s.original);assert.equal(s.state().route.duration,200);
+ assert.ok(s.state().vehiclePosition[0]>3,'new route projection commits before another GPS callback');
  assert.equal(s.context.destination,s.destination);assert.equal(s.state().active,true);
  assert.equal(s.watches,1,'detour replacement must retain the original geolocation watch');
  assert.equal(s.watchClears,0,'successful route swap does not clear GPS');
@@ -204,4 +207,14 @@ test('pending lateral drift does not feed route history or trigger a new route',
  assert.equal(s.requests.length,0);
  s.feed([3,101.6013]);assert.equal(s.matcherFeeds,count+1);
  assert.equal(s.state().matched,true,'credible road-aligned measurements resume matching');
+});
+
+test('route-locked display favours the current leg over a nearby opposite-direction return leg',()=>{
+ const s=scene();s.context.window.JalanGPS.stop();
+ s.context.routes=[{provider:'osrm',duration:600,distance:2300,legs:[],geometry:{type:'LineString',
+  coordinates:[[101.6,3],[101.61,3],[101.61,3.00012],[101.6,3.00012]]}}];
+ s.node('gps-start').onclick();s.feed([3,101.6008]);
+ s.feed([3.00011,101.601]);
+ assert.equal(s.state().vehiclePosition[0],3,'drift toward the opposite return leg cannot transfer the display to it');
+ assert.ok(s.state().gpsPosition[0]>3,'actual GPS is not rewritten to make that display claim');
 });
