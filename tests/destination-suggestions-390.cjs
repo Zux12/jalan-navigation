@@ -57,7 +57,6 @@ module.exports=async function({context,base,root}){
  const noKey=requests.length;await input.fill('Manual');await page.waitForTimeout(600);assert.equal(requests.length,noKey,'no key does not silently autocomplete through public Nominatim');assert.equal(manual,0);
  await input.press('Enter');await page.locator('#results button').first().waitFor();assert.equal(manual,1,'explicit Search fallback still works');
  assert.deepEqual(errors,[]);await page.close();
- await require('./google-fallback-390.cjs')({context,base,root});
  console.log('PASS destination typeahead: debounce, text safety, exact route selection, stale/clear/collapse/IME, keyboard, cache, no-key manual fallback and install icons');
 };
 

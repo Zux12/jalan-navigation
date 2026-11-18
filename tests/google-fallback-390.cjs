@@ -82,3 +82,23 @@ module.exports=async function({context,base,root}){
  assert.deepEqual(errors,[]);await page.close();
  console.log('PASS synthetic Google UI Kit fallback: TomTom-first, wrong-business/zero trigger, original single input, lazy SDK, attribution host intact, exact point to TomTom routes, keyboard, stale/clear/collapse, empty/error and submit');
 };
+// Standalone runner makes the new contract fail early, before the longer
+// existing public/passenger/native suites. All provider calls are intercepted.
+if(require.main===module){
+ const http=require('node:http'),{chromium}=require('playwright'),root=path.resolve(__dirname,'..');
+ const types={'.html':'text/html','.js':'application/javascript','.css':'text/css','.png':'image/png','.ttf':'font/ttf'};
+ (async()=>{
+  const server=http.createServer((req,res)=>{
+   let file;try{file=path.resolve(root,'.'+new URL(req.url,'http://localhost').pathname);}catch{res.writeHead(400);return res.end();}
+   if(!file.startsWith(root+path.sep)||!fs.existsSync(file)||!fs.statSync(file).isFile()){res.writeHead(404);return res.end();}
+   res.writeHead(200,{'content-type':types[path.extname(file)]||'application/octet-stream'});res.end(fs.readFileSync(file));
+  });
+  let browser;try{
+   await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
+   browser=await chromium.launch({headless:true});
+   const context=await browser.newContext({viewport:{width:390,height:844},reducedMotion:'reduce'});
+   await module.exports({context,base:'http://127.0.0.1:'+server.address().port,root});
+   await context.close();
+  }finally{if(browser)await browser.close();await new Promise(resolve=>server.close(resolve));}
+ })().catch(error=>{console.error(error);process.exitCode=1;});
+}
