@@ -279,6 +279,21 @@ test('route-cleared revokes flow consent and stale route status cannot reactivat
 });
 
 
+test('changing an alternative cannot inherit authorization to spend flow requests on another route',async()=>{
+ const s=scene({flow:flowOn(geometry)}),first=route([]),second=route([section(0,1,2)]);
+ s.ctx.routes=[first,second];s.dispatch('jalan:routes-rendered');await s.tick();
+ s.dispatch('jalan:traffic-layer-status',{state:'loading',route:first});await s.tick();
+ const count=s.urls.length;
+ assert.ok(count>0,'first selected route received its own traffic activation');
+ s.ctx.selectedRoute=1;s.dispatch('jalan:route-change');await s.tick();
+ assert.equal(s.urls.length,count,'new alternative cannot inherit old key-bearing flow authorization');
+ assert.ok(s.api.getState().overlayCount>0,'new route-indexed incident still renders without sampled flow');
+ s.dispatch('jalan:traffic-layer-status',{state:'ready',route:first});await s.tick();
+ assert.equal(s.urls.length,count,'old-route delayed status must not reauthorize sampling');
+ s.dispatch('jalan:traffic-layer-status',{state:'loading',route:second});await s.tick();
+ assert.ok(s.urls.length>count,'current alternative may sample after its own traffic activation');
+});
+
 test('journey-sheet snapshot remains available after draft traffic matcher integration',()=>{
  const s=scene(),r=route([section(0,1,1),section(1,2,3)]);
  assert.equal(typeof s.api.getJourneySnapshot,'function','existing journey sheet API cannot be removed');
