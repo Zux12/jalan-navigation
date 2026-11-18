@@ -20,3 +20,7 @@ body.passenger-guiding #passenger-report-confirm{bottom:calc(195px + var(--passe
 .jalan-community-report-pin svg{width:100%;height:100%}
 
 #passenger-report-status:empty{display:none}
+
+/* Visible, session-only consent near the Reports tab; never in report-category choices. */
+.passenger-nearby-consent{display:flex;align-items:center;gap:9px;min-height:44px;padding:6px 10px;font:600 12px/1.4 system-ui;color:#193d65}
+.passenger-nearby-consent input{width:19px;height:19px;flex:none;accent-color:#136dec}
