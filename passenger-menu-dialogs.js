@@ -19,7 +19,10 @@
   '<button type="button" id="passenger-sound-ok" class="jalan-dialog-ok">OK</button>';
  about.innerHTML='<h2 id="passenger-about-title">About JALAN</h2>'+
   '<p class="jalan-about-version" id="passenger-app-version"></p>'+
-  '<dl><dt>Developer</dt><dd>Dr. Ir. M. Zurix Mohamed</dd>'+
+  '<section class="jalan-about-developer" aria-label="JALAN development"><p>Developed by</p>'+
+  '<strong class="jalan-about-brand">IgniteInno Ventures</strong>'+
+  '<dl><dt>Application algorithms &amp; navigation logic</dt><dd>IgniteInno Ventures</dd></dl></section>'+
+  '<h3 class="jalan-about-support-title">Supporting technology &amp; services</h3><dl class="jalan-about-support">'+
   '<dt>Map and map data</dt><dd><a href="https://openfreemap.org/" target="_blank" rel="noopener noreferrer">OpenFreeMap</a> · '+
   '<a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">© OpenStreetMap contributors</a></dd>'+
   '<dt>Routing and traffic</dt><dd><a href="https://www.tomtom.com/" target="_blank" rel="noopener noreferrer">TomTom</a></dd>'+
@@ -64,7 +67,8 @@
  });
  el('passenger-about').addEventListener('click',()=>{
   const config=window.JalanPublicConfig||{};
-  el('passenger-app-version').textContent='Version '+(config.appVersion||'4.8.0-test')+' · '+(config.buildDate||'2026-11-18');
+  const version=String(config.appVersion||'4.8.0').replace(/[-\s]+test(?:ing)?\b/gi,'').trim();
+  el('passenger-app-version').textContent='Version '+version+' · '+(config.buildDate||'2026-11-18');
   about.showModal();modalState();
  });
  el('passenger-about-ok').addEventListener('click',()=>about.close());
