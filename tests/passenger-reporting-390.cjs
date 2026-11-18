@@ -15,7 +15,8 @@ module.exports=async(browser,base,root)=>{
  await page.goto(base+'/index.html?mode=passenger');
  await page.evaluate(()=>{JalanVectorMap.getReportRoad=()=>({key:'fixture-road',level:'0:surface'});});
  await page.locator('#jalan-home-report').click();await page.locator('[data-type=weather]').click();await page.locator('[data-type=flood]').click();
- assert.match(await page.locator('#passenger-report-status').innerText(),/120 minutes/);
+ assert.equal(await page.locator('#passenger-report-location').count(),0);
+ assert.equal(await page.locator('#passenger-report-status').isVisible(),false,'no explanatory or expiry notes beneath choices');
  await page.screenshot({path:path.join(root,'test-artifacts/passenger-report-weather.png')});
  await page.locator('#passenger-report-submit').click();await page.waitForFunction(()=>document.getElementById('passenger-report-status').textContent.includes('Could not confirm submission'));
  assert.equal(await page.locator('.jalan-community-report-pin').count(),0,'server failure cannot claim success or add an icon');
