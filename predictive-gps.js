@@ -89,6 +89,11 @@
     course=moving&&Number.isFinite(heading)&&heading>=0&&heading<360?heading:null,
     band=Math.max(12,Math.min(24,accuracy*1.25)),
     diverging=course!==null&&difference(course,match.bearing)>45&&match.distance>Math.max(5,accuracy*.5);
+   if(departed&&departureLine){
+    const established=nearest(raw,departureLine);
+    if(established.distance<=Math.max(12,Math.min(25,accuracy*1.5))&&established.distance+3<match.distance)
+     return {position:established.position,onRoute:false,certain:true,allowDeviation:true,mode:'road-departure'};
+   }
    if(match.distance<=band&&!diverging){
     lastRoad={position:match.position,along:match.along,time,heading:match.bearing};pending=null;departed=false;departureLine=null;
     return {position:match.position,heading:match.bearing,onRoute:true,certain:true,allowDeviation:false,mode:'road-aligned'};

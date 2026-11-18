@@ -26,6 +26,8 @@ test('sustained low-speed turn onto a connected road is released',()=>{
  // Stopping on the new road does not throw the vehicle back onto the old one.
  result=s.feed([3.00024,101.601],{speed:0,heading:null,roads:[branch],delta:12000});
  assert.equal(result.mode,'road-departure');
+ result=s.feed([3.0001,101.601],{speed:3,heading:180,roads:[branch],delta:5000});
+ assert.equal(result.mode,'road-departure','an established new road is not stolen by the nearby old-route corridor');
 });
 test('an abrupt right-angle turn at highway speed is held despite a nearby road',()=>{
  const s=scene();s.feed([3,101.601],{speed:30});let result;
