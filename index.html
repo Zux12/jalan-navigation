@@ -5,6 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <!-- GitHub Pages cannot set response CSP headers; this meta policy blocks unlisted client origins. -->
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; base-uri 'self'; object-src 'none'; form-action 'self'; script-src 'self' https://unpkg.com; style-src 'self' 'unsafe-inline' https://unpkg.com; img-src 'self' data: blob: https://tiles.openfreemap.org https://unpkg.com https://*.tile.openstreetmap.org https://api.tomtom.com; font-src 'self' data:; media-src 'self' blob:; connect-src 'self' https://tiles.openfreemap.org https://api.tomtom.com https://router.project-osrm.org https://nominatim.openstreetmap.org https://overpass-api.de https://mterm2026-559f9bf571b5.herokuapp.com; worker-src 'self' blob:; frame-src 'none'; upgrade-insecure-requests" />
+  <link rel="stylesheet" href="passenger-launch.css?v=1" />
+  <script src="passenger-launch.js?v=1"></script>
   <meta name="theme-color" content="#ffffff" />
   <!-- Home Screen launch can hide Safari's address/bottom bars; normal tabs cannot. -->
   <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -29,6 +31,15 @@
   <link rel="stylesheet" href="jalan-kl-3c.css?v=3c1">
 </head>
 <body>
+  <section id="jalan-launch" aria-label="JALAN is starting">
+    <img src="icons/jalan-192.png" width="128" height="128" alt="" fetchpriority="high" />
+    <h1>JALAN</h1>
+    <p class="jalan-launch-tagline" lang="ms">Haluan Anda, Keutamaan Kami.</p>
+    <div class="jalan-launch-progress" aria-hidden="true"><span></span></div>
+    <p id="jalan-launch-status" role="status">Loading your map…</p>
+    <button id="jalan-launch-retry" type="button" hidden>Try again</button>
+    <p class="jalan-launch-developer">IgniteInno Ventures</p>
+  </section>
   <div id="map" aria-label="Interactive map"></div>
   <nav id="interface-switch" aria-label="JALAN interface" class="interface-switch">
     <a href="index.html?mode=passenger" id="open-passenger">Passenger view</a>
@@ -287,7 +298,7 @@
   <script src="passenger-journey-model.js?v=1"></script>
   <script src="passenger-journey-sheet.js?v=3"></script>
   <script src="passenger-route-start.js?v=2"></script>
-  <script src="passenger-vector-map.js?v=9"></script>
+  <script src="passenger-vector-map.js?v=10"></script>
   <script src="passenger-reporting.js?v=3"></script>
 </body>
 </html>

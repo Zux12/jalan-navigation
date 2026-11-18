@@ -7,6 +7,8 @@ on:
       - 'tests/destination-suggestions-390.cjs'
       - 'passenger.webmanifest'
       - 'icons/**'
+      - 'passenger-launch.js'
+      - 'passenger-launch.css'
       - 'app.js'
       - 'tomtom-live.js'
       - 'jalan-config.js'
@@ -54,6 +56,8 @@ on:
   push:
     branches: [main]
     paths:
+      - 'passenger-launch.js'
+      - 'passenger-launch.css'
       - 'destination-suggestions.js'
       - 'destination-suggestions.css'
       - 'tests/destination-suggestions-390.cjs'

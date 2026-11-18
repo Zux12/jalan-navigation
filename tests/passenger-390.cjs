@@ -67,6 +67,8 @@ async function main(){
    route.fulfill({status:200,contentType:'text/css',
     body:fs.readFileSync(path.join(leaflet,'leaflet.css'))}));
   await page.goto(base+'/index.html?mode=passenger',{waitUntil:'load'});
+  await page.locator('#jalan-launch').waitFor({state:'hidden'});
+  assert.equal(await page.locator('#map').evaluate(x=>getComputedStyle(x).visibility),'visible','failed detailed-map dependency releases usable fallback');
   assert.equal(await page.evaluate(()=>document.body.classList.contains('passenger-mode')),true);
   assert.equal(await page.locator('#info-panel').isVisible(),false);
   assert.equal(await page.locator('#search-form').isVisible(),true);
