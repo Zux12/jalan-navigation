@@ -25,3 +25,21 @@ body.passenger-guiding #passenger-report-confirm{bottom:calc(195px + var(--passe
 #passenger-navigation-settings .passenger-nearby-consent{display:flex;align-items:center;gap:9px;min-height:44px;padding:6px 10px;font:600 12px/1.4 system-ui;color:#193d65}
 body:not(.passenger-guiding) #passenger-navigation-settings .passenger-nearby-consent{display:none}
 .passenger-nearby-consent input{width:19px;height:19px;flex:none;accent-color:#136dec}
+
+/* Match the jam bands on the route. Each other report has its own colour. */
+.passenger-report-button[data-category]{--report-accent:#a6afbc;
+ background:color-mix(in srgb,var(--report-accent) 23%,#131c2a);border-inline-start:5px solid var(--report-accent)}
+.passenger-report-button[data-category=light],.jalan-report-categories [data-type=light]{--report-accent:#ffe68a}
+.passenger-report-button[data-category=moderate],.jalan-report-categories [data-type=moderate]{--report-accent:#f59b24}
+.passenger-report-button[data-category=heavy],.jalan-report-categories [data-type=heavy]{--report-accent:#de3d35}
+.passenger-report-button[data-category=traffic]{--report-accent:#98abc6}
+.passenger-report-button[data-category=roadworks]{--report-accent:#edb678}
+.passenger-report-button[data-category=accident]{--report-accent:#ed7ab8}
+.passenger-report-button[data-category=closure]{--report-accent:#c64671}
+.passenger-report-button[data-category=hazard]{--report-accent:#c6d665}
+.passenger-report-button[data-category=police]{--report-accent:#7aa5ff}
+.passenger-report-button[data-category=rain]{--report-accent:#67c6fa}
+.passenger-report-button[data-category=flood]{--report-accent:#40cbb7}
+.passenger-report-button[data-category=visibility]{--report-accent:#b4a0df}
+.passenger-report-button[data-category]:active{background:color-mix(in srgb,var(--report-accent) 35%,#131c2a)}
+.jalan-report-categories :is([data-type=light],[data-type=moderate],[data-type=heavy]){border-inline-start:5px solid var(--report-accent)}

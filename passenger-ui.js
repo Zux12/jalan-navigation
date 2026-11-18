@@ -424,11 +424,11 @@
      if(!report||!['accident','flood','hazard','rain'].includes(report.type))continue;
      items.push({lat:Number(report.lat),lng:Number(report.lng),
        title:report.type.toUpperCase()+' · unverified demo report',
-       detail:'Local demonstration report',source:'demo'});
+       detail:'Local demonstration report',source:'demo',category:report.type});
    }
    for(const report of window.JalanCommunityReports?.routeItems?.()||[]){
      const type=window.JalanReportModel.types[report.type];
-     items.push({lat:report.position[1],lng:report.position[0],title:type.label+' · '+report.contributors+' community report'+(report.contributors===1?'':'s'),detail:'Community report · expires '+new Date(report.expiresAt).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}),routeAlong:report.routeAlong,routeTotal:report.routeTotal,source:'community',icon:type.icon});
+     items.push({lat:report.position[1],lng:report.position[0],title:window.JalanReportModel.reportLabel(report.type,report.trafficSeverity)+' · '+report.contributors+' community report'+(report.contributors===1?'':'s'),detail:'Community report · expires '+new Date(report.expiresAt).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}),routeAlong:report.routeAlong,routeTotal:report.routeTotal,source:'community',icon:type.icon,category:report.trafficSeverity||report.type});
    }
    const freshIncidents=incidentSnapshot.route===route&&
      Date.now()-incidentSnapshot.checkedAt<=10*60*1000?incidentSnapshot.incidents:[];
@@ -436,7 +436,7 @@
      items.push({lat:Number(incident.lat),lng:Number(incident.lng),
        title:String(incident.issue||'Traffic Incident').slice(0,80),
        detail:String(incident.detail||incident.description||incident.roadName||'').slice(0,180),
-       icon:incident.category,
+       icon:incident.category,category:incident.trafficSeverity||incident.reportType||'incident',
        routeAlong:incident.routeAlong,routeTotal:incident.routeTotal,source:'tomtom'});
    }
    const positioned=[];
@@ -465,7 +465,7 @@
            distances=document.createElement('small'),detail=document.createElement('small');
      marker.className='turn-list-arrow';marker.textContent=item.icon||(item.source==='demo'?'⚠️':'🚧');
      marker.setAttribute('aria-hidden','true');
-     button.type='button';button.className='passenger-report-button';
+     button.type='button';button.className='passenger-report-button';button.dataset.category=item.category;
      button.addEventListener('click',()=>focusReport(item,route));
      title.textContent=item.title;
      distances.textContent=item.ahead===null?'Waiting for GPS distance':'In '+fmtDist(item.ahead);

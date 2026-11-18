@@ -944,7 +944,7 @@ async function main(){
       legs:[{points:[{latitude:3.139,longitude:101.6869},{latitude:3.145,longitude:101.6925},
         {latitude:3.1478,longitude:101.6953}]}],
       summary:{lengthInMeters:3200,travelTimeInSeconds:600,trafficDelayInSeconds:30},
-      sections:[{sectionType:'TRAFFIC',startPointIndex:0,endPointIndex:1,simpleCategory:'JAM',delayInSeconds:90},
+      sections:[{sectionType:'TRAFFIC',startPointIndex:0,endPointIndex:1,simpleCategory:'JAM',magnitudeOfDelay:2,delayInSeconds:90},
         {sectionType:'TRAFFIC',startPointIndex:1,endPointIndex:2,simpleCategory:'ROAD_WORK',delayInSeconds:60}],
       guidance:{instructions:[
         {pointIndex:0,street:'Fixture first road',roadNumbers:['E1']},
@@ -962,7 +962,7 @@ async function main(){
       geometry:{type:'LineString',coordinates:[[101.6869,3.139],[101.6925,3.145],[101.6953,3.1478]]},
       trafficSectionsCheckedAt:Date.now(),
       trafficSections:[
-        {sectionType:'TRAFFIC',startPointIndex:0,endPointIndex:1,simpleCategory:'JAM',delayInSeconds:90},
+        {sectionType:'TRAFFIC',startPointIndex:0,endPointIndex:1,simpleCategory:'JAM',magnitudeOfDelay:2,delayInSeconds:90},
         {sectionType:'TRAFFIC',startPointIndex:1,endPointIndex:2,simpleCategory:'ROAD_WORK',delayInSeconds:60}],
       legs:[{steps:[{name:'Fixture first road',street:'Fixture first road',
         pointIndex:0,roadNumbers:['E1'],maneuver:{type:'continue'}},
@@ -989,6 +989,10 @@ async function main(){
     'Passenger Preview hides all-road TomTom traffic tiles; coloured route lines remain separate');
   await page.locator('#passenger-turn-toggle').click();
   const roadWork=page.getByRole('button',{name:/Fixture second road/});
+  const jam=page.locator('#passenger-report-list [data-category=moderate]');
+  assert.equal(await jam.locator('strong').innerText(),'Moderate Traffic Jam');
+  const backgrounds=await page.locator('#passenger-report-list button').evaluateAll(buttons=>buttons.map(b=>getComputedStyle(b).backgroundColor));
+  assert.equal(new Set(backgrounds).size,2,'road work and a moderate jam have distinct row backgrounds');
   assert.equal(await roadWork.locator('strong').innerText(),'Road Work');
   assert.equal(await roadWork.locator('small').first().innerText(),'Waiting for GPS distance');
   assert.match(await roadWork.locator('small').last().innerText(),/Fixture second road.*delay 1 min/);

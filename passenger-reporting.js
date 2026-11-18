@@ -14,9 +14,33 @@
  document.body.append(dialog,card,toast);
  const status=$('passenger-report-status'),submit=$('passenger-report-submit'),nearbyToggle=$('passenger-nearby-consent');let toastTimer;
  function tell(message){toast.textContent=message;toast.hidden=false;clearTimeout(toastTimer);toastTimer=setTimeout(()=>toast.hidden=true,5000);}
- function categories(weather=false){const node=$('passenger-report-categories');node.replaceChildren();for(const type of weather?['rain','flood','visibility']:['traffic','accident','roadworks','closure','hazard','police','weather']){
-  const button=document.createElement('button');button.type='button';button.dataset.type=type;button.innerHTML=icon(type==='weather'?'rain':type)+'<span></span>';button.querySelector('span').textContent=type==='weather'?'Bad weather':P.types[type].label;button.setAttribute('aria-pressed','false');button.onclick=()=>{if(type==='weather'){selected=null;submit.disabled=true;categories(true);return;}selected=type;submit.disabled=pending;for(const b of node.children)b.setAttribute('aria-pressed',String(b===button));status.textContent='';};node.append(button);
- }if(weather){const back=document.createElement('button');back.type='button';back.textContent='Back';back.onclick=()=>{selected=null;submit.disabled=true;categories();};node.append(back);}}
+ const groups={main:['traffic','accident','roadworks','closure','hazard','police','weather'],weather:['rain','flood','visibility'],traffic:P.trafficLevels};
+ function categories(group='main'){
+  const node=$('passenger-report-categories');
+  node.replaceChildren();selected=null;submit.disabled=true;status.textContent='';
+  for(const choice of groups[group]){
+   const isGroup=group==='main'&&(choice==='traffic'||choice==='weather');
+   const type=group==='traffic'?'traffic':choice;
+   const button=document.createElement('button');
+   button.type='button';button.dataset.type=choice;
+   button.innerHTML=icon(type==='weather'?'rain':type)+'<span></span>';
+   button.querySelector('span').textContent=group==='traffic'?P.reportLabel(type,choice):
+    type==='weather'?'Bad weather':P.types[type].label;
+   if(!isGroup)button.setAttribute('aria-pressed','false');
+   button.onclick=()=>{
+    if(pending)return;
+    if(isGroup){categories(choice);node.firstElementChild.focus();return;}
+    selected=group==='traffic'?{type,trafficSeverity:choice}:{type};
+    submit.disabled=false;status.textContent='';
+    for(const sibling of node.querySelectorAll('[aria-pressed]'))sibling.setAttribute('aria-pressed',String(sibling===button));
+   };
+   node.append(button);
+  }
+  if(group==='main')return;
+  const back=document.createElement('button');back.type='button';back.textContent='Back';
+  back.onclick=()=>{if(pending)return;categories();node.querySelector('[data-type="'+group+'"]').focus();};
+  node.append(back);
+ }
  const modal=()=>document.body.classList.toggle('passenger-modal-open',!!document.querySelector('dialog[open]'));
  $('jalan-home-report').setAttribute('aria-label','Report road event');$('jalan-home-report').setAttribute('aria-haspopup','dialog');
  $('jalan-home-report').addEventListener('click',()=>{if(dialog.open)return;hideCard();submissionId=random();selected=null;status.textContent='';submit.disabled=true;categories();dialog.showModal();modal();});
@@ -32,9 +56,9 @@
   if(heading===null&&P.heading(gps?.vehicleHeading)&&gps.gpsFixAgeMs<=10000)heading=gps.vehicleHeading;
   resolve({position,accuracy:c.accuracy,heading,fixAt:fix.timestamp,road:window.JalanVectorMap?.getReportRoad?.(position,heading)||null});
  },()=>reject(Error('Could not get your location. Allow location access and retry.')),{enableHighAccuracy:true,maximumAge:0,timeout:10000});});}
- submit.onclick=async()=>{if(pending||!selected)return;pending=true;submit.disabled=true;$('passenger-report-cancel').disabled=true;status.textContent='Getting your current location…';try{const fix=await capture();status.textContent='Submitting report…';const result=await api('/submit',{type:selected,actor,submissionId,...fix});if(!result.event||!P.alive(result.event))throw Error('Report was not confirmed by the server.');own.add(result.event.id);upsert(result.event);dialog.close();tell(result.merged?'Added your report to the existing event.':'Report submitted. Icon placed at your location.');}catch(e){status.textContent='Could not confirm submission: '+(e.message||'Please try again.');}finally{pending=false;submit.disabled=!selected;$('passenger-report-cancel').disabled=false;}};
+ submit.onclick=async()=>{if(pending||!selected)return;pending=true;submit.disabled=true;$('passenger-report-cancel').disabled=true;status.textContent='Getting your current location…';try{const fix=await capture();status.textContent='Submitting report…';const result=await api('/submit',{...selected,actor,submissionId,...fix});if(!result.event||!P.alive(result.event))throw Error('Report was not confirmed by the server.');own.add(result.event.id);upsert(result.event);dialog.close();tell(result.merged?'Added your report to the existing event.':'Report submitted. Icon placed at your location.');}catch(e){status.textContent='Could not confirm submission: '+(e.message||'Please try again.');}finally{pending=false;submit.disabled=!selected;$('passenger-report-cancel').disabled=false;}};
  function upsert(event){events=events.filter(e=>e.id!==event.id);if(P.alive(event))events.push(event);paint();window.dispatchEvent(new Event('jalan:community-reports'));}
- function paint(){events=events.filter(e=>P.alive(e));layer.clearLayers();for(const e of events){if(!P.types[e.type]||!P.coord(e.position))continue;const marker=L.marker([e.position[1],e.position[0]],{icon:L.divIcon({className:'jalan-community-report-pin',html:icon(e.type),iconSize:[36,36],iconAnchor:[18,18]}),title:P.types[e.type].label+' · reported by '+e.contributors+' user'+(e.contributors===1?'':'s')}).addTo(layer);const label=document.createElement('span');label.textContent=P.types[e.type].label+' · '+e.contributors+' report'+(e.contributors===1?'':'s');marker.bindTooltip(label);}}
+ function paint(){events=events.filter(e=>P.alive(e));layer.clearLayers();for(const e of events){if(!P.types[e.type]||!P.coord(e.position))continue;const marker=L.marker([e.position[1],e.position[0]],{icon:L.divIcon({className:'jalan-community-report-pin',html:icon(e.type),iconSize:[36,36],iconAnchor:[18,18]}),title:P.reportLabel(e.type,e.trafficSeverity)+' · reported by '+e.contributors+' user'+(e.contributors===1?'':'s')}).addTo(layer);const label=document.createElement('span');label.textContent=P.reportLabel(e.type,e.trafficSeverity)+' · '+e.contributors+' report'+(e.contributors===1?'':'s');marker.bindTooltip(label);}}
  function hideCard(){card.hidden=true;prompt=null;clearTimeout(promptTimer);}
  $('passenger-report-dismiss').onclick=hideCard;
  for(const button of card.querySelectorAll('[data-answer]'))button.onclick=async()=>{if(!prompt)return;const event=prompt;hideCard();try{const fix=await capture();const result=await api('/respond',{id:event.id,actor,journey,answer:button.dataset.answer,...fix});upsert(result.event);tell(button.dataset.answer==='cleared'?'Thanks. Your cleared response was recorded.':'Thanks. The report timer was refreshed.');}catch(e){tell('Response not saved: '+e.message);}};
@@ -43,7 +67,7 @@
   if(!fix||document.hidden||dialog.open||document.body.classList.contains('passenger-modal-open')||!$('jalan-home-menu-panel').classList.contains('hidden')||!window.JalanGPS?.getState?.().active||Date.now()-fix.at>10000||!P.heading(fix.heading)||!P.road(fix.road))return;
   const line=window.JalanGPS.getState().route?.geometry?.coordinates,current=P.project(fix.position,line);if(!current||current.offset>25||P.delta(current.heading,fix.heading)>40)return;
   const candidate=routeItems().filter(e=>!own.has(e.id)&&!asked.has(e.id)&&P.sameRoad(e.road,fix.road)).map(e=>({...e,ahead:e.routeAlong-current.along})).filter(e=>e.ahead>=0&&e.ahead<=50).sort((a,b)=>a.ahead-b.ahead)[0];
-  if(!candidate)return;asked.add(candidate.id);prompt=candidate;toast.hidden=true;clearTimeout(toastTimer);$('passenger-report-confirm-title').innerHTML=icon(candidate.type)+'<span></span>';$('passenger-report-confirm-title').querySelector('span').textContent=P.types[candidate.type].label+' · '+candidate.contributors+' report'+(candidate.contributors===1?'':'s')+' · '+Math.round(candidate.ahead)+' m ahead';card.hidden=false;promptTimer=setTimeout(hideCard,10000);
+  if(!candidate)return;asked.add(candidate.id);prompt=candidate;toast.hidden=true;clearTimeout(toastTimer);$('passenger-report-confirm-title').innerHTML=icon(candidate.type)+'<span></span>';$('passenger-report-confirm-title').querySelector('span').textContent=P.reportLabel(candidate.type,candidate.trafficSeverity)+' · '+candidate.contributors+' report'+(candidate.contributors===1?'':'s')+' · '+Math.round(candidate.ahead)+' m ahead';card.hidden=false;promptTimer=setTimeout(hideCard,10000);
  }
  async function poll(){if(!nearbyConsent||!window.JalanGPS?.getState?.().active||document.hidden||inflight||!lastFix||Date.now()-lastFix.at>10000||Date.now()-pollAt<30000)return;pollAt=Date.now();const epoch=requestEpoch;inflight=api('/nearby',{position:lastFix.position});try{const result=await inflight;if(epoch!==requestEpoch||!nearbyConsent||!window.JalanGPS?.getState?.().active)return;const localOwn=events.filter(e=>own.has(e.id)&&P.alive(e));events=Array.isArray(result.events)?result.events.filter(e=>P.alive(e)&&P.types[e.type]&&P.coord(e.position)):[];for(const e of localOwn)if(!events.some(x=>x.id===e.id))events.push(e);paint();window.dispatchEvent(new Event('jalan:community-reports'));checkCard(lastFix);}catch{ /* Reading failures never invent an empty/cleared confirmation. Expiry remains local. */ }finally{inflight=null;}}
  // Nearby lookup transfers precise GPS coordinates in a POST body. It is an

@@ -9,7 +9,7 @@ module.exports=async(browser,base,root)=>{
  let failed=true,submissions=[],responses=[],nearby=[],nearbyPosts=0;
  const event=(id,type='accident',position=[101.687,3.139])=>({id,type,position,heading:90,road:{key:'fixture-road',level:'0:surface'},createdAt:Date.now(),updatedAt:Date.now(),expiresAt:Date.now()+3600000,contributors:1,active:true});
  await page.route('https://mterm2026-559f9bf571b5.herokuapp.com/api/jalan/reports/**',async r=>{assert.equal(r.request().method(),'POST');assert.equal(new URL(r.request().url()).search,'');const body=r.request().postDataJSON(),kind=new URL(r.request().url()).pathname.split('/').pop();let data,status=200;
- if(kind==='submit'){submissions.push(body);if(failed){status=503;data={error:'Reporting service unavailable.'};}else data={event:{...event('own-event',body.type,body.position),contributors:submissions.length>2?2:1},merged:submissions.length>2};}
+ if(kind==='submit'){submissions.push(body);if(failed){status=503;data={error:'Reporting service unavailable.'};}else data={event:{...event('own-event',body.type,body.position),trafficSeverity:body.trafficSeverity,contributors:submissions.length>2?2:1},merged:submissions.length>2};}
  else if(kind==='nearby'){nearbyPosts++;data={events:nearby};}else{responses.push(body);data={event:event(body.id,'accident',[101.689,3.139])};}
  await r.fulfill({status,contentType:'application/json',headers:{'access-control-allow-origin':'*'},body:JSON.stringify(data)});});
  await page.goto(base+'/index.html?mode=passenger');
@@ -73,6 +73,24 @@ module.exports=async(browser,base,root)=>{
  const afterStop=nearbyPosts;
  await page.evaluate(()=>window.dispatchEvent(new CustomEvent('jalan:gps-fix',{detail:{gpsReliable:true,gpsPosition:[3.139,101.688],gpsAccuracy:8,gpsFixAgeMs:0,heading:90}})));
  assert.equal(nearbyPosts,afterStop,'even a delayed GPS fix cannot restart uploads after Stop');
+ await page.evaluate(()=>window.__reportAccuracy=8);
+ await page.locator('#jalan-home-report').click();
+ await page.getByRole('button',{name:'Traffic',exact:true}).click();
+ const choices=page.locator('#passenger-report-categories');
+ assert.deepEqual(await choices.getByRole('button').allTextContents(),['Light Traffic Jam','Moderate Traffic Jam','Heavy Traffic Jam','Back']);
+ assert.equal(await page.locator('#passenger-report-submit').isEnabled(),false);
+ await choices.getByRole('button',{name:'Light Traffic Jam'}).click();
+ await choices.getByRole('button',{name:'Back'}).click();
+ assert.equal(await page.locator('#passenger-report-submit').isEnabled(),false);
+ await choices.getByRole('button',{name:'Traffic',exact:true}).click();
+ await choices.getByRole('button',{name:'Moderate Traffic Jam'}).click();
+ await choices.getByRole('button',{name:'Heavy Traffic Jam'}).click();
+ assert.deepEqual(await choices.locator('[aria-pressed=true]').allTextContents(),['Heavy Traffic Jam']);
+ await page.screenshot({path:path.join(root,'test-artifacts/passenger-traffic-choices.png')});
+ await page.locator('#passenger-report-submit').click();
+ await page.waitForFunction(()=>!document.getElementById('passenger-report-dialog').open);
+ assert.equal(submissions.at(-1).type,'traffic');assert.equal(submissions.at(-1).trafficSeverity,'heavy');
+ assert.equal(await page.locator('.jalan-community-report-pin[title*="Heavy Traffic Jam"]').count(),1);
  assert.deepEqual(errors,[]);console.log('PASS community reports: weather, submit-time GPS, failed upload, merged icon, directional 50m prompt, once per journey, timeout and inaccurate GPS');
  }finally{await context.close();}
 };
