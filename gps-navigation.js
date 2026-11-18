@@ -6,7 +6,7 @@
  let active=false,watch=null,marker=null,current=null,route=null,points=[],cum=[],total=0,maneuvers=[];
  let predictor=null,offCount=0,lastReroute=0,rerouting=false,auto=false,voice=window.JalanVoice?.getMode?.()||'mute',lastSpeech='',lastSpeechAt=0,lastFixAt=0,lastReportedAccuracy=Infinity,latestMatched=false,progress=0,destinationAnnounced=false;
  let latestMode='waiting',rerouteFix=null,rerouteEpoch=0,rerouteController=null;
- let lastPositionFix=null,pendingPositionFix=null,lastMeasuredAccepted=false;
+ let lastPositionFix=null,pendingPositionFix=null,lastMeasuredAccepted=false,courseAnchor=null;
  let roadMotion=null,vehiclePosition=null,vehicleCertain=false,vehicleMode='waiting',vehicleHeading=null;
  // Ignore delayed/repeated geolocation callbacks, even when only seconds old.
  // Age-based location expiry remains responsible if fresh samples stop.
@@ -51,6 +51,20 @@
   pendingPositionFix=null;
   return true;
  }
+ // Some phones supply coordinates without speed or compass heading.
+ function measuredCourse(raw,accuracy,time,heading,speed){
+  const previous=courseAnchor;
+  const elapsed=previous?(time-previous.time)/1000:0;
+  const distance=previous?meters(previous.position,raw):0;
+  const moved=elapsed>0&&elapsed<=10&&distance>=Math.max(6,accuracy,previous.accuracy);
+  if(!previous||moved||elapsed>10)courseAnchor={position:raw,accuracy,time};
+  const velocity=Number.isFinite(speed)&&speed>=0?speed:(moved?distance/elapsed:null);
+  if(velocity===null||velocity<2.5)return null;
+  if(Number.isFinite(heading)&&heading>=0&&heading<360)return heading;
+  if(!moved)return null;
+  const east=(raw[1]-previous.position[1])*Math.cos(rad(raw[0]));
+  return (Math.atan2(east,raw[0]-previous.position[0])*180/Math.PI+360)%360;
+ }
  const positionEvidence=(updated=false)=>({
   gpsPosition:lastPositionFix?[...lastPositionFix.position]:null,
   gpsAccuracy:lastPositionFix?.accuracy??Infinity,
@@ -58,18 +72,10 @@
   vehiclePosition:vehiclePosition?[...vehiclePosition]:null,vehicleCertain,vehicleMode,vehicleHeading,
   gpsReliable:!!updated
  });
- // The owner's display preference is route-locked. This projection is never
- // evidence of a road match and never supplies a reroute request origin.
- function lockVehicleToRoute(raw){
-  const sx=111320*Math.cos(rad(raw[0])),sy=111320;
-  let best=Infinity,position=points[0];
-  for(let i=1;i<points.length;i++){
-   const a=points[i-1],b=points[i],dx=(b[1]-a[1])*sx,dy=(b[0]-a[0])*sy,
-    ax=(a[1]-raw[1])*sx,ay=(a[0]-raw[0])*sy,
-    t=Math.max(0,Math.min(1,-(ax*dx+ay*dy)/(dx*dx+dy*dy||1))),d=Math.hypot(ax+t*dx,ay+t*dy),
-    along=cum[i-1]+t*(cum[i]-cum[i-1]),score=d+Math.min(160,Math.abs(along-progress)*.18);
-   if(score<best){best=score;position=[a[0]+t*(b[0]-a[0]),a[1]+t*(b[1]-a[1])];}
-  }return position?[...position]:null;
+ // Map tiles can be loading or switching renderers while GPS continues.
+ function nearbyRoads(raw){
+  try{return window.JalanVectorMap?.nearbyRoads?.(raw,current||raw)??null;}
+  catch{return null;}
  }
  function project(p){const sx=111320*Math.cos(rad(p[0])),sy=111320;let best={distance:Infinity,along:0};for(let i=1;i<points.length;i++){const a=points[i-1],b=points[i],ax=(a[1]-p[1])*sx,ay=(a[0]-p[0])*sy,dx=(b[1]-a[1])*sx,dy=(b[0]-a[0])*sy,t=Math.max(0,Math.min(1,-(ax*dx+ay*dy)/(dx*dx+dy*dy||1))),d=Math.hypot(ax+t*dx,ay+t*dy);if(d<best.distance)best={distance:d,along:cum[i-1]+t*(cum[i]-cum[i-1])};}return best;}
  function build(){route=routes[selectedRoute];if(!route?.geometry?.coordinates?.length)return false;points=route.geometry.coordinates.map(p=>[p[1],p[0]]);cum=[0];for(let i=1;i<points.length;i++)cum.push(cum[i-1]+meters(points[i-1],points[i]));total=cum.at(-1);if(total<10)return false;
@@ -118,7 +124,8 @@
   // Validate browser-measured movement BEFORE feeding the route predictor.
   // A rejected teleport must never influence its internal history or cause a
   // false off-route verdict on the next legitimate fix.
-  const measured=acceptMeasuredFix(raw,accuracy,now,fix.coords.speed);
+  const previousMeasurement=lastPositionFix?.position;
+  const measured=acceptMeasuredFix(raw,accuracy,Number.isFinite(sampleTime)?Math.min(now,sampleTime):now,fix.coords.speed);
   lastMeasuredAccepted=measured;
   if(measured&&Number.isFinite(sampleTime))lastAcceptedSampleTime=sampleTime;
   if(!measured){
@@ -137,27 +144,30 @@
    return;
   }
   publishQuality(fix);
+  vehicleHeading=measuredCourse(raw,accuracy,lastPositionFix.at,fix.coords.heading,fix.coords.speed);
   const display=roadMotion?.feed({position:raw,time:sampleTime||now,accuracy,speed:fix.coords.speed,heading:fix.coords.heading,
-    roads:window.JalanVectorMap?.nearbyRoads?.(raw,current||raw)??null});
+    roads:nearbyRoads(raw)});
   // Pending drift/turn evidence must not advance the stateful route matcher.
   // Resume with measured data once it aligns or proves a sustained departure.
   const result=display&&!display.onRoute&&!display.allowDeviation?
     {mode:'predicted',position:current||display.position,along:progress}:
     predictor.feed({position:raw,accuracy,time:fix.timestamp||Date.now(),speed:fix.coords.speed});
-  vehiclePosition=lockVehicleToRoute(raw);
-  vehicleCertain=display?display.onRoute&&display.certain:result.mode==='matched';vehicleMode=display?.mode||result.mode;vehicleHeading=display?.mode==='checking-drift'?display.heading:fix.coords.heading;
   const mode=display?(display.allowDeviation?'deviation':display.onRoute?result.mode:'predicted'):result.mode;
   const p=result.position;lastFixAt=now;latestMode=mode;
-  // Never ask a route provider to start from a rejected raw GPS jump.
-  rerouteFix=measured&&['matched','deviation'].includes(mode)&&accuracy<=65&&
-   raw.every(Number.isFinite)&&Math.abs(raw[0])<=90&&Math.abs(raw[1])<=180?
-   {position:mode==='deviation'?[...raw]:[...p],at:now}:null;
-  // Publish filtered position only; raw GPS jumps must not pollute journey analytics.
-  current=measured?(mode==='deviation'?raw:p):(lastPositionFix?[...lastPositionFix.position]:null);
+  // Correct small drift on a matched road. During a possible or confirmed
+  // departure, publish the accepted measurement immediately, even without tiles.
+  // A stopped phone can drop its heading, changing the road classifier's
+  // answer even though the measured position is exactly the same.
+  const unchanged=vehiclePosition&&(meters(raw,vehiclePosition)<0.5||samePoint(raw,previousMeasurement));
+  if(!unchanged)vehiclePosition=display?.onRoute?display.position:raw;
+  vehicleCertain=display?display.certain:mode==='matched';
+  vehicleMode=display?.mode||mode;
+  rerouteFix=lastPositionFix;
+  current=mode==='matched'?p:raw;
   const trustworthy=measured&&mode==='matched'&&Number.isFinite(accuracy);
   latestMatched=trustworthy;lastReportedAccuracy=trustworthy?accuracy:Infinity;
   window.dispatchEvent(new CustomEvent('jalan:gps-fix',{detail:{accuracy:trustworthy?accuracy:Infinity,remainingSeconds:route?route.duration*Math.max(0,total-progress)/total:null,remainingMeters:route?route.distance*Math.max(0,total-progress)/total:null,speedMps:fix.coords.speed,matchedPosition:trustworthy?p:null,heading:fix.coords.heading,routeSegment:route?.geometry?.coordinates?.length?'route-'+selectedRoute:null,matched:trustworthy,nearDestination:trustworthy&&!!(destination&&meters(p,destination)<110),...positionEvidence(measured)}}));
-  if(measured){updateLocation(p);marker?.setLatLng(p);}
+  updateLocation(raw);marker?.setLatLng(vehiclePosition);
   el('gps-accuracy').textContent=Number.isFinite(accuracy)?Math.round(accuracy)+' m':'Unknown';
   el('gps-match-status').textContent={matched:'On route · GPS matched',predicted:'Route prediction · checking GPS',uncertain:'GPS uncertain · estimated position',deviation:'Deviation confirmed',waiting:'Waiting for reliable GPS',stale:'Old GPS reading ignored',invalid:'Invalid GPS reading'}[mode]||'Route prediction';
   if(trustworthy)progress=Math.max(progress,result.along);
@@ -181,16 +191,16 @@
   }
   // Engineering mode follows position directly. Passenger mode has its own
   // ahead-biased camera; prevent the legacy panTo from overriding its zoom.
-  if(!document.hidden&&!document.body.classList.contains('passenger-mode'))map.panTo(p,{animate:false});
+  if(!document.hidden&&!document.body.classList.contains('passenger-mode'))map.panTo(vehiclePosition,{animate:false});
  }
  function start(){if(active)return;if(!build()){statusEl.textContent='Calculate a route before starting GPS test.';return;}if(!navigator.geolocation){statusEl.textContent='Geolocation unavailable';return;}
-  window.JalanNavigation?.stop();current=null;vehiclePosition=null;vehicleCertain=false;vehicleMode='waiting';lastPositionFix=null;pendingPositionFix=null;lastMeasuredAccepted=false;lastAcceptedSampleTime=-Infinity;lastFixAt=0;lastReportedAccuracy=Infinity;latestMatched=false;latestMode='waiting';rerouteFix=null;predictor=window.JalanPredictiveGPS.create(route.geometry.coordinates);active=true;window.dispatchEvent(new CustomEvent('jalan:journey-start',{detail:{provider:route?.provider||'osrm',predictedSeconds:route?.duration||null,distanceMeters:route?.distance||null}}));progress=0;offCount=0;lastSpeech='';destinationAnnounced=false;window.JalanVoice.reset();document.body.classList.add('nav-active');el('gps-hud').classList.remove('hidden');el('gps-instruction').textContent='Acquiring GPS…';warn('Experimental guidance only. Test stationary or as a passenger.');marker=L.circleMarker(points[0],{radius:10,color:'#fff',weight:3,fillColor:'#0e9f6e',fillOpacity:document.body.classList.contains('passenger-mode')?0:1,opacity:document.body.classList.contains('passenger-mode')?0:1}).addTo(map);
+  window.JalanNavigation?.stop();courseAnchor=null;vehicleHeading=null;lastReroute=0;current=null;vehiclePosition=null;vehicleCertain=false;vehicleMode='waiting';lastPositionFix=null;pendingPositionFix=null;lastMeasuredAccepted=false;lastAcceptedSampleTime=-Infinity;lastFixAt=0;lastReportedAccuracy=Infinity;latestMatched=false;latestMode='waiting';rerouteFix=null;predictor=window.JalanPredictiveGPS.create(route.geometry.coordinates);active=true;window.dispatchEvent(new CustomEvent('jalan:journey-start',{detail:{provider:route?.provider||'osrm',predictedSeconds:route?.duration||null,distanceMeters:route?.distance||null}}));progress=0;offCount=0;lastSpeech='';destinationAnnounced=false;window.JalanVoice.reset();document.body.classList.add('nav-active');el('gps-hud').classList.remove('hidden');el('gps-instruction').textContent='Acquiring GPS…';warn('Experimental guidance only. Test stationary or as a passenger.');marker=L.circleMarker(points[0],{radius:10,color:'#fff',weight:3,fillColor:'#0e9f6e',fillOpacity:document.body.classList.contains('passenger-mode')?0:1,opacity:document.body.classList.contains('passenger-mode')?0:1}).addTo(map);
   watch=navigator.geolocation.watchPosition(update,e=>{
    publishQuality(null,true);
    latestMatched=false;lastReportedAccuracy=Infinity;lastFixAt=0;latestMode='waiting';rerouteFix=null;lastMeasuredAccepted=false;cancelReroute();
    warn('GPS unavailable: '+e.message);
    window.dispatchEvent(new CustomEvent('jalan:gps-fix',{detail:{accuracy:Infinity,
-     matched:false,matchedPosition:null,speedMps:null,heading:null,reason:'geolocation-error'}}));
+     matched:false,matchedPosition:null,speedMps:null,heading:null,reason:'geolocation-error',...positionEvidence()}}));
   },{enableHighAccuracy:true,maximumAge:1500,timeout:20000});
  }
  function stop(){vehiclePosition=null;vehicleCertain=false;vehicleMode='waiting';cancelReroute();latestMode='waiting';rerouteFix=null;lastPositionFix=null;pendingPositionFix=null;lastMeasuredAccepted=false;lastAcceptedSampleTime=-Infinity;if(active)window.dispatchEvent(new CustomEvent('jalan:journey-stop'));active=false;current=null;lastFixAt=0;lastReportedAccuracy=Infinity;latestMatched=false;if(watch!==null){navigator.geolocation.clearWatch(watch);watch=null;}if(marker){map.removeLayer(marker);marker=null;}if('speechSynthesis'in window)speechSynthesis.cancel();el('gps-hud').classList.add('hidden');document.body.classList.remove('nav-active');setTimeout(()=>map.invalidateSize(),70);}
@@ -206,13 +216,13 @@
   return length>=10&&meters(from,[coords[0][1],coords[0][0]])<=150&&
     meters(to,[coords.at(-1)[1],coords.at(-1)[0]])<=150;
  };
- async function reroute(automatic=false){
+ async function reroute(automatic=false,retryFromLatest=false){
   if(rerouting)return;
   if(!active||!current||!destination){rerouteStatus('error','Route not ready for recalculation.');return;}
   if(document.hidden||!freshRerouteFix()){
    rerouteStatus('error','Waiting for a fresh, reliable GPS position before recalculating.');return;
   }
-  if(Date.now()-lastReroute<REROUTE_INTERVAL){rerouteStatus('waiting','Please allow 30 seconds before another route check.');return;}
+  if(!retryFromLatest&&Date.now()-lastReroute<REROUTE_INTERVAL){rerouteStatus('waiting','Please allow 30 seconds before another route check.');return;}
   const from=[...rerouteFix.position],target=[...destination],oldRoute=route;
   const primary=!!el('tt-primary').checked,key=el('tt-key')?.value?.trim()||'';
   const controller=new AbortController(),id=++rerouteEpoch;
@@ -221,6 +231,7 @@
     !document.hidden&&samePoint(destination,target)&&!!el('tt-primary').checked===primary&&
     (!primary||(el('tt-key')?.value?.trim()||'')===key)&&
     (!automatic||(auto&&latestMode==='deviation'));
+  let movedBeyondOrigin=false;
   const timeout=setTimeout(()=>{
    if(id!==rerouteEpoch)return;
    cancelReroute();warn('Route service timed out. Existing route retained.');
@@ -232,6 +243,7 @@
    const candidates=await requestDrivingRoutes(from,target,{signal:controller.signal});
    if(!currentRequest()||controller.signal.aborted)return;
    if(!freshRerouteFix()||meters(from,rerouteFix.position)>150){
+    movedBeyondOrigin=!!freshRerouteFix();
     rerouteStatus('waiting','Location changed during the request. Waiting for the next route check.');return;
    }
    const available=Array.isArray(candidates)?candidates.filter(r=>usableRoute(r,from,target)):[];
@@ -241,21 +253,7 @@
    // route, destination or GPS watcher, and late responses cannot restart it.
    // Transactional route replacement: keep the same geolocation watch and
    // vehicle marker while geometry, ETA, turn data and predictor are swapped.
-   const previousRoutes=routes,previousSelection=selectedRoute;
-   routes=available;selectedRoute=0;
-   if(!build()){
-    routes=previousRoutes;selectedRoute=previousSelection;build();
-    throw Error('Replacement route could not be constructed');
-   }
-   startPoint=from;predictor=window.JalanPredictiveGPS.create(route.geometry.coordinates);
-   progress=0;offCount=0;latestMatched=false;latestMode='waiting';rerouteFix=null;
-   vehiclePosition=lockVehicleToRoute(lastPositionFix?.position||from);
-   vehicleCertain=false;
-   renderRoutes({preserveGPS:true});
-   el('gps-instruction').textContent='New route ready · checking current GPS position';
-   el('gps-detail').textContent='Turn guidance resumes after matching the updated route';
-   el('gps-distance').textContent=fmtDist(route.distance);
-   el('gps-eta').textContent=fmtTime(route.duration);
+   if(!replaceGuidanceRoute(available,from))throw Error('Replacement route could not be constructed');
    warn('New route calculated from your current location.');
    rerouteStatus('success','Route updated to your destination.');
    window.dispatchEvent(new CustomEvent('jalan:route-change',{detail:{reason:'off-route',provider:route?.provider||'osrm'}}));
@@ -265,7 +263,31 @@
     warn('Recalculation unavailable. Existing route retained.');
     rerouteStatus('error','Could not update route. Existing route retained; check GPS, connection and routing settings.');
    }
-  }finally{clearTimeout(timeout);if(rerouteController===controller){rerouteController=null;rerouting=false;}}
+  }finally{
+   clearTimeout(timeout);
+   if(rerouteController===controller){
+    rerouteController=null;rerouting=false;
+    // A long response can be obsolete even with excellent GPS. Retry once
+    // from the newest fix, and keep the normal cooldown for later requests.
+    if(movedBeyondOrigin&&!retryFromLatest&&currentRequest())void reroute(automatic,true);
+   }
+  }
+ }
+ function replaceGuidanceRoute(available,from){
+  const previousRoutes=routes,previousSelection=selectedRoute;
+  routes=available;selectedRoute=0;
+  if(!build()){routes=previousRoutes;selectedRoute=previousSelection;build();return false;}
+  startPoint=from;predictor=window.JalanPredictiveGPS.create(route.geometry.coordinates);
+  progress=0;offCount=0;latestMatched=false;latestMode='waiting';lastReportedAccuracy=Infinity;
+  // A response describes the request-time position. Preserve the latest live
+  // marker and camera, including movement since the request was dispatched.
+  vehicleCertain=false;
+  renderRoutes({preserveGPS:true});
+  el('gps-instruction').textContent='New route ready · checking current GPS position';
+  el('gps-detail').textContent='Turn guidance resumes after matching the updated route';
+  el('gps-distance').textContent=fmtDist(route.distance);
+  el('gps-eta').textContent=fmtTime(route.duration);
+  return true;
  }
  function updateButtons(){el('gps-auto').textContent='Auto reroute: '+(auto?'On':'Off');el('gps-auto').setAttribute('aria-pressed',String(auto));el('gps-voice').textContent='Voice: '+window.JalanVoice.label(voice);el('gps-voice').setAttribute('aria-pressed',String(voice!=='mute'));}
  el('gps-start').onclick=start;el('gps-exit').onclick=()=>{stop();if(routes.length)renderRoutes();};el('gps-recenter').onclick=()=>{if(current)map.setView(current,16);};el('gps-reroute').onclick=()=>reroute(false);
@@ -287,6 +309,11 @@
    items.push({action:'Arrive at destination',distanceMeters:Math.max(0,total-progress),arrival:true});
    return items;
   },
-  applyTrafficRoute(newRoute){if(!active||!newRoute)return false;stop();routes=[newRoute];selectedRoute=0;renderRoutes();start();return true;},
+  applyTrafficRoute(newRoute){
+   if(!active||!freshRerouteFix()||!usableRoute(newRoute,rerouteFix.position,destination))return false;
+   cancelReroute();
+   const [lng,lat]=newRoute.geometry.coordinates[0];
+   return replaceGuidanceRoute([newRoute],[lat,lng]);
+  },
   setVoiceMode,getVoiceMode:()=>voice,stop,routeReady(){el('gps-start').classList.remove('hidden');}};
 })();

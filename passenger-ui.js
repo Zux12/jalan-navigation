@@ -161,8 +161,7 @@
  const restorePlannerMarkers=()=>{
    if(startMarker&&!pointLayer.hasLayer(startMarker))startMarker.addTo(pointLayer);
  };
- // Vehicle icon is georeferenced. Never show a fixed screen arrow implying
- // a valid position before the GPS predictor has actually matched a route.
+ // Create the vehicle only after receiving an accepted measured position.
  let vehicle=null,accuracyHalo=null,lastValidHeading=null,directionSource='unavailable';
  let routeLineMuted=false;
  let exploring=false,lastGPSDetail=null,returnTimer=null,returnPending=false;
@@ -180,17 +179,23 @@
    pendingOverlay=false;
    const vector=window.JalanVectorMap;
    const anchor=vehicle?.getElement();
-   if(!vehicle||(!vector?.active&&!anchor)||!document.body.classList.contains('passenger-guiding')){
+   if(!vehicle||!document.body.classList.contains('passenger-guiding')){
      screenVehicle.classList.add('hidden');syncMapAction();return;
    }
-   const bounds=(vector?.active?map.getContainer():anchor).getBoundingClientRect();
+   const bounds=(vector?.active?map.getContainer():anchor)?.getBoundingClientRect();
    const point=vector?.active?vector.project(vehicle.getLatLng()):null;
-   const x=bounds.left+(point?point.x:bounds.width/2),y=bounds.top+(point?point.y:bounds.height/2);
+   let x=bounds&&(bounds.left+(point?point.x:bounds.width/2));
+   let y=bounds&&(bounds.top+(point?point.y:bounds.height/2));
    screenVehicle.style.setProperty('--jalan-screen-heading',vector?.active?
      ((lastValidHeading||0)-vector.getBearing())+'deg':'0deg');
    const maxX=window.innerWidth,maxY=window.innerHeight;
    if(!Number.isFinite(x)||!Number.isFinite(y)||x<0||x>maxX||
-     y<0||y>maxY){screenVehicle.classList.add('hidden');syncMapAction();return;}
+     y<0||y>maxY){
+     if(exploring||focusedReport){screenVehicle.classList.add('hidden');syncMapAction();return;}
+     // A renderer can briefly lose its projection while the follow camera moves.
+     // Keep the triangle visible at its normal follow position for that frame.
+     x=maxX/2;y=viewAnchor().y;
+   }
    screenVehicle.style.left=x+'px';
    screenVehicle.style.top=y+'px';
    screenVehicle.classList.remove('hidden');syncMapAction();
@@ -280,8 +285,8 @@
    // GPS heading is meaningful only when actually moving. At low speed use
    // the direction of the selected route segment, explicitly an estimate.
    const gpsHeadingReliable=Number.isFinite(heading)&&heading>=0&&heading<360&&
-     Number.isFinite(speed)&&speed>=2.5;
-   const ahead=routeAheadCenter(position,60);
+     (Number.isFinite(detail.vehicleHeading)||(Number.isFinite(speed)&&speed>=2.5));
+   const ahead=detail.matched&&!gpsHeadingReliable&&lastValidHeading===null?routeAheadCenter(position,60):position;
    const x=(ahead[1]-position[1])*Math.cos(position[0]*Math.PI/180);
    const y=ahead[0]-position[0];
    const alongMeters=Math.hypot(x,y)*111320;
@@ -840,7 +845,7 @@
  window.addEventListener('jalan:gps-fix',event=>{
    lastGPSDetail=event.detail;
    if(returnPending&&!mapContacts.size&&!gesture&&!document.hidden)recenterPassenger();
-   // Never move the camera on an unmatched, stale, or inaccurate fix.
+   // The follow camera tracks accepted GPS during route matching and rerouting.
    if(updateVehicle(event.detail))followPassengerGPS(event.detail);
    requestAnimationFrame(()=>syncGPS(event.detail));
  });

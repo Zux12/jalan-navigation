@@ -45,8 +45,8 @@ function scene({tomtom=true,auto=true}={}){
  vm.runInContext(app.slice(app.indexOf('async function requestDrivingRoutes('),app.indexOf('async function calculateRoutes(')),context);
  node('tt-primary').checked=tomtom;node('tt-key').value='syntheticTestKey123';
  if(auto)node('gps-auto').onclick();node('gps-start').onclick();
- const feed=(position,delta=3000,accuracy=8,stamp=null)=>{
-  now+=delta;watch({timestamp:stamp??now,coords:{latitude:position[0],longitude:position[1],accuracy,speed:5,heading:90}});
+ const feed=(position,delta=3000,accuracy=8,stamp=null,speed=5,heading=90)=>{
+  now+=delta;watch({timestamp:stamp??now,coords:{latitude:position[0],longitude:position[1],accuracy,speed,heading}});
  };
  const detour=(cold=false)=>{if(!cold)feed([3,101.6],0);for(let i=1;i<=6;i++)feed([3.0008,101.6+i*.0001]);};
  const flush=async()=>{for(let i=0;i<4;i++)await new Promise(r=>setImmediate(r));};
@@ -77,7 +77,7 @@ for(const tomtom of [true,false])test(`sustained detour replaces ${tomtom?'TomTo
  assert.equal(s.requests.length,1,'one request after confirmed deviation, not each GPS callback');
  assert.equal(s.state().matched,false,'off-route location must not claim a match to the old road');
  assert.equal(s.state().deviationConfirmed,true);
- assert.equal(s.state().vehiclePosition[0],3,'display remains on the selected route during a real detour');
+ assert.deepEqual(s.state().vehiclePosition,s.state().gpsPosition,'the vehicle follows the detour while its route request is pending');
  assert.ok(s.state().gpsPosition[0]>3,'measured GPS remains off route for recovery');
  assert.equal(s.state().route,s.original);assert.equal(s.state().active,true);
  assert.equal(s.watches,1);assert.equal(s.watchClears,0);assert.equal(s.clears,0);
@@ -85,9 +85,11 @@ for(const tomtom of [true,false])test(`sustained detour replaces ${tomtom?'TomTo
  assert.equal(request.hostname,tomtom?'api.tomtom.com':'router.project-osrm.org');
  if(tomtom){assert.match(request.pathname,/3\.000800,101\.600[0-9]+:3\.000000,101\.610000/);assert.equal(request.searchParams.get('sectionType'),'traffic');}
  else assert.match(request.pathname,/101\.600[0-9]+,3\.0008;101\.61,3/);
+ const later=[3.00095,101.6007];
+ s.feed(later,2000);assert.deepEqual(Array.from(s.state().vehiclePosition),later);
  await s.finish();
  assert.notEqual(s.state().route,s.original);assert.equal(s.state().route.duration,200);
- assert.ok(s.state().vehiclePosition[0]>3,'new route projection commits before another GPS callback');
+ assert.deepEqual(Array.from(s.state().vehiclePosition),later,'route arrival must not rewind the live vehicle');
  assert.equal(s.context.destination,s.destination);assert.equal(s.state().active,true);
  assert.equal(s.watches,1,'detour replacement must retain the original geolocation watch');
  assert.equal(s.watchClears,0,'successful route swap does not clear GPS');
@@ -203,18 +205,72 @@ test('pending lateral drift does not feed route history or trigger a new route',
  const s=scene();s.feed([3,101.601]);const count=s.matcherFeeds;
  s.feed([3.00025,101.6011]);s.feed([3.0003,101.6012]);
  assert.equal(s.matcherFeeds,count,'unconfirmed road change is quarantined from route progress');
- assert.equal(s.state().matched,false);assert.equal(s.state().vehiclePosition[0],3);
+ assert.equal(s.state().matched,false);assert.deepEqual(Array.from(s.state().vehiclePosition),[3.0003,101.6012]);
  assert.equal(s.requests.length,0);
  s.feed([3,101.6013]);assert.equal(s.matcherFeeds,count+1);
  assert.equal(s.state().matched,true,'credible road-aligned measurements resume matching');
 });
 
-test('route-locked display favours the current leg over a nearby opposite-direction return leg',()=>{
+test('small aligned GPS drift favours the current leg over a nearby opposite-direction return leg',()=>{
  const s=scene();s.context.window.JalanGPS.stop();
  s.context.routes=[{provider:'osrm',duration:600,distance:2300,legs:[],geometry:{type:'LineString',
   coordinates:[[101.6,3],[101.61,3],[101.61,3.00012],[101.6,3.00012]]}}];
  s.node('gps-start').onclick();s.feed([3,101.6008]);
- s.feed([3.00011,101.601]);
+ s.feed([3.0001,101.601]);
  assert.equal(s.state().vehiclePosition[0],3,'drift toward the opposite return leg cannot transfer the display to it');
  assert.ok(s.state().gpsPosition[0]>3,'actual GPS is not rewritten to make that display claim');
+});
+
+test('a manual check uses the latest raw GPS even before a turn is confirmed',async()=>{
+ const s=scene({auto:false});s.feed([3,101.601]);s.feed([3.00025,101.6011]);
+ assert.equal(s.state().matched,false);assert.equal(s.state().deviationConfirmed,false);
+ void s.node('gps-reroute').onclick();
+ assert.match(s.requests[0].url.pathname,/3\.000250,101\.601100:/);
+ await s.finish();
+ assert.deepEqual(Array.from(s.state().vehiclePosition),[3.00025,101.6011]);
+});
+test('movement during a slow response requests once more from the newest fix',async()=>{
+ const s=scene();s.detour();s.feed([3.0008,101.603],10000);
+ await s.finish();assert.equal(s.renders,0);assert.equal(s.requests.length,2);
+ assert.match(s.requests[1].url.pathname,/3\.000800,101\.603000:/);
+ s.feed([3.0008,101.605],10000);await s.finish();
+ assert.equal(s.requests.length,2,'a slow provider cannot cause an unlimited retry loop');
+ assert.deepEqual(Array.from(s.state().vehiclePosition),[3.0008,101.605]);
+});
+test('a map style change or unavailable provider does not interrupt the moving marker',async()=>{
+ const s=scene();s.context.window.JalanVectorMap={nearbyRoads(){throw Error('Style loading')}};
+ s.detour();await s.finish({ok:false});
+ for(const point of [[3.0009,101.6007],[3.001,101.6008]]){
+  s.feed(point);assert.deepEqual(Array.from(s.state().vehiclePosition),point);
+ }
+ const last=s.state().vehiclePosition;s.failGPS();
+ assert.deepEqual(s.state().vehiclePosition,last);
+ s.feed([3.0011,101.6009]);assert.deepEqual(Array.from(s.state().vehiclePosition),[3.0011,101.6009]);
+});
+test('switching to a faster traffic route keeps the same GPS watch and latest vehicle',()=>{
+ const s=scene();s.feed([3,101.6]);s.feed([3,101.6003]);
+ const before=s.state().vehiclePosition;
+ assert.equal(s.context.window.JalanGPS.applyTrafficRoute({...s.original,duration:500}),true);
+ assert.deepEqual(s.state().vehiclePosition,before);assert.equal(s.watches,1);assert.equal(s.watchClears,0);
+ assert.equal(s.state().route.duration,500);assert.equal(s.state().matched,false);
+});
+
+test('GPS coordinates still turn the triangle when the phone omits heading and speed',()=>{
+ const s=scene({auto:false});s.feed([3,101.601]);
+ for(const latitude of [3.00012,3.00024,3.00036]){
+  s.feed([latitude,101.601],2000,8,null,null,null);
+  assert.deepEqual(Array.from(s.state().vehiclePosition),[latitude,101.601]);
+  assert.equal(s.state().vehicleHeading,0);
+ }
+ assert.equal(s.requests.length,0);
+});
+
+test('stopping mid-turn holds the measured triangle when the phone drops its heading',()=>{
+ const s=scene({auto:false});s.feed([3,101.601]);
+ const turn=[3.00009,101.601];s.feed(turn,2000,8,null,5,0);
+ assert.deepEqual(Array.from(s.state().vehiclePosition),turn);
+ s.feed(turn,1000,8,null,0,null);
+ assert.deepEqual(Array.from(s.state().vehiclePosition),turn);
+ s.feed([3.00018,101.601],2000,8,null,5,0);
+ assert.deepEqual(Array.from(s.state().vehiclePosition),[3.00018,101.601]);
 });

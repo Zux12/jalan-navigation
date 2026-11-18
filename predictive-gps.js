@@ -98,7 +98,7 @@
     lastRoad={position:match.position,along:match.along,time,heading:match.bearing,motionHeading:course??match.bearing};pending=null;departed=false;departureLine=null;
     return {position:match.position,heading:match.bearing,onRoute:true,certain:true,allowDeviation:false,mode:'road-aligned'};
    }
-   if(departed&&roads===null)
+   if(departed&&(!departureLine||roads===null))
     return {position:raw,onRoute:false,certain:false,allowDeviation:true,mode:'departure-unverified'};
    if(departed&&departureLine){
     const previousRoad=nearest(raw,departureLine);
@@ -106,7 +106,7 @@
      return {position:previousRoad.position,onRoute:false,certain:true,allowDeviation:true,mode:'road-departure'};
    }
    const held=match.distance<=80?match.position:(lastRoad?.position||raw);
-   if(!pending||time-pending.lastTime>7000){pending={first:[...raw],firstTime:time,lastTime:time,count:1,
+   if(!pending||time-pending.lastTime>7000){pending={first:[...raw],firstOffset:match.distance,firstTime:time,lastTime:time,count:1,
     motionHeading:lastRoad?.motionHeading??null,motionTime:lastRoad?.time??time,turnPlausible:true};}
    else{pending.count++;pending.lastTime=time;}
    const elapsed=(time-pending.firstTime)/1000,travel=dist(pending.first,raw),
@@ -143,12 +143,15 @@
    }
    if(supported&&pending.count>=3&&elapsed>=2){departed=true;departureLine=supported.line;
     return {position:supported.position,onRoute:false,certain:true,allowDeviation:true,mode:'road-departure'};}
-   // Raster/offline maps may have no road geometry. Require longer coherent
-   // motion, keep the display explicitly unverified, and still permit recovery.
-   if(roads===null&&coherent&&possibleTurn&&pending.count>=4&&elapsed>=8){departed=true;
-    return {position:raw,onRoute:false,certain:false,allowDeviation:true,mode:'departure-unverified'};}
-   if(departed&&coherent&&possibleTurn&&roads===null)
+   // Tile coverage can omit a real exit. Several accurate fixes moving
+   // progressively farther from the route can confirm departure without
+   // claiming the name or geometry of any particular road.
+   const separating=match.distance>=Math.max(40,2*accuracy)&&
+    match.distance-pending.firstOffset>=Math.max(25,accuracy*2);
+   if((roads===null||separating)&&coherent&&possibleTurn&&pending.count>=4&&elapsed>=8){
+    departed=true;departureLine=null;
     return {position:raw,onRoute:false,certain:false,allowDeviation:true,mode:'departure-unverified'};
+   }
    return {position:held,heading:lastRoad?.heading,onRoute:false,certain:false,allowDeviation:false,mode:'checking-drift'};
   }
   return {feed};
