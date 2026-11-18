@@ -50,7 +50,7 @@ async function main(){
   const lateNavigation=late.goto(base+'/index.html?mode=passenger',{waitUntil:'load'});
   await late.waitForFunction(()=>document.getElementById('map')?._leaflet_id);
   assert.equal(await late.locator('#jalan-launch').isVisible(),true);
-  await late.clock.fastForward(23000);await late.clock.runFor(350);
+  await late.clock.fastForward(23000);await late.clock.runFor(1850);
   assert.equal(await late.locator('#jalan-launch').count(),0,'watchdog reveals usable basic map after stalled local bundle');
   releaseBundle();await lateNavigation;
   assert.equal(await late.evaluate(()=>window.JalanLaunch.basicOnly),true);
@@ -69,6 +69,9 @@ async function main(){
   await page.screenshot({path:path.join(artifacts,'jalan-launch-screen.png')});
   releaseStyle();
   await page.waitForFunction(()=>window.JalanVectorMap?.active,null,{timeout:25000});
+  assert.equal(await page.locator('#jalan-launch').isVisible(),true,'ready map still leaves time to read the tagline');
+  await page.waitForTimeout(500);
+  assert.equal(await page.locator('#jalan-launch').isVisible(),true,'launch branding remains during the added1.5second reading interval');
   await page.locator('#jalan-launch').waitFor({state:'hidden'});
   assert.equal(await page.locator('#map').evaluate(x=>getComputedStyle(x).visibility),'visible','reveal only after native renderer ready');
   assert.equal(await page.locator('#map').evaluate(x=>getComputedStyle(x).transform),'none');
