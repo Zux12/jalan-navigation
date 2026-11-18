@@ -39,6 +39,14 @@ test('missing GPS speed cannot bypass the sharp-turn check',()=>{
  for(const lat of [3.0002,3.0004,3.0006,3.0008])result=s.feed([lat,101.601],{speed:null,heading:null,roads:[branch]});
  assert.equal(result.allowDeviation,false);assert.equal(result.certain,false);
 });
+test('a gradual moving exit can accumulate a turn without being treated as an abrupt jump',()=>{
+ const s=scene();s.feed([3,101.601],{speed:20});
+ const trace=[[3.00002,101.6011,80],[3.00007,101.6012,65],[3.00015,101.6013,50],
+  [3.00026,101.60138,35],[3.0004,101.60142,15]];
+ const exit={coordinates:[[101.601,3],...trace.map(([lat,lng])=>[lng,lat])]};let result;
+ for(const [lat,lng,heading] of trace)result=s.feed([lat,lng],{speed:20,heading,roads:[exit]});
+ assert.equal(result.mode,'road-departure');assert.equal(result.certain,true);
+});
 test('parallel roads and bridge/tunnel crossings do not establish a turn connection',()=>{
  for(const road of [{coordinates:[[101.6,3.0004],[101.61,3.0004]]},{...branch,bridge:true},{...branch,layer:1}]){
   const s=scene();s.feed([3,101.601]);let result;

@@ -95,7 +95,7 @@
      return {position:established.position,onRoute:false,certain:true,allowDeviation:true,mode:'road-departure'};
    }
    if(match.distance<=band&&!diverging){
-    lastRoad={position:match.position,along:match.along,time,heading:match.bearing};pending=null;departed=false;departureLine=null;
+    lastRoad={position:match.position,along:match.along,time,heading:match.bearing,motionHeading:course??match.bearing};pending=null;departed=false;departureLine=null;
     return {position:match.position,heading:match.bearing,onRoute:true,certain:true,allowDeviation:false,mode:'road-aligned'};
    }
    if(departed&&roads===null)
@@ -106,7 +106,8 @@
      return {position:previousRoad.position,onRoute:false,certain:true,allowDeviation:true,mode:'road-departure'};
    }
    const held=match.distance<=80?match.position:(lastRoad?.position||raw);
-   if(!pending||time-pending.lastTime>7000){pending={first:[...raw],firstTime:time,lastTime:time,count:1};}
+   if(!pending||time-pending.lastTime>7000){pending={first:[...raw],firstTime:time,lastTime:time,count:1,
+    motionHeading:lastRoad?.motionHeading??null,motionTime:lastRoad?.time??time,turnPlausible:true};}
    else{pending.count++;pending.lastTime=time;}
    const elapsed=(time-pending.firstTime)/1000,travel=dist(pending.first,raw),
     pathHeading=travel>=Math.max(8,accuracy)?bearing(pending.first,raw):null,
@@ -114,8 +115,13 @@
     turnTime=lastRoad?Math.max(1,Math.min(6,(pending.firstTime-lastRoad.time)/1000)+1):6,
     turnCourse=course??pathHeading,
     velocity=Number.isFinite(speed)&&speed>=0?speed:(elapsed>0?travel/elapsed:0),
-    turnRate=lastRoad&&turnCourse!==null?velocity*rad(difference(turnCourse,lastRoad.heading))/turnTime:0,
-    possibleTurn=turnRate<=5; // Conservative lateral-acceleration screen, not vehicle physics proof.
+    turnRate=pending.motionHeading!==null&&turnCourse!==null?
+     velocity*rad(difference(turnCourse,pending.motionHeading))/Math.max(1,(time-pending.motionTime)/1000+1):0;
+   // Check each observed change, so a gradual highway exit is distinguished
+   // from one abrupt right-angle jump. The extra second allows GPS sampling lag.
+   pending.turnPlausible=pending.turnPlausible&&turnRate<=5;
+   if(turnCourse!==null){pending.motionHeading=turnCourse;pending.motionTime=time;}
+   const possibleTurn=pending.turnPlausible;
    let supported=null;
    const elevatedBaseline=lastRoad&&Array.isArray(roads)&&roads.some(road=>{
     if(!road.bridge&&!road.tunnel&&Number(road.layer||0)===0)return false;
