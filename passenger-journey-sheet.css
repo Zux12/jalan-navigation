@@ -1,8 +1,8 @@
 /* Active journey details share the existing time/distance/search banner. */
 body.passenger-guiding .passenger-bottom{
- --journey-peek:88px;--journey-full:340px;box-sizing:border-box;
+ --journey-peek:calc(88px + env(safe-area-inset-bottom,0px));--journey-full:calc(340px + env(safe-area-inset-bottom,0px));box-sizing:border-box;
  height:var(--journey-full);
- display:flex;flex-direction:column;padding:0 14px 14px;
+ display:flex;flex-direction:column;padding:0 14px calc(14px + env(safe-area-inset-bottom,0px));
  max-height:calc(100dvh - 180px - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px));
  overflow:hidden;background:#fff;touch-action:pan-y;
  transform:none;transition:height .22s ease;

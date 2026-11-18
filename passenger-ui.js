@@ -17,7 +17,7 @@
  const viewAnchor=()=>{
    const barTop=el('passenger-journey-sheet').getBoundingClientRect().top;
    if(document.body.classList.contains('passenger-guiding')){
-     const base=window.JalanVectorMap?.active?22:0,
+     const base=0,
        offset=Math.max(base,innerHeight-barTop-(innerHeight<=650?98:108)+12)+'px';
      if(document.body.style.getPropertyValue('--passenger-map-footer-offset')!==offset)
        document.body.style.setProperty('--passenger-map-footer-offset',offset);

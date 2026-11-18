@@ -157,6 +157,7 @@ async function main(){
   assert.ok(placement.y>450&&placement.y<750,'vehicle is in lower visible map area');
   const assertAnchor=async()=>{
    await page.waitForFunction(()=>{const v=document.getElementById('passenger-vehicle-screen').getBoundingClientRect(),b=document.getElementById('passenger-journey-sheet').getBoundingClientRect();return Math.abs(b.top-v.bottom-12)<3;});
+   assert.ok(await page.locator('#passenger-journey-sheet').evaluate(el=>Math.abs(innerHeight-el.getBoundingClientRect().bottom)<1),'native journey banner reaches phone bottom');
   };
   await assertAnchor();
   await page.locator('#jalan-home-menu').click();
@@ -249,10 +250,10 @@ async function main(){
   console.log('PASS native map: held drag, three-second return after release and report/Recenter swap');
   await page.locator('#jalan-home-menu').click();
   if(!await page.locator('#passenger-navigation-settings').evaluate(x=>x.open))await page.locator('#passenger-navigation-settings>summary').click();
-  await page.locator('#passenger-2d').click();
+  await page.locator('#passenger-nav-tilt').evaluate(el=>{el.value='0';el.dispatchEvent(new Event('input',{bubbles:true}));});
   assert.equal(await page.evaluate(()=>JalanVectorMap.getPitch()),0);
   if(!await page.locator('#passenger-navigation-settings').evaluate(x=>x.open))await page.locator('#passenger-navigation-settings>summary').click();
-  await page.locator('#passenger-2d').click();
+  await page.locator('#passenger-nav-tilt').evaluate(el=>{el.value='100';el.dispatchEvent(new Event('input',{bubbles:true}));});
   assert.equal(await page.evaluate(()=>JalanVectorMap.getPitch()),60);
   await page.locator('#jalan-home-menu').click();
   await page.evaluate(()=>{

@@ -9,8 +9,9 @@
  const active=()=>document.body.classList.contains('passenger-guiding');
  function measure(){
   if(!active())return 0;
-  const peek=handle.offsetHeight+panel.querySelector('.passenger-stats').offsetHeight+14;
-  const cap=parseFloat(getComputedStyle(panel).maxHeight)||innerHeight-190;
+  const style=getComputedStyle(panel);
+  const peek=handle.offsetHeight+panel.querySelector('.passenger-stats').offsetHeight+(parseFloat(style.paddingBottom)||0);
+  const cap=parseFloat(style.maxHeight)||innerHeight-190;
   const full=Math.max(peek,Math.min(cap,peek+content.scrollHeight));
   panel.style.setProperty('--journey-peek',peek+'px');
   panel.style.setProperty('--journey-full',full+'px');return full-peek;
