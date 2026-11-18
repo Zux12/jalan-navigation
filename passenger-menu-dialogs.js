@@ -24,6 +24,7 @@
   '<dl><dt>Application algorithms &amp; navigation logic</dt><dd>IgniteInno Ventures</dd></dl></section>'+
   '<h3 class="jalan-about-support-title">Supporting technology &amp; services</h3><dl class="jalan-about-support">'+
   '<dt>Map and map data</dt><dd><a href="https://openfreemap.org/" target="_blank" rel="noopener noreferrer">OpenFreeMap</a> · '+
+  '<a href="https://openmaptiles.org/" target="_blank" rel="noopener noreferrer">© OpenMapTiles</a> · '+
   '<a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">© OpenStreetMap contributors</a></dd>'+
   '<dt>Routing and traffic</dt><dd><a href="https://www.tomtom.com/" target="_blank" rel="noopener noreferrer">TomTom</a></dd>'+
   '<dt>Destination search</dt><dd>OpenStreetMap Nominatim</dd>'+

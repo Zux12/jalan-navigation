@@ -101,7 +101,7 @@ async function main(){
   await page.locator('#passenger-about').click();
   assert.match(await page.locator('#passenger-about-dialog').innerText(),/IgniteInno Ventures/);
   assert.match(await page.locator('#passenger-app-version').innerText(),/4.8.0/);
-  assert.equal(await page.locator('#passenger-about-dialog a').count(),5);
+  assert.equal(await page.locator('#passenger-about-dialog a').count(),6);
   assert.doesNotMatch(await page.locator('#passenger-app-version').innerText(),/test/i);
   await page.screenshot({path:path.join(root,'test-artifacts/passenger-about-igniteinno.png')});
   await page.locator('#passenger-about-ok').click();

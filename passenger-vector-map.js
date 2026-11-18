@@ -356,7 +356,7 @@
      gl=new maplibregl.Map({container,style:'https://tiles.openfreemap.org/styles/positron',
        center:[center.lng,center.lat],zoom:map.getZoom()-1,minZoom:2,maxZoom:19,maxPitch:60,
        maxTileCacheSize:96,pixelRatio:Math.min(window.devicePixelRatio||1,2),
-       attributionControl:{compact:true},canvasContextAttributes:{antialias:true}});
+       attributionControl:{compact:false},canvasContextAttributes:{antialias:true}});
      gl.on('error',event=>{
        if(event.sourceId&&rasters.has(event.sourceId))rasters.get(event.sourceId).layer.fire('tileerror');
        else if(active){
@@ -377,16 +377,15 @@
          document.body.classList.add('passenger-vector-active');
          gl.resize();syncLayers();syncCamera();clearTimeout(timer);
          status.textContent='';emit();
-         // Show required data credits initially, then allow a compact (i) control.
-         // An explicit interaction keeps them open; no credit links are removed.
+         // Show source credits on initial load, then collapse them completely.
+         // Full linked data credits remain in the same-page menu About dialog.
          const credit=container.querySelector('.maplibregl-ctrl-attrib');
          let creditTouched=false;
          credit?.addEventListener('pointerdown',()=>{creditTouched=true;});
          credit?.addEventListener('keydown',()=>{creditTouched=true;});
          setTimeout(()=>{
-           if(active&&!creditTouched&&!credit?.contains(document.activeElement)&&
-              credit?.classList.contains('maplibregl-compact-show'))
-             credit.querySelector('.maplibregl-ctrl-attrib-button')?.click();
+           if(active&&!creditTouched&&!credit?.contains(document.activeElement)&&credit)
+             credit.style.display='none';
          },5500);
        }catch{fallback();}
      });
