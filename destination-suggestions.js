@@ -3,14 +3,14 @@
  'use strict';
  const input=document.getElementById('destination'),list=document.getElementById('results'),form=document.getElementById('search-form');
  if(!input||!list||!form)return;
- let timer,blurTimer,request,epoch=0,ownsList=false,items=[],active=-1,composing=false,cooldown=0;
+ let timer,blurTimer,request,epoch=0,ownsList=false,items=[],active=-1,composing=false,cooldown=0,googleActive=false;
  const cache=new Map();
  input.setAttribute('role','combobox');input.setAttribute('aria-autocomplete','list');
  input.setAttribute('aria-controls','results');input.setAttribute('aria-expanded','false');input.autocomplete='off';
  const key=()=>document.getElementById('tt-key')?.value.trim()||'';
  const canSearch=()=>/^[\w-]{8,160}$/.test(key());
  function cancel(){
-  clearTimeout(timer);clearTimeout(blurTimer);request?.abort();request=null;epoch++;active=-1;items=[];
+  clearTimeout(timer);clearTimeout(blurTimer);request?.abort();request=null;epoch++;active=-1;items=[];googleActive=false;
   input.setAttribute('aria-expanded','false');input.removeAttribute('aria-activedescendant');
   list.removeAttribute('aria-busy');
   if(ownsList){list.replaceChildren();list.classList.add('hidden');list.removeAttribute('role');list.removeAttribute('aria-label');}
@@ -43,11 +43,23 @@
  async function search(query,id){
   if(id!==epoch||!canSearch()||document.hidden)return;
   const cached=cache.get(query.toLowerCase());
-  if(cached&&Date.now()-cached.at<300000){render(cached.places);return;}
+  const google=window.JalanGooglePlaceSearch,withGoogle=google?.configured()===true;
+  if(cached&&Date.now()-cached.at<300000&&!withGoogle){render(cached.places);return;}
   if(Date.now()<cooldown){message('Suggestions are busy. Tap Search or try again shortly.');return;}
   const controller=new AbortController();request=controller;const timeout=setTimeout(()=>controller.abort(),8000);
   message('Finding places…');list.setAttribute('aria-busy','true');
-  const current=()=>id===epoch&&input.value.trim()===query&&!document.hidden&&document.activeElement===input;
+  const current=()=>id===epoch&&input.value.trim()===query&&!document.hidden&&(document.activeElement===input||list.contains(document.activeElement));
+  async function fallback(){
+   clearTimeout(timeout);googleActive=true;items=[];active=-1;
+   message('Finding more places…');list.removeAttribute('role');list.setAttribute('role','region');list.setAttribute('aria-label','Google destination results');
+   input.setAttribute('aria-expanded','false');input.removeAttribute('aria-activedescendant');
+   await google.mount({query,container:list,signal:controller.signal,
+    onSelect:place=>{if(!current())return;cancel();input.blur();selectDestinationPlace(place);},
+    onEmpty:()=>{if(current()){googleActive=false;message('No matching places found. Try a fuller place name.');}},
+    onError:()=>{if(current()){googleActive=false;message('Google suggestions unavailable. Try again shortly.');}},
+    onReady:()=>{if(current())list.removeAttribute('aria-busy');}
+   });
+  }
   try{
    const url=new URL('https://api.tomtom.com/search/2/search/'+encodeURIComponent(query)+'.json');
    url.searchParams.set('key',key());url.searchParams.set('typeahead','true');url.searchParams.set('countrySet','MY');url.searchParams.set('limit','5');
@@ -56,10 +68,15 @@
    if(response.status===429)cooldown=Date.now()+30000;
    if(!response.ok)throw Error('Suggestions unavailable');
    const places=normalize(await response.json());if(!current())return;
+   if(withGoogle){
+    const matching=places.filter(place=>window.JalanDestinationMatch.matches(query,place));
+    if(!matching.length){await fallback();return;}
+    render(matching);return;
+   }
    cache.set(query.toLowerCase(),{at:Date.now(),places});if(cache.size>20)cache.delete(cache.keys().next().value);
    render(places);
   }catch{if(current())message('Suggestions unavailable. Tap Search to try again.');}
-  finally{clearTimeout(timeout);if(id===epoch){list.removeAttribute('aria-busy');request=null;}}
+  finally{clearTimeout(timeout);if(id===epoch){list.removeAttribute('aria-busy');if(!googleActive)request=null;}}
  }
  function schedule(){
   cancel();if(composing)return;
@@ -71,7 +88,8 @@
  input.addEventListener('input',schedule);
  input.addEventListener('compositionstart',()=>{composing=true;cancel();});
  input.addEventListener('compositionend',()=>{composing=false;schedule();});
- input.addEventListener('blur',()=>{blurTimer=setTimeout(cancel,180);});
+ input.addEventListener('blur',()=>{blurTimer=setTimeout(()=>{if(!list.contains(document.activeElement))cancel();},180);});
+ list.addEventListener('focusout',()=>{blurTimer=setTimeout(()=>{if(document.activeElement!==input&&!list.contains(document.activeElement))cancel();},180);});
  input.addEventListener('keydown',event=>{
   if(composing||event.isComposing||!ownsList)return;
   if(event.key==='Escape'){event.preventDefault();event.stopPropagation();cancel();return;}
@@ -83,10 +101,18 @@
    list.children[active].scrollIntoView({block:'nearest'});
   }else if(event.key==='Enter'&&active>=0){event.preventDefault();event.stopPropagation();select(active);}
  });
- form.addEventListener('submit',cancel,true);
+ form.addEventListener('submit',event=>{
+  const useFallback=window.JalanGooglePlaceSearch?.configured()===true;
+  cancel();
+  if(useFallback){
+   event.preventDefault();event.stopImmediatePropagation();input.focus();
+   const query=input.value.trim();if(query.length>=3)search(query,epoch);
+  }
+ },true);
  document.getElementById('tt-key')?.addEventListener('input',()=>{cache.clear();cancel();});
  document.getElementById('tt-remove-key')?.addEventListener('click',()=>{cache.clear();cancel();});
  window.addEventListener('jalan:destination-selected',cancel);
  document.addEventListener('visibilitychange',()=>{if(document.hidden)cancel();});
  window.JalanDestinationSuggestions=Object.freeze({cancel});
 })();
+
