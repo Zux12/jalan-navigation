@@ -42,6 +42,10 @@ module.exports=async(page,context,base)=>{
  await page.locator('#passenger-journey-handle').click();
  await page.locator('#passenger-journey-stop').click();
  const atCurrent=()=>page.evaluate(()=>{
+  if(JalanGPS.getState().active){
+   const v=document.getElementById('passenger-vehicle-screen').getBoundingClientRect(),b=document.getElementById('passenger-journey-sheet').getBoundingClientRect();
+   return Math.abs(b.top-v.bottom-12)<4&&Math.abs(v.left+v.width/2-innerWidth/2)<4;
+  }
   const p=map.getCenter();return Math.abs(p.lat-window.__currentPlace[0])<.00001&&Math.abs(p.lng-window.__currentPlace[1])<.00001;
  });
  assert.equal(await atCurrent(),true,'Stop requests a fresh measured location and centers there');
@@ -87,7 +91,7 @@ module.exports=async(page,context,base)=>{
  await cdp.detach();
  // Both Stop entry points reset, and a late Stop location cannot steal a new route.
  await page.evaluate(()=>{window.__holdLocation=true;});
- await page.locator('#jalan-home-menu').click();await page.locator('#passenger-stop').click();
+ await page.locator('#jalan-home-menu').click();await page.locator('#passenger-navigation-settings>summary').click();await page.locator('#passenger-stop').click();
  assert.equal(await page.evaluate(()=>!JalanGPS.getState().active&&routes.length===0&&destination===null),true);
  await page.evaluate(()=>{
   document.getElementById('start-choice').value='map';setStart([3.139,101.6869],'Chosen test start');

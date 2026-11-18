@@ -814,6 +814,8 @@ async function main(){
   assert.match(await page.locator('#passenger-gesture-hint').innerText(),/Following GPS/);
   // Repeated identical GPS fixes must not invoke Leaflet setView or panTo:
   // this previously flashed raster tiles on the phone after Recenter.
+  await page.evaluate(()=>JalanPassengerCamera.setSetting('zoom',100));
+  assert.equal(await page.evaluate(()=>map.getZoom()),19,'raster maximum zoom respects available map capability');
   const stableCamera=await page.evaluate(()=>{
     const originalSet=map.setView.bind(map),originalPan=map.panTo.bind(map);
     let setCount=0,panCount=0;
@@ -831,6 +833,7 @@ async function main(){
   });
   assert.deepEqual(stableCamera,{setCount:0,panCount:0},
     'stationary GPS updates must not redraw the entire route camera');
+  await page.evaluate(()=>JalanPassengerCamera.setSetting('zoom',80));
   await menuClick('#passenger-recenter');
   assert.match(await page.locator('#passenger-gesture-hint').innerText(),/Following GPS/);
   assert.equal(await page.evaluate(()=>map.getZoom()),18.8,

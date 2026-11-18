@@ -13,7 +13,7 @@
  let viewSettings={...viewModel.defaults},lastTilt=viewModel.defaults.tilt;
  try{viewSettings=viewModel.sanitize(JSON.parse(localStorage.getItem(viewStorage)||'null'));}catch{}
  if(viewSettings.tilt>0)lastTilt=viewSettings.tilt;
- const navigationZoom=()=>viewModel.zoomLevel(viewSettings.zoom);
+ const navigationZoom=()=>Math.min(viewModel.zoomLevel(viewSettings.zoom),window.JalanVectorMap?.active?20:Math.min(20,map.getMaxZoom()));
  const viewAnchor=()=>{
    const barTop=el('passenger-journey-sheet').getBoundingClientRect().top;
    if(document.body.classList.contains('passenger-guiding')){
