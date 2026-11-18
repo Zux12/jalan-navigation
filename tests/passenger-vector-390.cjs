@@ -13,7 +13,7 @@ const style={version:8,sources:{streets:{type:'geojson',data:{type:'FeatureColle
 const server=http.createServer((req,res)=>{
  const name=path.resolve(root,'.'+new URL(req.url,'http://localhost').pathname);
  if(!name.startsWith(root+path.sep)||!fs.existsSync(name)||!fs.statSync(name).isFile()){res.writeHead(404);return res.end();}
- res.writeHead(200,{'content-type':name.endsWith('.js')?'application/javascript':name.endsWith('.css')?'text/css':'text/html'});
+ res.writeHead(200,{'content-type':name.endsWith('.js')?'application/javascript':name.endsWith('.css')?'text/css':name.endsWith('.ttf')?'font/ttf':'text/html'});
  res.end(path.basename(name)==='jalan-config.js'?"window.JalanPublicConfig=Object.freeze({tomtomBrowserKey:'',appVersion:'4.8.0-test',buildDate:'2026-11-18'});":fs.readFileSync(name));
 });
 async function main(){
@@ -50,7 +50,7 @@ async function main(){
   const lateNavigation=late.goto(base+'/index.html?mode=passenger',{waitUntil:'load'});
   await late.waitForFunction(()=>document.getElementById('map')?._leaflet_id);
   assert.equal(await late.locator('#jalan-launch').isVisible(),true);
-  await late.clock.fastForward(23000);await late.clock.runFor(1850);
+  await late.clock.fastForward(23000);await late.clock.runFor(4500);
   assert.equal(await late.locator('#jalan-launch').count(),0,'watchdog reveals usable basic map after stalled local bundle');
   releaseBundle();await lateNavigation;
   assert.equal(await late.evaluate(()=>window.JalanLaunch.basicOnly),true);
@@ -66,12 +66,18 @@ async function main(){
   assert.equal(await page.locator('#jalan-launch').isVisible(),true,'brand covers the old map while detailed style is pending');
   assert.equal(await page.locator('#map').evaluate(x=>getComputedStyle(x).visibility),'hidden');
   await page.waitForFunction(()=>document.querySelector('#jalan-launch img').naturalWidth>0);
-  await page.screenshot({path:path.join(artifacts,'jalan-launch-screen.png')});
+  assert.equal(await page.locator('.jalan-launch-tagline').textContent(),'Menemani Anda Sehingga ke Destinasi.');
+  assert.equal(await page.evaluate(async()=>{await document.fonts.load('600 29px "JALAN Script"');return document.fonts.check('600 29px "JALAN Script"');}),true,'bundled cursive font is ready');
+  assert.equal(await page.locator('.jalan-launch-tagline').evaluate(el=>getComputedStyle(el).animationName),'jalan-tagline-reveal');
+  await page.screenshot({path:path.join(artifacts,'jalan-launch-screen.png'),animations:'disabled'});
+  await page.emulateMedia({reducedMotion:'reduce'});
+  assert.equal(await page.locator('.jalan-launch-tagline').evaluate(el=>getComputedStyle(el).animationName),'none','reduced motion keeps readable static text');
+  await page.emulateMedia({reducedMotion:'no-preference'});
   releaseStyle();
   await page.waitForFunction(()=>window.JalanVectorMap?.active,null,{timeout:25000});
   assert.equal(await page.locator('#jalan-launch').isVisible(),true,'ready map still leaves time to read the tagline');
-  await page.waitForTimeout(500);
-  assert.equal(await page.locator('#jalan-launch').isVisible(),true,'launch branding remains during the added1.5second reading interval');
+  await page.waitForTimeout(2000);
+  assert.equal(await page.locator('#jalan-launch').isVisible(),true,'launch branding remains during the four-second reading interval');
   await page.locator('#jalan-launch').waitFor({state:'hidden'});
   assert.equal(await page.locator('#map').evaluate(x=>getComputedStyle(x).visibility),'visible','reveal only after native renderer ready');
   assert.equal(await page.locator('#map').evaluate(x=>getComputedStyle(x).transform),'none');
@@ -325,6 +331,7 @@ async function main(){
   assert.deepEqual(errors,[]);
   await page.evaluate(()=>{JalanPassengerCamera.setSetting('zoom',55);JalanPassengerCamera.setSetting('tilt',35);});
   await page.reload();
+  await page.locator('#jalan-launch').waitFor({state:'hidden'});
   await page.waitForFunction(()=>window.JalanPassengerCamera&&window.JalanVectorMap?.active);
   assert.deepEqual(await page.evaluate(()=>JalanPassengerCamera.getSettings()),{zoom:55,tilt:35},'view choices survive reload');
   assert.equal(await page.evaluate(()=>JalanVectorMap.getPitch()),0,'saved view applies to navigation, not route planning');
@@ -344,6 +351,7 @@ async function main(){
   await dependencies(startup);
   await startup.route('https://tiles.openfreemap.org/styles/positron',route=>route.fulfill({json:style}));
   await startup.goto(base+'/index.html?mode=passenger');
+  await startup.locator('#jalan-launch').waitFor({state:'hidden'});
   await startup.waitForFunction(()=>window.JalanVectorMap?.active&&window.JalanPassengerStartup?.ready,null,{timeout:12000});
   console.log('STARTUP MARKER DIAGNOSTIC',JSON.stringify(await startup.evaluate(()=>({
     ready:window.JalanPassengerStartup?.ready,
@@ -396,6 +404,7 @@ async function main(){
   await dependencies(weak);
   await weak.route('https://tiles.openfreemap.org/styles/positron',route=>route.fulfill({json:style}));
   await weak.goto(base+'/index.html?mode=passenger');
+  await weak.locator('#jalan-launch').waitFor({state:'hidden'});
   await weak.waitForFunction(()=>window.JalanVectorMap?.active&&
     document.getElementById('passenger-gps-status')?.dataset.quality==='red',null,{timeout:12000});
   assert.equal(await weak.locator('.passenger-startup-pin').count(),0);
@@ -417,6 +426,7 @@ async function main(){
    return route.fulfill({status:200,contentType:'application/x-protobuf',body:Buffer.alloc(0)});
   });
   await outage.goto(base+'/index.html?mode=passenger');
+  await outage.locator('#jalan-launch').waitFor({state:'hidden'});
   await outage.waitForFunction(()=>JalanVectorMap?.active,null,{timeout:25000});
   await outage.evaluate(routeFixture);
   await outage.locator('#passenger-go').click();
@@ -452,6 +462,7 @@ async function main(){
    }
   });
   await live.goto(base+'/index.html?mode=passenger');
+  await live.locator('#jalan-launch').waitFor({state:'hidden'});
   await live.waitForFunction(()=>JalanVectorMap?.active,null,{timeout:25000});
   await live.evaluate(routeFixture);
   await live.locator('#passenger-go').click();
