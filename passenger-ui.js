@@ -399,6 +399,10 @@
        title:report.type.toUpperCase()+' · unverified demo report',
        detail:'Local demonstration report',source:'demo'});
    }
+   for(const report of window.JalanCommunityReports?.routeItems?.()||[]){
+     const type=window.JalanReportModel.types[report.type];
+     items.push({lat:report.position[1],lng:report.position[0],title:type.label+' · '+report.contributors+' community report'+(report.contributors===1?'':'s'),detail:'Community report · expires '+new Date(report.expiresAt).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}),routeAlong:report.routeAlong,routeTotal:report.routeTotal,source:'community',icon:type.icon});
+   }
    const freshIncidents=incidentSnapshot.route===route&&
      Date.now()-incidentSnapshot.checkedAt<=10*60*1000?incidentSnapshot.incidents:[];
    for(const incident of freshIncidents){
@@ -414,13 +418,13 @@
      // A provider TRAFFIC section is associated with this exact TomTom route.
      // Never re-filter that section with the old 25m corridor.
      // The local unverified demo reports retain their own proximity check.
-     if(item.source==='tomtom'&&!(Number.isFinite(item.routeAlong)&&
+     if(item.source!=='demo'&&!(Number.isFinite(item.routeAlong)&&
         Number.isFinite(item.routeTotal)&&item.routeTotal>0&&
         item.routeAlong>=0&&item.routeAlong<=item.routeTotal))continue;
-     const projected=item.source==='tomtom'?
+     const projected=item.source!=='demo'?
        {along:item.routeAlong,total:item.routeTotal,offset:0}:
        pointOnRoute([item.lat,item.lng],coords);
-     if(!projected||(item.source!=='tomtom'&&
+     if(!projected||(item.source==='demo'&&
         projected.offset>window.JalanTomTom.reportRouteTolerance)||
         (current&&projected.along<current.along-30))continue;
      positioned.push({...item,ahead:current?Math.max(0,projected.along-current.along):null,routeAlong:projected.along,
@@ -432,7 +436,7 @@
            marker=document.createElement('span'),
            info=document.createElement('div'),title=document.createElement('strong'),
            distances=document.createElement('small'),detail=document.createElement('small');
-     marker.className='turn-list-arrow';marker.textContent=item.source==='demo'?'⚠️':'🚧';
+     marker.className='turn-list-arrow';marker.textContent=item.icon||(item.source==='demo'?'⚠️':'🚧');
      marker.setAttribute('aria-hidden','true');
      button.type='button';button.className='passenger-report-button';
      button.setAttribute('aria-label','View report on map: '+item.title+' · '+item.detail);
@@ -570,6 +574,7 @@
    el('gps-reroute').click();
  });
  window.addEventListener('jalan:navigation-settings',syncNavigationSettings);
+ window.addEventListener('jalan:community-reports',()=>{if(!turnList.classList.contains('hidden')&&activeInfoTab==='reports')renderReports();});
  window.addEventListener('jalan:reroute-status',event=>{
    if(!document.body.classList.contains('passenger-guiding'))return;
    const detail=event.detail||{};

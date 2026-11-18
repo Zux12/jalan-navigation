@@ -75,6 +75,28 @@
    getBearing(){return active?gl.getBearing():0;},
    getPitch(){return active?gl.getPitch():0;},
    setCamera(options){if(active)gl.jumpTo(options);},
+   getReportRoad(position,heading){
+     try{
+     const P=window.JalanReportModel;if(!active||!P||!P.coord(position)||!P.heading(heading))return null;
+     const layers=gl.getStyle().layers.filter(l=>l.type==='line'&&l['source-layer']==='transportation').map(l=>l.id);
+     if(!layers.length)return null;
+     const point=gl.project(lngLat([position[1],position[0]])),seen=new Set(),candidates=[];
+     for(const feature of gl.queryRenderedFeatures([[point.x-45,point.y-45],[point.x+45,point.y+45]],{layers})){
+       const p=feature.properties||{};if(!['motorway','trunk','primary','secondary','tertiary','minor','service','residential','unclassified','living_street'].includes(p.class))continue;
+       const lines=feature.geometry.type==='LineString'?[feature.geometry.coordinates]:feature.geometry.type==='MultiLineString'?feature.geometry.coordinates:[];
+       for(const line of lines){const match=P.project(position,line);if(!match||match.offset>20||Math.min(P.delta(match.heading,heading),P.delta((match.heading+180)%360,heading))>40)continue;
+         const level=String(p.layer??0)+':'+String(p.brunnel||'surface');
+         const raw=String(p.osm_id??feature.id??JSON.stringify(line))+'|'+p.class+'|'+level;
+         let hash=2166136261;for(let i=0;i<raw.length;i++)hash=Math.imul(hash^raw.charCodeAt(i),16777619);
+         const key='vector-'+(hash>>>0).toString(16);if(seen.has(key))continue;seen.add(key);candidates.push({key,level,offset:match.offset});
+       }
+     }
+     candidates.sort((a,b)=>a.offset-b.offset);
+     // Ambiguous parallel/crossing roads remain unmatched rather than guessed.
+     if(!candidates.length||(candidates[1]&&candidates[1].offset-candidates[0].offset<5))return null;
+     return {key:candidates[0].key,level:candidates[0].level};
+     }catch{return null;}
+   },
    nearbyRoads(position,origin=position){
      if(!active)return null;
      const layers=gl.getStyle().layers.filter(l=>l.type==='line'&&l['source-layer']==='transportation').map(l=>l.id);

@@ -78,6 +78,7 @@ async function main(){
     'unverified GPS must never display invented speed');
   await page.locator('#jalan-home-report').click();
   assert.equal(await page.locator('#jalan-home-notice').isVisible(),false,'report placeholder popup is removed');
+ await page.locator('#passenger-report-cancel').click();
   await page.locator('#jalan-home-menu').click();
   assert.equal(await page.locator('#jalan-home-menu-panel').isVisible(),true);
   assert.equal(await page.locator('#jalan-home-notice').isVisible(),false,'old notices do not obscure the menu');
@@ -1163,6 +1164,7 @@ async function main(){
   await require('./passenger-follow-390.cjs')(page,context,base);
   await require('./passenger-route-start-390.cjs')(browser,base,root);
   await require('./passenger-drift-390.cjs')(page,base);
+  await require('./passenger-reporting-390.cjs')(browser,base,root);
   await page.goto(base+'/index.html?mode=engineering',{waitUntil:'load'});
   assert.equal(await page.evaluate(()=>document.body.classList.contains('passenger-mode')),false);
   assert.equal(await page.locator('#info-panel').isVisible(),true,'original engineering dashboard retained');
