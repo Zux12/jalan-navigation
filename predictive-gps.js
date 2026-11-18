@@ -107,7 +107,9 @@
     pathHeading=travel>=Math.max(8,accuracy)?bearing(pending.first,raw):null,
     coherent=pathHeading!==null&&(course===null||difference(course,pathHeading)<=45),
     turnTime=lastRoad?Math.max(1,Math.min(6,(pending.firstTime-lastRoad.time)/1000)+1):6,
-    turnRate=lastRoad&&course!==null?Math.max(0,speed)*rad(difference(course,lastRoad.heading))/turnTime:0,
+    turnCourse=course??pathHeading,
+    velocity=Number.isFinite(speed)&&speed>=0?speed:(elapsed>0?travel/elapsed:0),
+    turnRate=lastRoad&&turnCourse!==null?velocity*rad(difference(turnCourse,lastRoad.heading))/turnTime:0,
     possibleTurn=turnRate<=5; // Conservative lateral-acceleration screen, not vehicle physics proof.
    let supported=null;
    const elevatedBaseline=lastRoad&&Array.isArray(roads)&&roads.some(road=>{

@@ -32,6 +32,11 @@ test('an abrupt right-angle turn at highway speed is held despite a nearby road'
  for(const lat of [3.00012,3.00018,3.00024,3.0003])result=s.feed([lat,101.601],{speed:30,heading:0,roads:[branch]});
  assert.equal(result.allowDeviation,false);assert.equal(result.position[0],3);
 });
+test('missing GPS speed cannot bypass the sharp-turn check',()=>{
+ const s=scene();s.feed([3,101.601],{speed:30});let result;
+ for(const lat of [3.0002,3.0004,3.0006,3.0008])result=s.feed([lat,101.601],{speed:null,heading:null,roads:[branch]});
+ assert.equal(result.allowDeviation,false);assert.equal(result.certain,false);
+});
 test('parallel roads and bridge/tunnel crossings do not establish a turn connection',()=>{
  for(const road of [{coordinates:[[101.6,3.0004],[101.61,3.0004]]},{...branch,bridge:true},{...branch,layer:1}]){
   const s=scene();s.feed([3,101.601]);let result;
