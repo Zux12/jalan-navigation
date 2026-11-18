@@ -124,9 +124,13 @@
    return;
   }
   publishQuality(fix);
-  const result=predictor.feed({position:raw,accuracy,time:fix.timestamp||Date.now(),speed:fix.coords.speed});
   const display=roadMotion?.feed({position:raw,time:sampleTime||now,accuracy,speed:fix.coords.speed,heading:fix.coords.heading,
     roads:window.JalanVectorMap?.nearbyRoads?.(raw,current||raw)??null});
+  // Pending drift/turn evidence must not advance the stateful route matcher.
+  // Resume with measured data once it aligns or proves a sustained departure.
+  const result=display&&!display.onRoute&&!display.allowDeviation?
+    {mode:'predicted',position:current||display.position,along:progress}:
+    predictor.feed({position:raw,accuracy,time:fix.timestamp||Date.now(),speed:fix.coords.speed});
   vehiclePosition=display?.position||(result.mode==='matched'?result.position:raw);
   vehicleCertain=display?.certain??true;vehicleMode=display?.mode||result.mode;vehicleHeading=display?.mode==='checking-drift'?display.heading:fix.coords.heading;
   const mode=display?(display.allowDeviation?'deviation':display.onRoute?result.mode:'predicted'):result.mode;
