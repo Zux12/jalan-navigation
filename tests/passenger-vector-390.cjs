@@ -250,10 +250,10 @@ async function main(){
   console.log('PASS native map: held drag, three-second return after release and report/Recenter swap');
   await page.locator('#jalan-home-menu').click();
   if(!await page.locator('#passenger-navigation-settings').evaluate(x=>x.open))await page.locator('#passenger-navigation-settings>summary').click();
-  await page.locator('#passenger-nav-tilt').fill('0');await page.locator('#passenger-nav-tilt').dispatchEvent('input');
+  await page.locator('#passenger-nav-tilt').evaluate(el=>{el.value='0';el.dispatchEvent(new Event('input',{bubbles:true}));});
   assert.equal(await page.evaluate(()=>JalanVectorMap.getPitch()),0);
   if(!await page.locator('#passenger-navigation-settings').evaluate(x=>x.open))await page.locator('#passenger-navigation-settings>summary').click();
-  await page.locator('#passenger-nav-tilt').fill('100');await page.locator('#passenger-nav-tilt').dispatchEvent('input');
+  await page.locator('#passenger-nav-tilt').evaluate(el=>{el.value='100';el.dispatchEvent(new Event('input',{bubbles:true}));});
   assert.equal(await page.evaluate(()=>JalanVectorMap.getPitch()),60);
   await page.locator('#jalan-home-menu').click();
   await page.evaluate(()=>{
