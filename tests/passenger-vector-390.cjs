@@ -430,18 +430,13 @@ async function main(){
     getComputedStyle(document.getElementById('passenger-eta')).fontSize),true);
   assert.match(await live.locator('#passenger-next').textContent(),/Arrival approx/);
   assert.doesNotMatch(await live.locator('#passenger-next').textContent(),/GPS matched to selected route/);
-  const creditControl=live.locator('.maplibregl-ctrl-attrib');
-  assert.equal(await creditControl.evaluate(x=>x.classList.contains('maplibregl-compact')),true);
-  // Wait for the existing 5.5 s automatic collapse before toggling. Testing
-  // across that timer can otherwise close it just before the click reopens it.
-  await live.waitForFunction(()=>!document.querySelector('.maplibregl-ctrl-attrib').classList.contains('maplibregl-compact-show'));
-  await live.locator('.maplibregl-ctrl-attrib-button').click();
-  assert.equal(await live.locator('.maplibregl-ctrl-attrib-inner a[href="https://openfreemap.org"]').isVisible(),false,
-    'optional OpenFreeMap branding is removed');
-  assert.equal(await live.locator('.maplibregl-ctrl-attrib-inner a[href*="openstreetmap.org/copyright"]').isVisible(),true,
-    'required data credit remains accessible');
-  await live.locator('.maplibregl-ctrl-attrib-button').click();
-  assert.equal(await creditControl.evaluate(x=>x.classList.contains('maplibregl-compact-show')),false);
+  await live.locator('#jalan-home-menu').click();
+  await live.locator('#passenger-about').click();
+  assert.equal(await live.locator('#passenger-about-dialog a[href*="openstreetmap.org/copyright"]').isVisible(),true,
+    'data and licence credit remains accessible through About');
+  assert.equal(await live.locator('#passenger-about-dialog a[href="https://openmaptiles.org/"]').isVisible(),true);
+  await live.locator('#passenger-about-ok').click();
+  await live.locator('#jalan-home-menu-close').click();
   await live.screenshot({path:path.join(artifacts,'vector-live-kl-mobile.png')});
   await live.evaluate(()=>{window.__journeyVectorBefore={route:JalanGPS.getState().route,bearing:JalanVectorMap.getBearing()};});
   await live.locator('#passenger-journey-handle').click();
