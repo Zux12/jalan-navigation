@@ -11,7 +11,7 @@ function sdkFixture(){
    setTimeout(()=>{
     if(value==='Google error'){widget.dispatchEvent(new Event('gmp-error'));return;}
     const place={id:'SYNTHETIC_Q_BISTRO',displayName:'Q Bistro Taman Melati',location:{lat:()=>3.222,lng:()=>101.729}};
-    widget.places=value==='Nothing here'?[]:[place];
+    widget.places=['Nothing here','KLCC'].includes(value)?[]:[place];
     const shadow=widget.shadowRoot;shadow.replaceChildren();
     const attribution=document.createElement('p');attribution.textContent='Google Maps · simulated provider';shadow.append(attribution);
     for(const selected of widget.places){
@@ -43,7 +43,9 @@ module.exports=async function({context,base,root}){
  await page.route('https://api.tomtom.com/search/2/search/**',route=>{
   const url=new URL(route.request().url()),query=decodeURIComponent(url.pathname.split('/').pop().replace(/\.json$/,''));ttQueries.push(query);
   for(const field of ['lat','lon','geobias'])assert.equal(url.searchParams.has(field),false);
-  const results=query==='KLCC'?[{poi:{name:'KLCC'},address:{freeformAddress:'Kuala Lumpur'},position:{lat:3.15785,lon:101.71165}}]:query.toLowerCase().includes('q bistro')?[{poi:{name:'Restoran Zaynas Bistro'},address:{freeformAddress:'Taman Melati'},position:{lat:3.222168,lon:101.728777}}]:[];
+  if(query==='TomTom error')return route.fulfill({status:503,headers,body:'unavailable'});
+  const branches=['TTDI','Cheras'].map((label,index)=>({poi:{name:'Q Bistro '+label},address:{freeformAddress:label+', Kuala Lumpur'},position:{lat:3.15+index*0.01,lon:101.7}}));
+  const results=query.toLowerCase()==='q bistro'?branches:query==='Google error'?[{poi:{name:'Google error avenue'},position:{lat:3.15,lon:101.7}}]:query==='KLCC'?[{poi:{name:'KLCC'},address:{freeformAddress:'Kuala Lumpur'},position:{lat:3.15785,lon:101.71165}}]:query.toLowerCase().includes('q bistro')?[{poi:{name:'Restoran Zaynas Bistro'},address:{freeformAddress:'Taman Melati'},position:{lat:3.222168,lon:101.728777}}]:[];
   return route.fulfill({contentType:'application/json',headers,body:JSON.stringify({results})});
  });
  await page.route('https://api.tomtom.com/routing/**',route=>{
@@ -56,12 +58,22 @@ module.exports=async function({context,base,root}){
  const input=page.locator('#destination'),widget=page.locator('gmp-place-search');
  const boot=async()=>{await page.goto(base+'/index.html?mode=passenger',{waitUntil:'load'});await page.locator('#jalan-search-trigger').click();await input.focus();};
  await boot();await input.fill('KLCC');await page.locator('#results [role=option]').waitFor();
- assert.equal(sdkLoads,0,'matching TomTom suggestions never load Google');
+ await page.waitForFunction(()=>window.__googleQueries.some(request=>request.query==='KLCC'));
+ await widget.waitFor({state:'detached'});
+ assert.equal(sdkLoads,1,'Google is checked even for a TomTom match');
+ await input.fill('q bistro');
+ await widget.getByRole('button',{name:'Q Bistro Taman Melati'}).waitFor();
+ assert.deepEqual(await page.locator('#results [role=option] strong').allTextContents(),['Q Bistro TTDI','Q Bistro Cheras']);
+ assert.equal(routeCalls,0,'listing multiple branches must not start a route');
+ await input.press('ArrowDown');
+ assert.equal(await input.getAttribute('aria-activedescendant'),'destination-suggestion-0');
  await input.fill('q bistro taman melati');await widget.getByRole('button',{name:'Q Bistro Taman Melati'}).waitFor();
  assert.equal(sdkLoads,1);assert.equal(await page.locator('#results input').count(),0,'one search bar; no second Google field');
  assert.equal(await widget.getAttribute('attribution-position'),'top');
  googleQueries.push(...await page.evaluate(()=>window.__googleQueries));
- assert.deepEqual(googleQueries[0],{query:'q bistro taman melati',count:5,bounds:{south:0.8,west:99.5,north:7.5,east:119.5}});
+ assert.equal(await page.locator('#results [role=option]').count(),0,'a narrowed query hides unrelated TomTom branches');
+ assert.deepEqual(googleQueries.at(-1),{query:'q bistro taman melati',count:5,bounds:{south:0.8,west:99.5,north:7.5,east:119.5}});
+ fs.mkdirSync(path.join(root,'test-artifacts'),{recursive:true});
  await page.screenshot({path:path.join(root,'test-artifacts/google-fallback-fixture.png')});
  await page.evaluate(()=>{document.getElementById('start-choice').value='map';setStart([3.139,101.6869],'Fixture start');});
  await widget.getByRole('button',{name:'Q Bistro Taman Melati'}).focus();await page.waitForTimeout(250);
@@ -76,13 +88,15 @@ module.exports=async function({context,base,root}){
  assert.equal(await page.locator('#results').isVisible(),false,'clear detaches pending Google component');
  await input.fill('Nothing here');await page.getByText('No matching places found. Try a fuller place name.').waitFor();
  await input.fill('Google error');await page.getByText('Google suggestions unavailable. Try again shortly.').waitFor();
+ assert.match(await page.locator('#results [role=option]').innerText(),/Google error avenue/,'Google failure retains TomTom matches');
+ await input.fill('TomTom error');await widget.getByRole('button',{name:'Q Bistro Taman Melati'}).waitFor();
  await input.fill('Slow Google');await widget.waitFor({state:'attached'});await page.locator('#jalan-sheet-handle').click();await page.waitForTimeout(1100);
  assert.equal(await page.locator('#results').isVisible(),false,'sheet collapse dismisses fallback');
  await page.locator('#jalan-search-trigger').click();await input.fill('q bistro taman melati');await input.press('Enter');
  await widget.getByRole('button',{name:'Q Bistro Taman Melati'}).waitFor();assert.equal(manual,0,'submit shares the same provider flow when configured');
  assert.equal(await page.evaluate(()=>Object.keys(localStorage).some(key=>/google/i.test(key))),false);
  assert.deepEqual(errors,[]);await page.close();
- console.log('PASS synthetic Google UI Kit fallback: TomTom-first, wrong-business/zero trigger, original single input, lazy SDK, attribution host intact, exact point to TomTom routes, keyboard, stale/clear/collapse, empty/error and submit');
+ console.log('PASS synthetic Google UI Kit fallback: multiple branches and both providers, narrowed and zero-match queries, original single input, lazy SDK, attribution host intact, exact point to TomTom routes, keyboard, stale/clear/collapse, empty/error and submit');
 };
 // Standalone runner makes the new contract fail early, before the longer
 // existing public/passenger/native suites. All provider calls are intercepted.
