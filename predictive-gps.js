@@ -110,7 +110,13 @@
     turnRate=lastRoad&&course!==null?Math.max(0,speed)*rad(difference(course,lastRoad.heading))/turnTime:0,
     possibleTurn=turnRate<=5; // Conservative lateral-acceleration screen, not vehicle physics proof.
    let supported=null;
-   if(Array.isArray(roads)&&coherent&&possibleTurn){
+   const elevatedBaseline=lastRoad&&Array.isArray(roads)&&roads.some(road=>{
+    if(!road.bridge&&!road.tunnel&&Number(road.layer||0)===0)return false;
+    const line=road.coordinates?.map(p=>[p[1],p[0]]);if(!line||line.length<2)return false;
+    const near=nearest(lastRoad.position,line),angle=difference(lastRoad.heading,near.bearing);
+    return near.distance<=12&&Math.min(angle,180-angle)<=25;
+   });
+   if(Array.isArray(roads)&&coherent&&possibleTurn&&!elevatedBaseline){
     for(const road of roads){
      if(road.bridge||road.tunnel||Number(road.layer||0)!==0)continue;
      const line=road.coordinates?.map(p=>[p[1],p[0]]);

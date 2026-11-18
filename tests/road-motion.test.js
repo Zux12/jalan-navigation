@@ -44,6 +44,12 @@ test('loaded road evidence with no connected candidate does not invent a road',(
  for(let i=0;i<6;i++)result=s.feed([3.0008,101.601+i*.0001],{roads:[],delta:3000});
  assert.equal(result.allowDeviation,false);assert.equal(result.position[0],3);
 });
+test('a ground-level crossing does not prove an exit from an elevated route',()=>{
+ const s=scene();s.feed([3,101.601]);let result;
+ const elevated={coordinates:route,bridge:true,layer:1};
+ for(const lat of [3.00012,3.00018,3.00024,3.0003])result=s.feed([lat,101.601],{heading:0,roads:[elevated,branch]});
+ assert.equal(result.allowDeviation,false);assert.equal(result.certain,false);
+});
 test('missing road tiles require longer coherent movement and retain uncertainty',()=>{
  const s=scene();s.feed([3,101.601]);let result;
  for(let i=0;i<4;i++)result=s.feed([3.0008,101.601+i*.0001],{roads:null,delta:3000});
