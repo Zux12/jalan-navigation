@@ -1,14 +1,12 @@
-# One-bar TomTom and Google destination lookup (staged)
+# One-bar TomTom and Google destination lookup
 
-Owner authorized an implementation trial on 18 November 2026. This branch is a
-draft: no Google credential is configured, and no live Google query has been
-verified. Browser fixtures are explicitly synthetic, including their points.
+The Passenger page supports TomTom and optional Google Places UI Kit suggestions. The Google browser key is empty by default. Fixtures are sample data used only in the test suite.
 
 ## Behaviour
 
 - After the existing 450ms typing pause, search TomTom first with the current
   Malaysia/typeahead/5-result settings. No device coordinates accompany typing.
-- When Google is configured, retain TomTom results containing every normalized
+- For a multi-word query, retain TomTom results containing every normalized
   query token in the name/address. Longer partial tokens may prefix-match;
   one-character brand tokens must match exactly. This conservative heuristic
   distinguishes Q Bistro from Zaynas Bistro; aliases, misspellings and renamed
@@ -25,15 +23,11 @@ verified. Browser fixtures are explicitly synthetic, including their points.
 - New input, clear, collapse, submit, hidden page and destination selection
   detach old results and invalidate callbacks. Google keyboard focus can remain
   inside its widget after leaving the input. Google content is not cached.
-- When Google is absent/disabled, current TomTom suggestions and explicit
-  Nominatim Search continue unchanged. Public Nominatim is never autocomplete.
+- With Google disabled, TomTom still filters multi-word queries and retains its ranked aliases for single-word searches. Explicit Search can use Nominatim. Public Nominatim is never autocomplete.
 
-## Required before live trial / release
+## Enable and verify live Google results
 
-1. Owner supplies/configures a Google browser API key in the existing
-   `JalanPublicConfig`, with `googlePlacesFallback: true` and
-   `googleMapsBrowserKey: '<configured browser key>'`. Never add a passenger key
-   input or print real keys in logs, docs, screenshots or PR descriptions.
+1. Set the website-restricted browser key in `jalan-config.js` under `googleMapsBrowserKey`. The `googlePlacesFallback` flag is already enabled. Google requests require both settings.
 2. The key's Cloud project must have billing and required Maps JavaScript /
    Places UI Kit services enabled. Configure website restrictions for the
    actual Pages host and API restrictions/quotas. Do not enable billing or
@@ -49,9 +43,7 @@ verified. Browser fixtures are explicitly synthetic, including their points.
    endpoint. Do not count synthetic tests or an existing Maps listing as live
    Google API coverage. Check no-result, invalid key, quota, SDK timeout and
    provider failure behaviour. Review matcher false negatives (e.g. aliases).
-5. Review final diff/CI and release through the existing Pages workflow. This
-   draft is not published; no private Heroku, experimental routing, GPS trust,
-   report consent, N15 gate or scheduled task change is included.
+5. After publishing the configured key, check the Passenger page on the deployed Pages origin.
 
 ## Official references
 

@@ -1,7 +1,7 @@
 /* Conservative fallback trigger, not a guarantee of destination correctness. */
 (function(root){
  'use strict';
- const tokens=text=>String(text||'').normalize('NFKD').replace(/[\u0300-\u036f]/g,'').toLowerCase().match(/[a-z0-9]+/g)||[];
+ const tokens=text=>String(text||'').normalize('NFC').toLowerCase().normalize('NFD').replace(/\p{Diacritic}/gu,'').normalize('NFC').match(/[\p{L}\p{N}\p{M}]+/gu)||[];
  function matches(query,place){
   const wanted=tokens(query),available=tokens(place.name+' '+place.address);
   // Preserve short distinctive brands such as Q. Only longer partial words

@@ -3,5 +3,7 @@
  */
 window.JalanPublicConfig=Object.freeze({
  appVersion:'4.8.0-test',buildDate:'2026-11-18',managedTomTom:true,
+ // Google suggestions activate when a website-restricted Places UI Kit browser key is set.
+ googlePlacesFallback:true,googleMapsBrowserKey:'',
  tomtomBrowserKey:'ka26nflkXR75FVZOtIdHvNl6gdNGra6c'
 });

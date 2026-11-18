@@ -78,18 +78,23 @@
   }
   if(!current())return;
   list.removeAttribute('aria-busy');
+  // A single term may be a provider-known alias (for example KLCC).
+  // A business plus a locality must match together, with either provider configuration.
+  const words=query.match(/[\p{L}\p{N}]+/gu)||[];
+  const matching=words.length>1||withGoogle
+   ?places.filter(place=>window.JalanDestinationMatch.matches(query,place))
+   :places;
   if(!withGoogle){
    if(tomTomFailed){
     message(Date.now()<cooldown?'Suggestions are busy. Tap Search or try again shortly.':'Suggestions unavailable. Tap Search to try again.');
    }else{
-    cache.set(query.toLowerCase(),{at:Date.now(),places});
+    cache.set(query.toLowerCase(),{at:Date.now(),places:matching});
     if(cache.size>20)cache.delete(cache.keys().next().value);
-    render(places);
+    render(matching);
    }
    return;
   }
 
-  const matching=places.filter(place=>window.JalanDestinationMatch.matches(query,place));
   list.replaceChildren();
   list.setAttribute('role','region');
   list.setAttribute('aria-label','Destination suggestions');
