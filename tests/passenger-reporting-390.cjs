@@ -1,0 +1,49 @@
+'use strict';
+const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path');
+module.exports=async(browser,base,root)=>{
+ const context=await browser.newContext({viewport:{width:390,height:844},isMobile:true,hasTouch:true});const page=await context.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));
+ try{
+ await page.addInitScript(()=>{window.__reportPosition=[101.687,3.139];window.__reportAccuracy=8;Object.defineProperty(navigator,'geolocation',{configurable:true,value:{getCurrentPosition(ok){ok({timestamp:Date.now(),coords:{longitude:window.__reportPosition[0],latitude:window.__reportPosition[1],accuracy:window.__reportAccuracy,heading:90,speed:5}});},watchPosition(){return 1;},clearWatch(){}}});});
+ await page.route('**/*',r=>r.request().url().startsWith(base+'/')?r.continue():r.abort());
+ for(const ext of ['js','css'])await page.route('https://unpkg.com/leaflet@1.9.4/dist/leaflet.'+ext,r=>r.fulfill({contentType:ext==='js'?'application/javascript':'text/css',body:fs.readFileSync(path.join(root,'node_modules/leaflet/dist/leaflet.'+ext))}));
+ let failed=true,submissions=[],responses=[],nearby=[];
+ const event=(id,type='accident',position=[101.687,3.139])=>({id,type,position,heading:90,road:{key:'fixture-road',level:'0:surface'},createdAt:Date.now(),updatedAt:Date.now(),expiresAt:Date.now()+3600000,contributors:1,active:true});
+ await page.route('https://mterm2026-559f9bf571b5.herokuapp.com/api/jalan/reports/**',async r=>{assert.equal(r.request().method(),'POST');assert.equal(new URL(r.request().url()).search,'');const body=r.request().postDataJSON(),kind=new URL(r.request().url()).pathname.split('/').pop();let data,status=200;
+ if(kind==='submit'){submissions.push(body);if(failed){status=503;data={error:'Reporting service unavailable.'};}else data={event:{...event('own-event',body.type,body.position),contributors:submissions.length>2?2:1},merged:submissions.length>2};}
+ else if(kind==='nearby')data={events:nearby};else{responses.push(body);data={event:event(body.id,'accident',[101.689,3.139])};}
+ await r.fulfill({status,contentType:'application/json',headers:{'access-control-allow-origin':'*'},body:JSON.stringify(data)});});
+ await page.goto(base+'/index.html?mode=passenger');
+ await page.evaluate(()=>{JalanVectorMap.getReportRoad=()=>({key:'fixture-road',level:'0:surface'});});
+ await page.locator('#jalan-home-report').click();await page.locator('[data-type=weather]').click();await page.locator('[data-type=flood]').click();
+ assert.match(await page.locator('#passenger-report-status').innerText(),/120 minutes/);
+ await page.locator('#passenger-report-submit').click();await page.waitForFunction(()=>document.getElementById('passenger-report-status').textContent.includes('Not submitted'));
+ assert.equal(await page.locator('.jalan-community-report-pin').count(),0,'server failure cannot claim success or add an icon');
+ failed=false;await page.locator('#passenger-report-submit').click();await page.waitForFunction(()=>!document.getElementById('passenger-report-dialog').open);
+ assert.deepEqual(submissions.at(-1).position,[101.687,3.139]);assert.equal(submissions.at(-1).heading,90);assert.equal(submissions.at(-1).type,'flood');
+ assert.equal(await page.locator('.jalan-community-report-pin').count(),1);
+ await page.locator('#jalan-home-report').click();await page.locator('[data-type=weather]').click();await page.locator('[data-type=flood]').click();await page.locator('#passenger-report-submit').click();await page.waitForFunction(()=>!document.getElementById('passenger-report-dialog').open);
+ assert.equal(await page.locator('.jalan-community-report-pin').count(),1,'merged event replaces existing pin');
+ await page.evaluate(()=>{const original=JalanGPS.getState;window.__reportFixtureActive=true;JalanGPS.getState=()=>({...original(),active:window.__reportFixtureActive,gpsFixAgeMs:0,gpsPosition:[window.__reportPosition[1],window.__reportPosition[0]],route:{geometry:{coordinates:[[101.68,3.139],[101.70,3.139]]}}});});
+ nearby=[event('ahead-event','accident',[101.689,3.139])];
+ await page.evaluate(()=>{window.__reportPosition=[101.688,3.139];window.dispatchEvent(new CustomEvent('jalan:gps-fix',{detail:{gpsReliable:true,gpsPosition:[3.139,101.688],gpsAccuracy:8,gpsFixAgeMs:0,heading:90}}));});
+ await page.waitForFunction(()=>JalanCommunityReports.getEvents().some(e=>e.id==='ahead-event'));
+ assert.equal(await page.locator('#passenger-report-confirm').isVisible(),false,'more than 50m ahead does not prompt');
+ const move=async(lon,heading=90)=>page.evaluate(({lon,heading})=>{window.__reportPosition=[lon,3.139];window.dispatchEvent(new CustomEvent('jalan:gps-fix',{detail:{gpsReliable:true,gpsPosition:[3.139,lon],gpsAccuracy:8,gpsFixAgeMs:0,heading}}));},{lon,heading});
+ await move(101.68864);assert.equal(await page.locator('#passenger-report-confirm').isVisible(),true,'card begins within 50m before event');
+ await page.locator('[data-answer=still]').click();await page.waitForFunction(()=>document.getElementById('passenger-report-toast').textContent.includes('timer was refreshed'));
+ assert.equal(responses.length,1);assert.equal(responses[0].answer,'still');
+ await move(101.68863);assert.equal(await page.locator('#passenger-report-confirm').isVisible(),false,'no repeat for updated event');
+ await page.evaluate(()=>window.dispatchEvent(new Event('jalan:journey-start')));await move(101.68864);assert.equal(await page.locator('#passenger-report-confirm').isVisible(),false,'internal guidance restart does not repeat confirmation');
+ await page.screenshot({path:path.join(root,'test-artifacts/passenger-report-submitted.png')});
+ // New trip permits one card again; no answer times out without a server response.
+ await page.evaluate(()=>{window.__reportFixtureActive=false;document.getElementById('passenger-go').dispatchEvent(new Event('click'));window.__reportFixtureActive=true;});
+ await move(101.68864,270);assert.equal(await page.locator('#passenger-report-confirm').isVisible(),false,'opposite traffic does not prompt');
+ await move(101.68864);assert.equal(await page.locator('#passenger-report-confirm').isVisible(),true);
+ await page.screenshot({path:path.join(root,'test-artifacts/passenger-report-confirm.png')});
+ await page.waitForTimeout(10200);assert.equal(await page.locator('#passenger-report-confirm').isVisible(),false);assert.equal(responses.length,1,'timeout sends no vote');
+ await page.evaluate(()=>document.getElementById('jalan-home-report').click());await page.locator('[data-type=hazard]').click();await page.evaluate(()=>window.__reportAccuracy=200);const count=submissions.length;
+ await page.locator('#passenger-report-submit').click();await page.waitForFunction(()=>document.getElementById('passenger-report-status').textContent.includes('Not submitted'));
+ assert.equal(submissions.length,count,'poor GPS cannot submit');await page.keyboard.press('Escape');assert.equal(await page.locator('#passenger-report-dialog').isVisible(),false);
+ assert.deepEqual(errors,[]);console.log('PASS community reports: weather, submit-time GPS, failed upload, merged icon, directional 50m prompt, once per journey, timeout and inaccurate GPS');
+ }finally{await context.close();}
+};

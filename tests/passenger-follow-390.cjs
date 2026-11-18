@@ -37,6 +37,7 @@ module.exports=async(page,context,base)=>{
  assert.equal(await page.locator('#passenger-recenter-floating').isVisible(),false);
  await page.locator('#jalan-home-report').click();
  assert.equal(await page.locator('#jalan-home-notice').isVisible(),false);
+ await page.locator('#passenger-report-cancel').click();
  await page.evaluate(()=>{window.__currentPlace=[3.14,101.687];});
  await page.locator('#passenger-journey-handle').click();
  await page.locator('#passenger-journey-stop').click();
