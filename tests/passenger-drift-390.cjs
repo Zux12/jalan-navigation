@@ -26,11 +26,12 @@ module.exports=async(page,base)=>{
  assert.ok(await page.evaluate(()=>JalanGPS.getState().gpsPosition[0]>3),'raw GPS evidence remains separate');
  assert.equal(await page.evaluate(()=>window.__motionRequests.length),0);
  await page.evaluate(()=>window.__motionFix(3,101.601));
- // A road-supported low-speed turn must still escape the old route.
+ // A real departure must trigger recovery while its display stays route-locked.
  for(const latitude of [3.00012,3.00018,3.00024])await page.evaluate(lat=>window.__motionFix(lat,101.601,0,5),latitude);
  await page.waitForFunction(()=>window.__motionRequests.length===1);
  assert.equal(await page.evaluate(()=>JalanGPS.getState().vehicleMode),'road-departure');
- assert.ok(await page.evaluate(()=>JalanGPS.getState().vehiclePosition[0]>3.0002));
+ assert.equal(await page.evaluate(()=>JalanGPS.getState().vehiclePosition[0]),3,'triangle stays on the old blue route while rerouting');
+ assert.ok(await page.evaluate(()=>JalanGPS.getState().gpsPosition[0]>3.0002),'actual GPS still follows the departed vehicle');
  assert.equal(await page.evaluate(()=>window.__motionMarker===document.querySelector('.jalan-vehicle-marker')),true);
  assert.equal(await page.locator('#passenger-vehicle-screen').isVisible(),true,'triangle remains visible while rerouting');
  await page.evaluate(()=>{
@@ -39,6 +40,9 @@ module.exports=async(page,base)=>{
    geometry:{type:'LineString',coordinates:[[from[1],from[0]],[101.61,3]]}}]);
  });
  await page.waitForFunction(()=>JalanGPS.getState().route.duration===400);
+ assert.ok(await page.evaluate(()=>JalanGPS.getState().vehiclePosition[0]>3.0002),'display switches to the new route immediately');
+ assert.ok(await page.evaluate(()=>Object.values(map._layers).find(x=>x.options?.icon?.options.className==='jalan-vehicle-marker').getLatLng().lat>3.0002),
+  'rendered marker moves to the new route before another GPS update');
  assert.equal(await page.evaluate(()=>window.__motionMarker===document.querySelector('.jalan-vehicle-marker')),true);
- console.log('PASS motion matching: drift stays on road, measured evidence retained, connected slow turn releases and reroute retains triangle');
+ console.log('PASS route-locked display: drift and departure stay on blue route, actual GPS drives reroute, new geometry updates without replacing triangle');
 };
