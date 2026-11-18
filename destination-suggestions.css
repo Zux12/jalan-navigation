@@ -39,5 +39,8 @@
   --gmp-mat-color-on-surface: #19334e;
   --gmp-mat-color-on-surface-variant: #637487;
   --gmp-mat-color-outline-decorative: #e6ebf2;
+  --gmp-mat-color-secondary-container: #fff;
+  --gmp-mat-color-on-secondary-container: #435970;
+  --gmp-button-border-width: 0px;
   --gmp-mat-color-primary: #1764dc;
 }
