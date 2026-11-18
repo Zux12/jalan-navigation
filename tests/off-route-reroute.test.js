@@ -264,3 +264,13 @@ test('GPS coordinates still turn the triangle when the phone omits heading and s
  }
  assert.equal(s.requests.length,0);
 });
+
+test('stopping mid-turn holds the measured triangle when the phone drops its heading',()=>{
+ const s=scene({auto:false});s.feed([3,101.601]);
+ const turn=[3.00009,101.601];s.feed(turn,2000,8,null,5,0);
+ assert.deepEqual(Array.from(s.state().vehiclePosition),turn);
+ s.feed(turn,1000,8,null,0,null);
+ assert.deepEqual(Array.from(s.state().vehiclePosition),turn);
+ s.feed([3.00018,101.601],2000,8,null,5,0);
+ assert.deepEqual(Array.from(s.state().vehiclePosition),[3.00018,101.601]);
+});

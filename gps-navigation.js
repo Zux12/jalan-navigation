@@ -124,6 +124,7 @@
   // Validate browser-measured movement BEFORE feeding the route predictor.
   // A rejected teleport must never influence its internal history or cause a
   // false off-route verdict on the next legitimate fix.
+  const previousMeasurement=lastPositionFix?.position;
   const measured=acceptMeasuredFix(raw,accuracy,Number.isFinite(sampleTime)?Math.min(now,sampleTime):now,fix.coords.speed);
   lastMeasuredAccepted=measured;
   if(measured&&Number.isFinite(sampleTime))lastAcceptedSampleTime=sampleTime;
@@ -155,7 +156,10 @@
   const p=result.position;lastFixAt=now;latestMode=mode;
   // Correct small drift on a matched road. During a possible or confirmed
   // departure, publish the accepted measurement immediately, even without tiles.
-  vehiclePosition=display?.onRoute?display.position:raw;
+  // A stopped phone can drop its heading, changing the road classifier's
+  // answer even though the measured position is exactly the same.
+  const unchanged=vehiclePosition&&(meters(raw,vehiclePosition)<0.5||samePoint(raw,previousMeasurement));
+  if(!unchanged)vehiclePosition=display?.onRoute?display.position:raw;
   vehicleCertain=display?display.certain:mode==='matched';
   vehicleMode=display?.mode||mode;
   rerouteFix=lastPositionFix;
