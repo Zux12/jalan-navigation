@@ -31,7 +31,11 @@ module.exports=async(browser,base,root)=>{
  assert.equal(await page.locator('#passenger-report-confirm').isVisible(),false,'more than 50m ahead does not prompt');
  const move=async(lon,heading=90)=>page.evaluate(({lon,heading})=>{window.__reportPosition=[lon,3.139];window.dispatchEvent(new CustomEvent('jalan:gps-fix',{detail:{gpsReliable:true,gpsPosition:[3.139,lon],gpsAccuracy:8,gpsFixAgeMs:0,heading}}));},{lon,heading});
  await move(101.68864);assert.equal(await page.locator('#passenger-report-confirm').isVisible(),true,'card begins within 50m before event');
- await page.locator('[data-answer=still]').click();await page.waitForFunction(()=>document.getElementById('passenger-report-toast').textContent.includes('timer was refreshed'));
+ // Real navigation's transparent gesture plane has stacking level 1500.
+ // Confirmation must remain clickable above it, not merely look visible.
+ await page.evaluate(()=>{const overlay=document.createElement('div');overlay.id='report-navigation-gesture-fixture';overlay.style.cssText='position:fixed;inset:0;z-index:1500;pointer-events:auto';document.body.append(overlay);});
+ await page.locator('[data-answer=still]').click();
+ await page.evaluate(()=>document.getElementById('report-navigation-gesture-fixture').remove());await page.waitForFunction(()=>document.getElementById('passenger-report-toast').textContent.includes('timer was refreshed'));
  assert.equal(responses.length,1);assert.equal(responses[0].answer,'still');
  await move(101.68863);assert.equal(await page.locator('#passenger-report-confirm').isVisible(),false,'no repeat for updated event');
  await page.evaluate(()=>window.dispatchEvent(new Event('jalan:journey-start')));await move(101.68864);assert.equal(await page.locator('#passenger-report-confirm').isVisible(),false,'internal guidance restart does not repeat confirmation');
