@@ -26,23 +26,36 @@ module.exports=async(page,base)=>{
  assert.ok(await page.evaluate(()=>JalanGPS.getState().gpsPosition[0]>3),'raw GPS evidence remains separate');
  assert.equal(await page.evaluate(()=>window.__motionRequests.length),0);
  await page.evaluate(()=>window.__motionFix(3,101.601));
- // A real departure must trigger recovery while its display stays route-locked.
- for(const latitude of [3.00012,3.00018,3.00024])await page.evaluate(lat=>window.__motionFix(lat,101.601,0,5),latitude);
+ const liveTriangle=async latitude=>{
+  const position=await page.evaluate(()=>{
+   const marker=Object.values(map._layers).find(x=>x.options?.icon?.options.className==='jalan-vehicle-marker');
+   const screen=document.getElementById('passenger-vehicle-screen').getBoundingClientRect();
+   return {gps:JalanGPS.getState().vehiclePosition,lat:marker.getLatLng().lat,
+    visible:screen.width>0&&screen.bottom>0&&screen.top<innerHeight,
+    sameMarker:window.__motionMarker===marker.getElement()};
+  });
+  assert.deepEqual(position.gps,[latitude,101.601]);assert.equal(position.lat,latitude);
+  assert.equal(position.visible,true);assert.equal(position.sameMarker,true);
+ };
+ // The triangle turns as soon as the first accepted reading diverges,
+ // continues while the provider is busy, and never rewinds on response.
+ for(const latitude of [3.00012,3.00018,3.00024]){
+  await page.evaluate(lat=>window.__motionFix(lat,101.601,0,5),latitude);
+  await liveTriangle(latitude);
+ }
  await page.waitForFunction(()=>window.__motionRequests.length===1);
  assert.equal(await page.evaluate(()=>JalanGPS.getState().vehicleMode),'road-departure');
- assert.equal(await page.evaluate(()=>JalanGPS.getState().vehiclePosition[0]),3,'triangle stays on the old blue route while rerouting');
- assert.ok(await page.evaluate(()=>JalanGPS.getState().gpsPosition[0]>3.0002),'actual GPS still follows the departed vehicle');
- assert.equal(await page.evaluate(()=>window.__motionMarker===document.querySelector('.jalan-vehicle-marker')),true);
- assert.equal(await page.locator('#passenger-vehicle-screen').isVisible(),true,'triangle remains visible while rerouting');
+ assert.deepEqual(await page.evaluate(()=>window.__motionRequests[0].from),[3.00024,101.601]);
+ for(const latitude of [3.00030,3.00036]){
+  await page.evaluate(lat=>window.__motionFix(lat,101.601,0,5),latitude);
+  await liveTriangle(latitude);
+ }
  await page.evaluate(()=>{
   const from=window.__motionRequests[0].from;
   window.__finishMotionRoute([{provider:'osrm',duration:400,distance:1100,legs:[],
    geometry:{type:'LineString',coordinates:[[from[1],from[0]],[101.61,3]]}}]);
  });
  await page.waitForFunction(()=>JalanGPS.getState().route.duration===400);
- assert.ok(await page.evaluate(()=>JalanGPS.getState().vehiclePosition[0]>3.0002),'display switches to the new route immediately');
- assert.ok(await page.evaluate(()=>Object.values(map._layers).find(x=>x.options?.icon?.options.className==='jalan-vehicle-marker').getLatLng().lat>3.0002),
-  'rendered marker moves to the new route before another GPS update');
- assert.equal(await page.evaluate(()=>window.__motionMarker===document.querySelector('.jalan-vehicle-marker')),true);
- console.log('PASS route-locked display: drift and departure stay on blue route, actual GPS drives reroute, new geometry updates without replacing triangle');
+ await liveTriangle(3.00036);
+ console.log('PASS moving detour: early turn, latest GPS origin, pending request and route swap retain the live triangle');
 };

@@ -72,3 +72,14 @@ test('missing road tiles require longer coherent movement and retain uncertainty
  result=s.feed([3.0008,101.6013],{roads:null,delta:30000,speed:0});
  assert.equal(result.allowDeviation,true,'an established departure survives a stopped retry');
 });
+
+test('a sustained turn away from the route can recover when its side street is missing from loaded tiles',()=>{
+ const s=scene();s.feed([3,101.601]);let result;
+ for(const lat of [3.00012,3.00023,3.00034,3.00045,3.00056])
+  result=s.feed([lat,101.601],{roads:[],heading:0,delta:2000});
+ assert.equal(result.mode,'departure-unverified');assert.equal(result.allowDeviation,true);
+ result=s.feed([3.0006,101.601],{roads:[],heading:null,speed:0});
+ assert.equal(result.allowDeviation,true);
+ result=s.feed([3,101.601],{roads:[],heading:90});
+ assert.equal(result.mode,'road-aligned');
+});
