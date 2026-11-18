@@ -85,6 +85,7 @@
  };
  const setState=next=>{
    const state=['a','b','c'].includes(next)?next:'a';
+   if(state!=='c')window.JalanDestinationSuggestions?.cancel();
    if(routeSearch&&state!=='c'){closeRouteSearch();return;}
    if(state!=='c'&&document.activeElement===input)input.blur();
    sheet.dataset.state=state;
@@ -98,7 +99,7 @@
  // call clearRoute(), stop GPS, select a route or change the map camera.
  function closeRouteSearch(restoreInput=true,restoreFocus=true){
    if(!routeSearch)return;
-   const saved=routeSearch;routeSearch=null;
+   const saved=routeSearch;routeSearch=null;window.JalanDestinationSuggestions?.cancel();
    cancelGesture();input.blur();
    if(restoreInput)input.value=saved.inputValue;
    results.classList.add('hidden');
@@ -212,7 +213,7 @@
    else showNotice((shortcut==='home'?'Home':'Work')+' shortcut is a placeholder. Address setup comes later.');
  });
  const toggleMenu=visible=>{
-   if(visible){$('passenger-turn-close').click();notice.classList.add('hidden');}
+   if(visible){window.JalanDestinationSuggestions?.cancel();$('passenger-turn-close').click();notice.classList.add('hidden');}
    menuPanel.classList.toggle('hidden',!visible);
    menu.setAttribute('aria-expanded',String(visible));
    if(visible){$('passenger-navigation-settings').open=false;paintNavigation();menuPanel.scrollTop=0;$('jalan-home-menu-close').focus({preventScroll:true});}

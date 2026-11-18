@@ -2,6 +2,11 @@ name: JALAN public non-phone Chromium 390px integration gate
 on:
   pull_request:
     paths:
+      - 'destination-suggestions.js'
+      - 'destination-suggestions.css'
+      - 'tests/destination-suggestions-390.cjs'
+      - 'passenger.webmanifest'
+      - 'icons/**'
       - 'app.js'
       - 'tomtom-live.js'
       - 'jalan-config.js'
@@ -49,6 +54,11 @@ on:
   push:
     branches: [main]
     paths:
+      - 'destination-suggestions.js'
+      - 'destination-suggestions.css'
+      - 'tests/destination-suggestions-390.cjs'
+      - 'passenger.webmanifest'
+      - 'icons/**'
       - 'app.js'
       - 'tomtom-live.js'
       - 'jalan-config.js'

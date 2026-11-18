@@ -133,11 +133,14 @@ function renderRoutes({preserveGPS=false}={}){
 }
 function selectRoute(i){selectedRoute=i;renderRoutes();window.JalanTomTom?.refreshRouteIncidents()}
 $('start-guidance').addEventListener('click',()=>{if(watchId!==null){navigator.geolocation.clearWatch(watchId);watchId=null;$('start-guidance').textContent='Follow my location';statusEl.textContent='Location following stopped.';return}if(!navigator.geolocation){statusEl.textContent='Location is unavailable.';return}watchId=navigator.geolocation.watchPosition(p=>{const pos=[p.coords.latitude,p.coords.longitude];updateLocation(pos);map.panTo(pos);statusEl.textContent='Following your location. This is not turn-by-turn navigation.'},()=>{statusEl.textContent='Unable to follow location. Check browser permission.';navigator.geolocation.clearWatch(watchId);watchId=null;$('start-guidance').textContent='Follow my location'},{enableHighAccuracy:true,maximumAge:3000,timeout:15000});$('start-guidance').textContent='Stop following';});
-let lastSearchAt=0,destinationSelectionEpoch=0;
+let lastSearchAt=0,destinationSelectionEpoch=0,destinationSearchEpoch=0;
+$('destination').addEventListener('input',()=>destinationSearchEpoch++);
+window.addEventListener('jalan:destination-search-cancel',()=>destinationSearchEpoch++);
 // Both search results and Recent use the exact selected coordinates.
 async function selectDestinationPlace(place){
  const point=[Number(place.lat),Number(place.lon)];
  if(!validCoordinates(point))return;
+ destinationSearchEpoch++;
  const id=++destinationSelectionEpoch;
  clearRoute(false);
  destination=point;
@@ -161,17 +164,18 @@ async function selectDestinationPlace(place){
 }
 $('search-form').addEventListener('submit',async e=>{
  e.preventDefault();const q=$('destination').value.trim();if(!q)return;
+ const searchId=++destinationSearchEpoch,current=()=>searchId===destinationSearchEpoch&&$('destination').value.trim()===q;
  statusEl.textContent='Searching destinations…';resultsEl.classList.add('hidden');
  try{
-  const wait=Math.max(0,1100-(Date.now()-lastSearchAt));if(wait)await new Promise(r=>setTimeout(r,wait));lastSearchAt=Date.now();
+  const wait=Math.max(0,1100-(Date.now()-lastSearchAt));if(wait)await new Promise(r=>setTimeout(r,wait));if(!current())return;lastSearchAt=Date.now();
   const response=await fetch('https://nominatim.openstreetmap.org/search?format=json&limit=5&countrycodes=my&q='+encodeURIComponent(q));
   if(!response.ok)throw Error('Search service unavailable');
-  const places=await response.json();resultsEl.replaceChildren();
+  const places=await response.json();if(!current())return;resultsEl.replaceChildren();
   if(!places.length){statusEl.textContent='No locations found. Try another search.';return;}
   for(const place of places){const btn=document.createElement('button');btn.textContent=place.display_name;
    btn.onclick=()=>selectDestinationPlace(place);resultsEl.appendChild(btn);}
   resultsEl.classList.remove('hidden');statusEl.textContent='Choose a destination from the results.';
- }catch(err){statusEl.textContent='Search unavailable. Try again later.';console.error(err);}
+ }catch(err){if(current())statusEl.textContent='Search unavailable. Try again later.';}
 });
 
 // Locate the user automatically on each fresh page load, subject to browser permission.
