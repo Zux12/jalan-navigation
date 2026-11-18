@@ -47,7 +47,9 @@ module.exports=async function({context,base,root}){
   return route.fulfill({contentType:'application/json',headers,body:JSON.stringify({results})});
  });
  await page.route('https://api.tomtom.com/routing/**',route=>{
-  routeCalls++;assert.ok(route.request().url().includes('3.222,101.729'),'route request uses the exact synthetic Google destination');
+  routeCalls++;
+  const endpoint=new URL(route.request().url()).pathname.split('/').at(-2).split(':').at(-1).split(',').map(Number);
+  assert.deepEqual(endpoint,[3.222,101.729],'route request uses the exact synthetic Google destination (provider formats six decimals)');
   return route.fulfill({contentType:'application/json',headers,body:JSON.stringify({routes:[{summary:{travelTimeInSeconds:420,lengthInMeters:3200,trafficDelayInSeconds:0},legs:[{points:[{latitude:3.139,longitude:101.6869},{latitude:3.222,longitude:101.729}]}],guidance:{instructions:[]}}]})});
  });
  await page.route('https://nominatim.openstreetmap.org/search*',route=>{manual++;return route.abort();});
