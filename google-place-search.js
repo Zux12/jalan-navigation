@@ -1,7 +1,7 @@
 /* Places UI Kit only: keep Google's entire result/attribution component. */
 (() => {
  'use strict';
- let loading;
+ let loading,loaderId=0;
  const config=()=>window.JalanPublicConfig||{};
  const configured=()=>config().googlePlacesFallback===true&&/^[\w-]{20,160}$/.test(config().googleMapsBrowserKey||'');
  async function load(){
@@ -9,15 +9,21 @@
   if(window.google?.maps?.importLibrary){await google.maps.importLibrary('places');return;}
   if(!loading)loading=new Promise((resolve,reject)=>{
    const script=document.createElement('script');
+   const callback='__jalanGoogleReady'+(++loaderId);let settled=false;
    const timeout=setTimeout(()=>fail(),12000);
-   const cleanup=()=>{clearTimeout(timeout);delete window.__jalanGoogleReady;};
-   const fail=()=>{cleanup();script.remove();loading=null;reject(Error('Google search unavailable'));};
-   window.__jalanGoogleReady=async()=>{
-    try{await google.maps.importLibrary('places');cleanup();resolve();}catch{fail();}
+   const fail=()=>{
+    if(settled)return;settled=true;clearTimeout(timeout);script.remove();
+    // Removing a script cannot guarantee its download/evaluation is stopped.
+    // A late SDK must not call a missing callback or resolve a newer attempt.
+    window[callback]=()=>{};loading=null;reject(Error('Google search unavailable'));
+   };
+   window[callback]=async()=>{
+    if(settled)return;
+    try{await google.maps.importLibrary('places');if(settled)return;settled=true;clearTimeout(timeout);delete window[callback];resolve();}catch{fail();}
    };
    const url=new URL('https://maps.googleapis.com/maps/api/js');
    url.searchParams.set('key',config().googleMapsBrowserKey);
-   url.searchParams.set('loading','async');url.searchParams.set('callback','__jalanGoogleReady');
+   url.searchParams.set('loading','async');url.searchParams.set('callback',callback);
    url.searchParams.set('v','weekly');url.searchParams.set('language','en');url.searchParams.set('region','MY');
    script.src=url.href;script.async=true;script.referrerPolicy='strict-origin-when-cross-origin';script.onerror=fail;
    document.head.append(script);
