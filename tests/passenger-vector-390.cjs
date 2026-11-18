@@ -36,13 +36,39 @@ async function main(){
      contentType:ext==='js'?'application/javascript':'text/css',body:fs.readFileSync(path.join(root,'node_modules',name,'dist',name+'.'+ext))}));
    }
   }
+  // The local vector bundle itself may stall before it can signal fallback.
+  // Advance actual browser timers, then deliver it late: the old map must not
+  // suddenly switch after we have deliberately chosen the usable basic view.
+  const late=await context.newPage();
+  await late.clock.install();
+  await late.route('**/*',route=>route.request().url().startsWith(base)?route.continue():route.abort());
+  await dependencies(late);
+  let releaseBundle;const heldBundle=new Promise(resolve=>{releaseBundle=resolve;});
+  await late.route('**/passenger-vector-map.js*',async route=>{await heldBundle;await route.fulfill({contentType:'application/javascript',body:fs.readFileSync(path.join(root,'passenger-vector-map.js'))});});
+  const lateNavigation=late.goto(base+'/index.html?mode=passenger',{waitUntil:'load'});
+  await late.waitForFunction(()=>document.getElementById('map')?._leaflet_id);
+  assert.equal(await late.locator('#jalan-launch').isVisible(),true);
+  await late.clock.fastForward(23000);await late.clock.runFor(350);
+  assert.equal(await late.locator('#jalan-launch').count(),0,'watchdog reveals usable basic map after stalled local bundle');
+  releaseBundle();await lateNavigation;
+  assert.equal(await late.evaluate(()=>window.JalanLaunch.basicOnly),true);
+  assert.equal(await late.evaluate(()=>!!window.JalanVectorMap?.active),false,'late vector script cannot flip to another map');
+  await late.close();
   const page=await context.newPage(),errors=[];currentPage=page;
   page.on('pageerror',e=>errors.push(e.message));
   await page.route('**/*',route=>route.request().url().startsWith(base)?route.continue():route.abort());
   await dependencies(page);
-  await page.route('https://tiles.openfreemap.org/styles/positron',route=>route.fulfill({json:style}));
+  let releaseStyle;const styleReady=new Promise(resolve=>{releaseStyle=resolve;});
+  await page.route('https://tiles.openfreemap.org/styles/positron',async route=>{await styleReady;await route.fulfill({json:style});});
   await page.goto(base+'/index.html?mode=passenger');
+  assert.equal(await page.locator('#jalan-launch').isVisible(),true,'brand covers the old map while detailed style is pending');
+  assert.equal(await page.locator('#map').evaluate(x=>getComputedStyle(x).visibility),'hidden');
+  await page.waitForFunction(()=>document.querySelector('#jalan-launch img').naturalWidth>0);
+  await page.screenshot({path:path.join(artifacts,'jalan-launch-screen.png')});
+  releaseStyle();
   await page.waitForFunction(()=>window.JalanVectorMap?.active,null,{timeout:25000});
+  await page.locator('#jalan-launch').waitFor({state:'hidden'});
+  assert.equal(await page.locator('#map').evaluate(x=>getComputedStyle(x).visibility),'visible','reveal only after native renderer ready');
   assert.equal(await page.locator('#map').evaluate(x=>getComputedStyle(x).transform),'none');
   await page.evaluate(()=>{window.__mapClicks=0;map.on('click',()=>{window.__mapClicks++;});});
   await page.locator('#jalan-vector-map canvas').click({position:{x:60,y:340}});

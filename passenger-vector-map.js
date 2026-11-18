@@ -3,7 +3,7 @@
 (() => {
  'use strict';
  const params=new URLSearchParams(location.search);
- if(params.get('mode')!=='passenger'||params.get('renderer')==='raster')return;
+ if(params.get('mode')!=='passenger'||params.get('renderer')==='raster'||window.JalanLaunch?.basicOnly)return;
  const host=map.getContainer(),original={},virtualTiles=new Set(),pins=new Map(),rasters=new Map();
  const watched=new WeakSet(),handlers=[],zoomSnap=map.options.zoomSnap;
  let gl=null,active=false,stopped=false,queued=false,syncing=false,lineSignature='',trafficSignature='',trafficFeatureCount=0,timer,popup=null,popupLayer=null;
