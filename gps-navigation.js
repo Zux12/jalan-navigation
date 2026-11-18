@@ -7,6 +7,7 @@
  let predictor=null,offCount=0,lastReroute=0,rerouting=false,auto=false,voice='mute',lastSpeech='',lastSpeechAt=0,lastFixAt=0,lastReportedAccuracy=Infinity,latestMatched=false,progress=0,destinationAnnounced=false;
  let latestMode='waiting',rerouteFix=null,rerouteEpoch=0,rerouteController=null;
  let lastPositionFix=null,pendingPositionFix=null,lastMeasuredAccepted=false;
+ let roadMotion=null,vehiclePosition=null,vehicleCertain=false,vehicleMode='waiting',vehicleHeading=null;
  // Ignore delayed/repeated geolocation callbacks, even when only seconds old.
  // Age-based location expiry remains responsible if fresh samples stop.
  let lastAcceptedSampleTime=-Infinity;
@@ -54,6 +55,7 @@
   gpsPosition:lastPositionFix?[...lastPositionFix.position]:null,
   gpsAccuracy:lastPositionFix?.accuracy??Infinity,
   gpsFixAgeMs:lastPositionFix?Date.now()-lastPositionFix.at:Infinity,
+  vehiclePosition:vehiclePosition?[...vehiclePosition]:null,vehicleCertain,vehicleMode,vehicleHeading,
   gpsReliable:!!updated
  });
  function project(p){const sx=111320*Math.cos(rad(p[0])),sy=111320;let best={distance:Infinity,along:0};for(let i=1;i<points.length;i++){const a=points[i-1],b=points[i],ax=(a[1]-p[1])*sx,ay=(a[0]-p[0])*sy,dx=(b[1]-a[1])*sx,dy=(b[0]-a[0])*sy,t=Math.max(0,Math.min(1,-(ax*dx+ay*dy)/(dx*dx+dy*dy||1))),d=Math.hypot(ax+t*dx,ay+t*dy);if(d<best.distance)best={distance:d,along:cum[i-1]+t*(cum[i]-cum[i-1])};}return best;}
@@ -64,7 +66,9 @@
    else if(Array.isArray(m.location)&&m.location.length===2)along=project([m.location[1],m.location[0]]).along;
    if(along===null)continue;const message=String(step.message||'').trim();const road=String(step.name||'').trim();const action=message||(`${String(m.modifier||type||'Continue').replace(/_/g,' ')}${road?' onto '+road:''}`);
    maneuvers.push({along,action});}
-  maneuvers.sort((a,b)=>a.along-b.along);return true;}
+  maneuvers.sort((a,b)=>a.along-b.along);
+  roadMotion=window.JalanPredictiveGPS.createRoadMotion?.(route.geometry.coordinates)||null;
+  return true;}
  function speak(t){if(voice==='mute'||!('speechSynthesis'in window)||document.hidden||!active)return;const now=Date.now();if(t===lastSpeech&&now-lastSpeechAt<45000)return;lastSpeech=t;lastSpeechAt=now;try{speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(t);u.lang='en-GB';u.rate=0.95;speechSynthesis.speak(u);}catch(e){console.warn('Voice unavailable',e);}}
  // Location-quality UI gets measured accuracy/time, independent of route matching.
  // No coordinates or route authority are exposed by this display-only event.
@@ -121,27 +125,32 @@
   }
   publishQuality(fix);
   const result=predictor.feed({position:raw,accuracy,time:fix.timestamp||Date.now(),speed:fix.coords.speed});
-  const p=result.position;lastFixAt=now;latestMode=result.mode;
+  const display=roadMotion?.feed({position:raw,time:sampleTime||now,accuracy,speed:fix.coords.speed,heading:fix.coords.heading,
+    roads:window.JalanVectorMap?.nearbyRoads?.(raw,current||raw)??null});
+  vehiclePosition=display?.position||(result.mode==='matched'?result.position:raw);
+  vehicleCertain=display?.certain??true;vehicleMode=display?.mode||result.mode;vehicleHeading=display?.mode==='checking-drift'?display.heading:fix.coords.heading;
+  const mode=display?(display.allowDeviation?'deviation':display.onRoute?result.mode:'predicted'):result.mode;
+  const p=result.position;lastFixAt=now;latestMode=mode;
   // Never ask a route provider to start from a rejected raw GPS jump.
-  rerouteFix=measured&&['matched','deviation'].includes(result.mode)&&accuracy<=65&&
+  rerouteFix=measured&&['matched','deviation'].includes(mode)&&accuracy<=65&&
    raw.every(Number.isFinite)&&Math.abs(raw[0])<=90&&Math.abs(raw[1])<=180?
-   {position:result.mode==='deviation'?[...raw]:[...p],at:now}:null;
+   {position:mode==='deviation'?[...raw]:[...p],at:now}:null;
   // Publish filtered position only; raw GPS jumps must not pollute journey analytics.
-  current=measured?(result.mode==='deviation'?raw:p):(lastPositionFix?[...lastPositionFix.position]:null);
-  const trustworthy=measured&&result.mode==='matched'&&Number.isFinite(accuracy);
+  current=measured?(mode==='deviation'?raw:p):(lastPositionFix?[...lastPositionFix.position]:null);
+  const trustworthy=measured&&mode==='matched'&&Number.isFinite(accuracy);
   latestMatched=trustworthy;lastReportedAccuracy=trustworthy?accuracy:Infinity;
   window.dispatchEvent(new CustomEvent('jalan:gps-fix',{detail:{accuracy:trustworthy?accuracy:Infinity,remainingSeconds:route?route.duration*Math.max(0,total-progress)/total:null,remainingMeters:route?route.distance*Math.max(0,total-progress)/total:null,speedMps:fix.coords.speed,matchedPosition:trustworthy?p:null,heading:fix.coords.heading,routeSegment:route?.geometry?.coordinates?.length?'route-'+selectedRoute:null,matched:trustworthy,nearDestination:trustworthy&&!!(destination&&meters(p,destination)<110),...positionEvidence(measured)}}));
   if(measured){updateLocation(p);marker?.setLatLng(p);}
   el('gps-accuracy').textContent=Number.isFinite(accuracy)?Math.round(accuracy)+' m':'Unknown';
-  el('gps-match-status').textContent={matched:'On route · GPS matched',predicted:'Route prediction · checking GPS',uncertain:'GPS uncertain · estimated position',deviation:'Deviation confirmed',waiting:'Waiting for reliable GPS',stale:'Old GPS reading ignored',invalid:'Invalid GPS reading'}[result.mode]||'Route prediction';
+  el('gps-match-status').textContent={matched:'On route · GPS matched',predicted:'Route prediction · checking GPS',uncertain:'GPS uncertain · estimated position',deviation:'Deviation confirmed',waiting:'Waiting for reliable GPS',stale:'Old GPS reading ignored',invalid:'Invalid GPS reading'}[mode]||'Route prediction';
   if(trustworthy)progress=Math.max(progress,result.along);
   const left=Math.max(0,total-progress),distance=route.distance*left/total,seconds=route.duration*left/total;
   el('gps-distance').textContent=fmtDist(distance);el('gps-eta').textContent=fmtTime(seconds);
   const next=maneuvers.find(x=>x.along>progress+12);
   if(next){const d=next.along-progress;el('gps-instruction').textContent=`${fmtDist(d)}: ${next.action}`;if(trustworthy)window.JalanVoice.announce(voice,next.along.toFixed(1),d,next.action);}
   else el('gps-instruction').textContent=maneuvers.length?'Continue toward destination':'Follow selected route — detailed maneuvers unavailable';
-  el('gps-detail').textContent=`Arrival approx. ${new Date(Date.now()+seconds*1000).toLocaleTimeString('en-MY',{hour:'numeric',minute:'2-digit'})} · ${result.mode==='matched'?'GPS matched to selected route':'Position estimated; verify GPS'}`;
-  if(result.mode==='deviation'){
+  el('gps-detail').textContent=`Arrival approx. ${new Date(Date.now()+seconds*1000).toLocaleTimeString('en-MY',{hour:'numeric',minute:'2-digit'})} · ${mode==='matched'?'GPS matched to selected route':'Position estimated; verify GPS'}`;
+  if(mode==='deviation'){
    el('gps-instruction').textContent=auto?'Off route · recalculating…':'Off route · recalculation is off';
    el('gps-detail').textContent='Finding a route from your current location to the same destination';
    warn(auto?'Off route confirmed. Recalculating from current GPS.':'Off route confirmed. Enable automatic rerouting or use Recalculate.');
@@ -158,7 +167,7 @@
   if(!document.hidden&&!document.body.classList.contains('passenger-mode'))map.panTo(p,{animate:false});
  }
  function start(){if(active)return;if(!build()){statusEl.textContent='Calculate a route before starting GPS test.';return;}if(!navigator.geolocation){statusEl.textContent='Geolocation unavailable';return;}
-  window.JalanNavigation?.stop();current=null;lastPositionFix=null;pendingPositionFix=null;lastMeasuredAccepted=false;lastAcceptedSampleTime=-Infinity;lastFixAt=0;lastReportedAccuracy=Infinity;latestMatched=false;latestMode='waiting';rerouteFix=null;predictor=window.JalanPredictiveGPS.create(route.geometry.coordinates);active=true;window.dispatchEvent(new CustomEvent('jalan:journey-start',{detail:{provider:route?.provider||'osrm',predictedSeconds:route?.duration||null,distanceMeters:route?.distance||null}}));progress=0;offCount=0;lastSpeech='';destinationAnnounced=false;window.JalanVoice.reset();document.body.classList.add('nav-active');el('gps-hud').classList.remove('hidden');el('gps-instruction').textContent='Acquiring GPS…';warn('Experimental guidance only. Test stationary or as a passenger.');marker=L.circleMarker(points[0],{radius:10,color:'#fff',weight:3,fillColor:'#0e9f6e',fillOpacity:document.body.classList.contains('passenger-mode')?0:1,opacity:document.body.classList.contains('passenger-mode')?0:1}).addTo(map);
+  window.JalanNavigation?.stop();current=null;vehiclePosition=null;vehicleCertain=false;vehicleMode='waiting';lastPositionFix=null;pendingPositionFix=null;lastMeasuredAccepted=false;lastAcceptedSampleTime=-Infinity;lastFixAt=0;lastReportedAccuracy=Infinity;latestMatched=false;latestMode='waiting';rerouteFix=null;predictor=window.JalanPredictiveGPS.create(route.geometry.coordinates);active=true;window.dispatchEvent(new CustomEvent('jalan:journey-start',{detail:{provider:route?.provider||'osrm',predictedSeconds:route?.duration||null,distanceMeters:route?.distance||null}}));progress=0;offCount=0;lastSpeech='';destinationAnnounced=false;window.JalanVoice.reset();document.body.classList.add('nav-active');el('gps-hud').classList.remove('hidden');el('gps-instruction').textContent='Acquiring GPS…';warn('Experimental guidance only. Test stationary or as a passenger.');marker=L.circleMarker(points[0],{radius:10,color:'#fff',weight:3,fillColor:'#0e9f6e',fillOpacity:document.body.classList.contains('passenger-mode')?0:1,opacity:document.body.classList.contains('passenger-mode')?0:1}).addTo(map);
   watch=navigator.geolocation.watchPosition(update,e=>{
    publishQuality(null,true);
    latestMatched=false;lastReportedAccuracy=Infinity;lastFixAt=0;latestMode='waiting';rerouteFix=null;lastMeasuredAccepted=false;cancelReroute();
@@ -167,7 +176,7 @@
      matched:false,matchedPosition:null,speedMps:null,heading:null,reason:'geolocation-error'}}));
   },{enableHighAccuracy:true,maximumAge:1500,timeout:20000});
  }
- function stop(){cancelReroute();latestMode='waiting';rerouteFix=null;lastPositionFix=null;pendingPositionFix=null;lastMeasuredAccepted=false;lastAcceptedSampleTime=-Infinity;if(active)window.dispatchEvent(new CustomEvent('jalan:journey-stop'));active=false;current=null;lastFixAt=0;lastReportedAccuracy=Infinity;latestMatched=false;if(watch!==null){navigator.geolocation.clearWatch(watch);watch=null;}if(marker){map.removeLayer(marker);marker=null;}if('speechSynthesis'in window)speechSynthesis.cancel();el('gps-hud').classList.add('hidden');document.body.classList.remove('nav-active');setTimeout(()=>map.invalidateSize(),70);}
+ function stop(){vehiclePosition=null;vehicleCertain=false;vehicleMode='waiting';cancelReroute();latestMode='waiting';rerouteFix=null;lastPositionFix=null;pendingPositionFix=null;lastMeasuredAccepted=false;lastAcceptedSampleTime=-Infinity;if(active)window.dispatchEvent(new CustomEvent('jalan:journey-stop'));active=false;current=null;lastFixAt=0;lastReportedAccuracy=Infinity;latestMatched=false;if(watch!==null){navigator.geolocation.clearWatch(watch);watch=null;}if(marker){map.removeLayer(marker);marker=null;}if('speechSynthesis'in window)speechSynthesis.cancel();el('gps-hud').classList.add('hidden');document.body.classList.remove('nav-active');setTimeout(()=>map.invalidateSize(),70);}
  const rerouteStatus=(state,message)=>window.dispatchEvent(new CustomEvent('jalan:reroute-status',{detail:{state,message}}));
  const freshRerouteFix=()=>rerouteFix&&Date.now()-rerouteFix.at>=0&&Date.now()-rerouteFix.at<=10000;
  const samePoint=(a,b)=>Array.isArray(a)&&Array.isArray(b)&&a[0]===b[0]&&a[1]===b[1];

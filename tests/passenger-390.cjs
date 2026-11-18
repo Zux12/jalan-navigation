@@ -804,7 +804,7 @@ async function main(){
     map.setView=(...args)=>{setCount++;return originalSet(...args);};
     map.panTo=(...args)=>{panCount++;return originalPan(...args);};
     // Passenger camera follows measured GPS, not the old route-snapped predictor.
-    const position=window.JalanGPS.getState().gpsPosition;
+    const position=window.JalanGPS.getState().vehiclePosition||window.JalanGPS.getState().gpsPosition;
     if(!Array.isArray(position))throw Error('measured GPS unavailable for camera stability check');
     for(let i=0;i<3;i++){
       window.__offlineGPSWatch({timestamp:Date.now()+3900+i*100,coords:{
@@ -1182,6 +1182,7 @@ async function main(){
   console.log('PASS active journey sheet: drag/touch/keyboard, longest-road label, proportional remaining traffic, scroll, Resume continuity and Stop reset');
   await require('./passenger-follow-390.cjs')(page,context,base);
   await require('./passenger-route-start-390.cjs')(browser,base,root);
+  await require('./passenger-drift-390.cjs')(page,base);
   await page.goto(base+'/index.html?mode=engineering',{waitUntil:'load'});
   assert.equal(await page.evaluate(()=>document.body.classList.contains('passenger-mode')),false);
   assert.equal(await page.locator('#info-panel').isVisible(),true,'original engineering dashboard retained');

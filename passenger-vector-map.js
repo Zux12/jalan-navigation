@@ -75,6 +75,25 @@
    getBearing(){return active?gl.getBearing():0;},
    getPitch(){return active?gl.getPitch():0;},
    setCamera(options){if(active)gl.jumpTo(options);},
+   nearbyRoads(position,origin=position){
+     if(!active)return null;
+     const layers=gl.getStyle().layers.filter(l=>l.type==='line'&&l['source-layer']==='transportation').map(l=>l.id);
+     if(!layers.length)return null;
+     const a=gl.project(lngLat(position)),b=gl.project(lngLat(origin));
+     const bounds=[[Math.min(a.x,b.x)-100,Math.min(a.y,b.y)-100],[Math.max(a.x,b.x)+100,Math.max(a.y,b.y)+100]];
+     if(bounds[1][0]-bounds[0][0]>700||bounds[1][1]-bounds[0][1]>700)return null;
+     const seen=new Set(),roads=[];
+     for(const f of gl.queryRenderedFeatures(bounds,{layers})){
+       const p=f.properties||{};
+       if(!['motorway','trunk','primary','secondary','tertiary','minor','service','residential','unclassified','living_street'].includes(p.class))continue;
+       const lines=f.geometry.type==='LineString'?[f.geometry.coordinates]:f.geometry.type==='MultiLineString'?f.geometry.coordinates:[];
+       for(const coordinates of lines){
+         const key=JSON.stringify(coordinates);if(seen.has(key))continue;seen.add(key);
+         roads.push({coordinates,layer:p.layer,bridge:p.brunnel==='bridge',tunnel:p.brunnel==='tunnel'});
+         if(roads.length>=80)return roads;
+       }
+     }return roads.length||gl.areTilesLoaded()?roads:null;
+   },
    // Read-only diagnostic snapshot, without tile URLs, keys or stored locations.
    getState(){
      const layers=active?gl.getStyle().layers.map(x=>x.id):[];
