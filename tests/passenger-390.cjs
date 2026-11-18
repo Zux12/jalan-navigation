@@ -894,7 +894,8 @@ async function main(){
   const cameraBeforeWeak=await page.evaluate(()=>
     document.getElementById('map').style.getPropertyValue('--jalan-camera-turn'));
   await page.evaluate(()=>{
-    window.__offlineGPSWatch({timestamp:Date.now()+4000,coords:{
+    // Follow the last stationary fixture sample (+4100 ms) even on fast runners.
+    window.__offlineGPSWatch({timestamp:Date.now()+4200,coords:{
       latitude:3.1391,longitude:101.6870,accuracy:180,speed:5,heading:90}});
   });
   await page.waitForFunction(()=>
