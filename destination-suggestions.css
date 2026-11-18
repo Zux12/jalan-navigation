@@ -18,8 +18,42 @@
 #tomtom-destination-results .destination-suggestion-pin {
   display: none;
 }
-#tomtom-destination-results + [role="region"] {
-  padding-block-start: 4px;
+.destination-result-heading {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  min-height: 50px;
+  margin: 0;
+  padding-inline: 16px;
+  border-bottom: 1px solid #e6ebf2;
+  color: #505050;
+  font: 500 1rem/1.25 system-ui, sans-serif;
+  letter-spacing: normal;
+}
+.destination-google-section {
+  position: relative;
+  container: google-results / inline-size;
+}
+#tomtom-destination-results + .destination-google-section {
+  margin-block-start: 4px;
+}
+/* The provider owns the logo and info button. This noninteractive sibling
+   uses the clear space after both controls in the 50px attribution row. */
+.destination-google-caption {
+  position: absolute;
+  z-index: 1;
+  inset-block-start: 0;
+  inset-inline-start: max(156px, 9.75rem);
+  padding: 0;
+  border: 0;
+  pointer-events: none;
+}
+@container google-results (max-width: 14rem) {
+  .destination-google-caption {
+    position: static;
+    min-height: auto;
+    padding: 6px 16px;
+  }
 }
 .destination-google-results {
   display: block;
