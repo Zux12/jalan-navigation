@@ -206,6 +206,7 @@ const trafficSectionsForRoute=r=>{
   if(!Number.isFinite(routeAlong))continue;
   output.push({lat:point[1],lng:point[0],startPointIndex:start,endPointIndex:end,
    roadName:name,roadNumbers:instruction?.roadNumbers||[],category,delaySeconds:delay,
+   trafficSeverity:category==='JAM'?window.JalanRouteTraffic?.severity?.(section)||null:null,
    effectiveSpeedKmh:speed,routeAlong,routeTotal:total});
  }
  return output.sort((a,b)=>a.startPointIndex-b.startPointIndex).slice(0,60);
@@ -236,7 +237,9 @@ function incidents(force=false){
  for(const section of sections){
   const emoji=section.category==='JAM'?'🚗':
     ['ROAD WORK','ROAD CLOSURE'].includes(section.category)?'🚧':'⚠️';
-  const issue=section.category==='JAM'?'Traffic Jam':section.category==='OTHER'?'Traffic Incident':
+  const reportType=({'JAM':'traffic','ROAD WORK':'roadworks','ROAD CLOSURE':'closure'})[section.category]||'incident';
+  const issue=reportType==='traffic'?(window.JalanReportModel?.reportLabel('traffic',section.trafficSeverity)||'Traffic Jam'):
+    section.category==='OTHER'?'Traffic Incident':
     section.category.toLowerCase().replace(/\b[a-z]/g,letter=>letter.toUpperCase());
   const detail=section.roadName+
     (section.delaySeconds===null?'':' · delay '+Math.round(section.delaySeconds/60)+' min')+
@@ -247,7 +250,7 @@ function incidents(force=false){
   L.marker([section.lat,section.lng],{icon:L.divIcon({
     className:'report-marker',html:emoji,iconSize:[28,28],iconAnchor:[14,14]})})
    .bindPopup(popup).addTo(incidentLayer);
-  reportItems.push({...section,issue,detail,description:issue+' · '+detail,category:emoji,source:'tomtom-route-section'});
+  reportItems.push({...section,reportType,issue,detail,description:issue+' · '+detail,category:emoji,source:'tomtom-route-section'});
  }
  lastIncidents=checkedAt;
  publishIncidents({route:r,incidents:reportItems,checkedAt:lastIncidents});
