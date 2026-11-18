@@ -1,5 +1,5 @@
 {
-  "name": "JALAN — Passenger Preview",
+  "name": "JALAN",
   "short_name": "JALAN",
   "description": "Experimental passenger-only navigation preview",
   "start_url": "./index.html?mode=passenger",
@@ -7,5 +7,19 @@
   "display": "standalone",
   "orientation": "portrait-primary",
   "background_color": "#e5eef7",
-  "theme_color": "#142b4a"
+  "theme_color": "#142b4a",
+  "icons": [
+    {
+      "src": "icons/jalan-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icons/jalan-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
 }

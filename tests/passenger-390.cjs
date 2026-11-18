@@ -1236,6 +1236,7 @@ async function main(){
   assert.equal(await deniedPage.locator('#passenger-key').count(),0,'configured routing needs no passenger key entry');
   assert.deepEqual(deniedErrors,[]);
   await deniedContext.close();
+  await require('./destination-suggestions-390.cjs')({context,base,root});
   assert.deepEqual(errors,[],'no uncaught JS errors in either UI');
   console.log('JALAN passenger 390px offline PASS: two modes, fastest, real alternatives, +minutes, Go, 2D, exit and provider fallback.');
  }finally{if(browser)await browser.close();await new Promise(resolve=>server.close(resolve));}
