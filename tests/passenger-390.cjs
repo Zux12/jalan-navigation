@@ -15,7 +15,7 @@ const serve=(req,res)=>{
  }
  res.writeHead(200,{'content-type':contentTypes[path.extname(name)]||'text/plain',
   'cache-control':'no-store'});
- res.end(fs.readFileSync(name));
+ res.end(path.basename(name)==='jalan-config.js'?"window.JalanPublicConfig=Object.freeze({tomtomBrowserKey:'',appVersion:'4.8.0-test',buildDate:'2026-11-18'});":fs.readFileSync(name));
 };
 async function main(){
  const server=http.createServer(serve);
@@ -88,12 +88,20 @@ async function main(){
       {voiceURI:'test-voice-uk',name:'Test English UK',lang:'en-GB',localService:true}];
     speechSynthesis.dispatchEvent(new Event('voiceschanged'));
   });
+  await page.locator('#passenger-voice').click();
   await page.locator('#passenger-voice-choice').selectOption({label:'Test English US · en-US'});
   await page.locator('#passenger-voice-preview').click();
   assert.equal(await page.evaluate(()=>window.__spoken.at(-1).voice),'Test English US');
   assert.match(await page.locator('#gps-voice').textContent(),/Mute/,'sample does not enable navigation speech');
+  assert.equal(await page.evaluate(()=>JalanVoice.getState().preference),'','sample does not save pending voice');
   fs.mkdirSync(path.join(root,'test-artifacts'),{recursive:true});
   await page.screenshot({path:path.join(root,'test-artifacts/passenger-voice-menu.png')});
+  await page.locator('#passenger-sound-ok').click();
+  await page.locator('#passenger-about').click();
+  assert.match(await page.locator('#passenger-about-dialog').innerText(),/Dr. Ir. M. Zurix Mohamed/);
+  assert.match(await page.locator('#passenger-app-version').innerText(),/4.8.0-test/);
+  assert.equal(await page.locator('#passenger-about-dialog a').count(),5);
+  await page.locator('#passenger-about-ok').click();
   await page.keyboard.press('Escape');
   assert.equal(await page.locator('#jalan-home-menu-panel').isVisible(),false);
   assert.equal(await page.locator('#jalan-home-menu').getAttribute('aria-expanded'),'false');
@@ -452,10 +460,10 @@ async function main(){
   assert.equal(await page.locator('#passenger-voice').isVisible(),true,
     'advanced controls remain accessible when passenger requests them');
   await page.screenshot({path:path.join(root,'test-artifacts/passenger-guidance-menu.png')});
-  await page.locator('#jalan-home-menu-panel [data-menu=settings]').click();
-  assert.equal(await page.locator('#passenger-setup').isVisible(),true,'Routing settings can open during guidance');
-  assert.equal(await page.evaluate(()=>JalanGPS.getState().active),true,'opening settings preserves the journey');
-  await page.locator('#passenger-setup-close').click();
+  await page.locator('#passenger-voice').click();
+  assert.equal(await page.locator('#passenger-sound-dialog').isVisible(),true);
+  assert.equal(await page.evaluate(()=>JalanGPS.getState().active),true,'Sound preserves the journey');
+  await page.locator('#passenger-sound-ok').click();
   await page.locator('#jalan-home-menu').click();
    assert.equal(await page.locator('#passenger-traffic-toggle').getAttribute('aria-pressed'),'false',
      'OSRM / no-key Go cannot start TomTom traffic checks');
@@ -479,14 +487,13 @@ async function main(){
     'explicit Go enables sustained off-route recovery for this journey');
   assert.match(await page.locator('#passenger-voice').innerText(),/Mute/);
   await menuClick('#passenger-voice');
-  assert.match(await page.locator('#passenger-voice').innerText(),/Full guidance/,
-    'voice button enables existing guidance engine');
-  assert.match(await page.locator('#gps-voice').innerText(),/Full guidance/,
-    'passenger voice control mirrors engineering state');
+  await page.locator('input[name=passenger-sound-mode][value=full]').check();
+  await page.locator('#passenger-sound-ok').click();
+  assert.match(await page.locator('#gps-voice').innerText(),/Full guidance/);
   await menuClick('#passenger-voice');
-  await menuClick('#passenger-voice');
-  assert.match(await page.locator('#passenger-voice').innerText(),/Mute/,
-    'passenger voice control can mute without leaving navigation');
+  await page.locator('input[name=passenger-sound-mode][value=mute]').check();
+  await page.locator('#passenger-sound-ok').click();
+  assert.match(await page.locator('#passenger-voice').innerText(),/Mute/);
   await menuClick('#passenger-auto-reroute');
   assert.equal(await page.locator('#passenger-auto-reroute').getAttribute('aria-pressed'),'false');
   await menuClick('#passenger-auto-reroute');
@@ -886,44 +893,18 @@ async function main(){
   assert.equal(await page.evaluate(()=>routes.length),0,'Stop clears the route');
   assert.equal(await page.evaluate(()=>startMarker===null),true,'Stop removes the old start marker');
   assert.equal(await page.locator('#passenger-overview').isVisible(),false);
-  await page.locator('#jalan-home-menu').click();
-   await page.locator('#jalan-home-menu-panel [data-menu=settings]').click();
-  assert.equal(await page.locator('#passenger-setup').isVisible(),true);
-  await page.locator('#passenger-use-osrm').click();
-  assert.equal(await page.evaluate(()=>document.getElementById('tt-primary').checked),false);
-  assert.equal(await page.locator('#passenger-overview').isVisible(),false);
-  // A passenger can explicitly save a restricted key once on the same device.
-  // Tests use a synthetic token; no real credentials or provider requests.
-  await page.locator('#jalan-home-menu').click();
-   await page.locator('#jalan-home-menu-panel [data-menu=settings]').click();
-  await page.locator('#passenger-key').fill('TEST_RESTRICTED_KEY_1234');
-  assert.equal(await page.locator('#passenger-remember').isChecked(),true,'key saving is enabled by default');
-  await page.locator('#passenger-use-tomtom').click();
-  assert.equal(await page.evaluate(()=>document.getElementById('tt-primary').checked),true);
-  assert.equal(await page.evaluate(()=>!!localStorage.getItem('jalan-tomtom-key')),true,
-    'Use TomTom saves the key for future visits by default');
   await page.goto(base+'/index.html?mode=passenger',{waitUntil:'load'});
-  assert.equal(await page.locator('#passenger-remember').isChecked(),true);
-  assert.equal(await page.evaluate(()=>JalanVoice.getState().unavailable),true,'saved voice remains pending while device voices load');
+  assert.equal(await page.locator('#passenger-setup').count(),0,'provider entry controls removed');
+  assert.equal(await page.evaluate(()=>JalanVoice.getState().unavailable),true);
   await page.evaluate(()=>{
     window.__testVoices=[{voiceURI:'test-voice-us',name:'Test English US',lang:'en-US',localService:true}];
     speechSynthesis.dispatchEvent(new Event('voiceschanged'));
   });
-  assert.equal(await page.locator('#passenger-voice-choice option:checked').textContent(),'Test English US · en-US',
-    'saved voice selection returns after reload and async loading');
-  assert.equal(await page.evaluate(()=>!!document.getElementById('tt-key').value),true,
-    'both interfaces reuse saved browser key');
-  assert.match(await page.locator('#passenger-provider-status').innerText(),/no re-entry needed/);
   await page.locator('#jalan-home-menu').click();
-   await page.locator('#jalan-home-menu-panel [data-menu=settings]').click();
-  await page.locator('#passenger-use-tomtom').click();
-  assert.equal(await page.evaluate(()=>document.getElementById('tt-primary').checked),true,
-    'reuse existing browser key without entering again');
+  await page.locator('#passenger-voice').click();
+  assert.equal(await page.locator('#passenger-voice-choice option:checked').textContent(),'Test English US · en-US');
+  await page.keyboard.press('Escape');
   await page.locator('#jalan-home-menu').click();
-   await page.locator('#jalan-home-menu-panel [data-menu=settings]').click();
-  await page.locator('#passenger-forget-key').click();
-  assert.equal(await page.evaluate(()=>localStorage.getItem('jalan-tomtom-key')),null);
-  assert.equal(await page.evaluate(()=>document.getElementById('tt-key').value),'');
   // Actual passenger Go -> provider route-linked TRAFFIC sections -> reports.
   // All remote assets are intercepted; no live TomTom key/location is sent.
   let incidentRequests=0,trafficRouteRequests=0;
@@ -1186,7 +1167,7 @@ async function main(){
   await page.goto(base+'/index.html?mode=engineering',{waitUntil:'load'});
   assert.equal(await page.evaluate(()=>document.body.classList.contains('passenger-mode')),false);
   assert.equal(await page.locator('#info-panel').isVisible(),true,'original engineering dashboard retained');
-  assert.equal(await page.locator('#passenger-settings-top').isVisible(),false);
+  assert.equal(await page.locator('#passenger-settings-top').count(),0);
   // Privacy-restricted browser: storage getters may throw SecurityError before
   // the TomTom module initializes. Preserve the no-key/OSRM experience and
   // use an explicitly entered key only for this tab, never claim it was saved.
@@ -1216,25 +1197,12 @@ async function main(){
       body:fs.readFileSync(path.join(leaflet,'leaflet.css'))}));
   await deniedPage.goto(base+'/index.html?mode=passenger',{waitUntil:'load'});
   assert.equal(await deniedPage.evaluate(()=>document.body.classList.contains('passenger-mode')),true);
-  assert.equal(await deniedPage.locator('#passenger-remember').isChecked(),true);
+  assert.equal(await deniedPage.locator('#passenger-setup').count(),0);
   await deniedPage.locator('#jalan-home-menu').click();
-   await deniedPage.locator('#jalan-home-menu-panel [data-menu=settings]').click();
-  await deniedPage.locator('#passenger-key').fill('TEST_RESTRICTED_KEY_1234');
-  await deniedPage.locator('#passenger-remember').check();
-  await deniedPage.locator('#passenger-use-tomtom').click();
-  assert.equal(await deniedPage.evaluate(()=>document.getElementById('tt-primary').checked),true,
-    'page-memory key remains usable when browser blocks storage');
-  assert.equal(await deniedPage.locator('#passenger-remember').isChecked(),false,
-    'a denied key persistence attempt must unset remember');
-  assert.match(await deniedPage.locator('#passenger-provider-status').innerText(),
-    /Browser storage blocked; key not saved/);
-  assert.equal(await deniedPage.evaluate(()=>document.getElementById('tt-key').value),
-    'TEST_RESTRICTED_KEY_1234','key is retained only in the current page');
-  await deniedPage.locator('#jalan-home-menu').click();
-   await deniedPage.locator('#jalan-home-menu-panel [data-menu=settings]').click();
-  await deniedPage.locator('#passenger-forget-key').click();
-  assert.equal(await deniedPage.evaluate(()=>document.getElementById('tt-key').value),'',
-    'Forget must still clear a page-memory key when persistent storage fails');
+  await deniedPage.locator('#passenger-voice').click();
+  await deniedPage.locator('input[name=passenger-sound-mode][value=alerts]').check();
+  await deniedPage.locator('#passenger-sound-ok').click();
+  assert.equal(await deniedPage.evaluate(()=>JalanGPS.getVoiceMode()),'alerts','blocked storage allows page-only sound mode');
   await deniedPage.evaluate(()=>{
     document.getElementById('report-hazard').click();
     map.fire('click',{latlng:L.latLng(3.139,101.687)});

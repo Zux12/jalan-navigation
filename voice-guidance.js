@@ -3,7 +3,8 @@
  'use strict';
  const thresholds=[2000,1000,500,200,50],spoken=new Set();
  const storageKey='jalan-voice-choice-v1';
- let lastAt=0,preference='',saved=true,voices=[];
+ let lastAt=0,preference='',saved=true,voices=[],mode='mute';
+ try{const value=localStorage.getItem('jalan-voice-mode-v1');if(['full','alerts','mute'].includes(value))mode=value;}catch{}
  try{preference=localStorage.getItem(storageKey)||'';}catch{saved=false;}
  const supported=!!window.speechSynthesis&&typeof window.SpeechSynthesisUtterance==='function';
  const voiceId=v=>JSON.stringify([v.voiceURI||'',v.name,v.lang]);
@@ -26,11 +27,11 @@
   catch{saved=false;}
   notify();return true;
  }
- function speak(text,preview=false){
+ function speak(text,preview=false,previewVoice=undefined){
   if(!supported||document.hidden)return false;
   try{
    speechSynthesis.cancel();
-   const utterance=new SpeechSynthesisUtterance(String(text)),voice=selected();
+   const utterance=new SpeechSynthesisUtterance(String(text)),voice=previewVoice===undefined?selected():voices.find(v=>voiceId(v)===previewVoice);
    if(voice)utterance.voice=voice;
    utterance.lang=voice?.lang||'en-GB';utterance.rate=.95;
    if(preview){
@@ -41,7 +42,9 @@
    speechSynthesis.speak(utterance);return true;
   }catch{return false;}
  }
- function preview(){return speak('In 200 meters, turn left. Then continue straight. This is your JALAN navigation voice.',true);}
+ function preview(id=undefined){return speak('In 200 meters, turn left. Then continue straight. This is your JALAN navigation voice.',true,id);}
+ function setMode(value){if(!['full','alerts','mute'].includes(value))return false;mode=value;
+  try{localStorage.setItem('jalan-voice-mode-v1',value);}catch{}return true;}
  function reset(){spoken.clear();lastAt=0;}
  function announce(mode,id,distance,action){
   if(mode!=='full'||!Number.isFinite(distance)||distance<0||!supported||document.hidden)return;
@@ -58,7 +61,7 @@
  }
  const nextMode=mode=>mode==='mute'?'full':mode==='full'?'alerts':'mute';
  const label=mode=>mode==='full'?'Full guidance':mode==='alerts'?'Alerts only':'Mute';
- window.JalanVoice={reset,announce,alert,nextMode,label,getState,choose,preview,refresh};
+ window.JalanVoice={reset,announce,alert,nextMode,label,getState,choose,preview,refresh,setMode,getMode:()=>mode};
  if(supported)speechSynthesis.addEventListener('voiceschanged',refresh);
  refresh();
 })();

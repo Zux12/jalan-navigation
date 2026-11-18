@@ -4,7 +4,7 @@
  const el=id=>document.getElementById(id), rad=x=>x*Math.PI/180, R=6371000;
  const meters=(a,b)=>{const x=rad(b[0]-a[0]),y=rad(b[1]-a[1]);return 2*R*Math.asin(Math.min(1,Math.sqrt(Math.sin(x/2)**2+Math.cos(rad(a[0]))*Math.cos(rad(b[0]))*Math.sin(y/2)**2)));};
  let active=false,watch=null,marker=null,current=null,route=null,points=[],cum=[],total=0,maneuvers=[];
- let predictor=null,offCount=0,lastReroute=0,rerouting=false,auto=false,voice='mute',lastSpeech='',lastSpeechAt=0,lastFixAt=0,lastReportedAccuracy=Infinity,latestMatched=false,progress=0,destinationAnnounced=false;
+ let predictor=null,offCount=0,lastReroute=0,rerouting=false,auto=false,voice=window.JalanVoice?.getMode?.()||'mute',lastSpeech='',lastSpeechAt=0,lastFixAt=0,lastReportedAccuracy=Infinity,latestMatched=false,progress=0,destinationAnnounced=false;
  let latestMode='waiting',rerouteFix=null,rerouteEpoch=0,rerouteController=null;
  let lastPositionFix=null,pendingPositionFix=null,lastMeasuredAccepted=false;
  let roadMotion=null,vehiclePosition=null,vehicleCertain=false,vehicleMode='waiting',vehicleHeading=null;
@@ -270,9 +270,11 @@
  function updateButtons(){el('gps-auto').textContent='Auto reroute: '+(auto?'On':'Off');el('gps-auto').setAttribute('aria-pressed',String(auto));el('gps-voice').textContent='Voice: '+window.JalanVoice.label(voice);el('gps-voice').setAttribute('aria-pressed',String(voice!=='mute'));}
  el('gps-start').onclick=start;el('gps-exit').onclick=()=>{stop();if(routes.length)renderRoutes();};el('gps-recenter').onclick=()=>{if(current)map.setView(current,16);};el('gps-reroute').onclick=()=>reroute(false);
  el('gps-auto').onclick=()=>{auto=!auto;if(!auto)cancelReroute();updateButtons();window.dispatchEvent(new CustomEvent('jalan:navigation-settings',{detail:{auto,voice}}));};
- el('gps-voice').onclick=()=>{voice=window.JalanVoice.nextMode(voice);updateButtons();window.dispatchEvent(new CustomEvent('jalan:navigation-settings',{detail:{auto,voice}}));if('speechSynthesis'in window)speechSynthesis.cancel();if(voice!=='mute'&&active)window.JalanVoice.alert(voice,window.JalanVoice.label(voice));};
+ function setVoiceMode(value){if(!['full','alerts','mute'].includes(value))return false;voice=value;window.JalanVoice.setMode?.(value);updateButtons();window.dispatchEvent(new CustomEvent('jalan:navigation-settings',{detail:{auto,voice}}));if('speechSynthesis'in window)speechSynthesis.cancel();return true;}
+ el('gps-voice').onclick=()=>{setVoiceMode(window.JalanVoice.nextMode(voice));if(voice!=='mute'&&active)window.JalanVoice.alert(voice,window.JalanVoice.label(voice));};
  document.addEventListener('visibilitychange',()=>{if(active&&document.hidden){cancelReroute();warn('Safari backgrounded. GPS and speech may pause; do not rely on navigation.');if('speechSynthesis'in window)speechSynthesis.cancel();}});
  for(const [id,type] of [['tt-key','input'],['tt-primary','change'],['tt-remove-key','click']])el(id)?.addEventListener(type,cancelReroute);
+ updateButtons();
  window.JalanGPS={
   getState(){return {active,...positionEvidence(!!(lastMeasuredAccepted&&lastPositionFix&&Date.now()-lastPositionFix.at<=10000)),deviationConfirmed:active&&latestMode==='deviation'&&!!freshRerouteFix(),rerouting,matched:active&&latestMatched&&lastFixAt>0,position:current?[...current]:null,accuracy:lastFixAt?lastReportedAccuracy:Infinity,fixAgeMs:lastFixAt?Date.now()-lastFixAt:Infinity,remainingSeconds:active&&route?route.duration*Math.max(0,total-progress)/total:null,remainingMeters:active&&route?route.distance*Math.max(0,total-progress)/total:null,route};},
   // Read-only route maneuvers generated from the selected provider's actual
@@ -286,5 +288,5 @@
    return items;
   },
   applyTrafficRoute(newRoute){if(!active||!newRoute)return false;stop();routes=[newRoute];selectedRoute=0;renderRoutes();start();return true;},
-  stop,routeReady(){el('gps-start').classList.remove('hidden');}};
+  setVoiceMode,getVoiceMode:()=>voice,stop,routeReady(){el('gps-start').classList.remove('hidden');}};
 })();

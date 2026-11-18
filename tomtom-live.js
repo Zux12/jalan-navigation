@@ -19,9 +19,10 @@ try{configDisabled=localStorage.getItem(DISABLED_KEY)==='1';}catch{}
 const configuredKey=String(window.JalanPublicConfig?.tomtomBrowserKey||'').trim();
 const validKey=value=>/^[\w-]{8,160}$/.test(value);
 const rememberedKey=keyStorage.read();
-const usableConfiguredKey=!configDisabled&&validKey(configuredKey)?configuredKey:'';
-input.value=validKey(rememberedKey)?rememberedKey:usableConfiguredKey;
-el('tt-remember').checked=validKey(rememberedKey);
+const managed=window.JalanPublicConfig?.managedTomTom===true&&validKey(configuredKey);
+const usableConfiguredKey=(managed||!configDisabled)&&validKey(configuredKey)?configuredKey:'';
+input.value=managed?usableConfiguredKey:validKey(rememberedKey)?rememberedKey:usableConfiguredKey;
+el('tt-remember').checked=!managed&&validKey(rememberedKey);
 window.JalanTomTomKeyStorage=Object.freeze({remember:keyStorage.remember,forget:keyStorage.forget,
  configured:!!usableConfiguredKey});
 const enabled=()=>el('tt-primary').checked && !!input.value.trim();

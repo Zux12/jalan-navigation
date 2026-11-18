@@ -2,7 +2,7 @@
 const test=require('node:test'),assert=require('node:assert/strict');
 const fs=require('node:fs'),path=require('node:path'),vm=require('node:vm');
 const code=fs.readFileSync(path.join(__dirname,'..','tomtom-live.js'),'utf8');
-function scene({defer=false,response=null,configKey='',stored=new Map(),userKey='testKey12345'}={}){
+function scene({defer=false,response=null,configKey='',managed=false,stored=new Map(),userKey='testKey12345'}={}){
  const nodes={},store=stored,sessions=new Map();
  for(const id of ['tt-key','tt-remember','tt-primary','tt-status','tt-route','tt-connect','tt-hide',
   'tt-incident-toggle','tt-eta','tt-toggle-key','tt-remove-key']){
@@ -28,7 +28,7 @@ function scene({defer=false,response=null,configKey='',stored=new Map(),userKey=
  };
  const layer={addTo(){return this},clearLayers(){},removeLayer(){}};
  const L={layerGroup:()=>layer,latLngBounds:()=>({pad(){return this},getWest(){return 101},getEast(){return 102},getNorth(){return 4},getSouth(){return 3}})};
- let ctx={window:{JalanPublicConfig:{tomtomBrowserKey:configKey}},document:{getElementById:id=>nodes[id]},map:{removeLayer(){}},L,
+ let ctx={window:{JalanPublicConfig:{tomtomBrowserKey:configKey,managedTomTom:managed}},document:{getElementById:id=>nodes[id]},map:{removeLayer(){}},L,
   localStorage:objects.localStorage,sessionStorage:objects.sessionStorage,
   startPoint:[3.14,101.68],destination:[3.141,101.681],
   routes:[],selectedRoute:0,routeEl:{textContent:'',classList:{add(){},remove(){}}},
@@ -267,4 +267,14 @@ test('normalization retains all road-distance boundaries for journey via summary
  assert.equal(s.ctx.routes[0].legs[0].steps.length,120,'spoken-step limit unchanged');
  assert.equal(s.ctx.routes[0].roadGuidance.length,122,'longest-road summary sees every boundary');
  assert.equal(require('../passenger-journey-model.js').longestRoad(s.ctx.routes[0]),'Long highway');
+});
+
+test('managed testing configuration overrides old saved key and disabled flag',()=>{
+ const configured='SYNTHETIC_MANAGED_TEST_KEY';
+ const s=scene({configKey:configured,managed:true,userKey:null,stored:new Map([
+ ['jalan-tomtom-key','OLD_SYNTHETIC_KEY'],['jalan-tomtom-config-disabled','1']])});
+ assert.equal(s.nodes['tt-key'].value,configured);
+ assert.equal(s.nodes['tt-primary'].checked,true);
+ assert.equal(s.nodes['tt-remember'].checked,false);
+ assert.equal(s.calls.length,0,'initialization does not contact provider');
 });
