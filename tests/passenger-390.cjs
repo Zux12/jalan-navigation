@@ -44,6 +44,7 @@ async function main(){
   const page=await context.newPage(),errors=[];
   const menuClick=async selector=>{
     if(!await page.locator('#jalan-home-menu-panel').isVisible())await page.locator('#jalan-home-menu').click();
+    if(selector!=='#passenger-voice'&&!await page.locator('#passenger-navigation-settings').evaluate(x=>x.open))await page.locator('#passenger-navigation-settings>summary').click();
     await page.locator(selector).click();
   };
   page.on('pageerror',error=>errors.push(error.message));
@@ -83,6 +84,9 @@ async function main(){
   assert.equal(await page.locator('#jalan-home-menu-panel').isVisible(),true);
   assert.equal(await page.locator('#jalan-home-notice').isVisible(),false,'old notices do not obscure the menu');
   assert.equal(await page.locator('#passenger-options').count(),0,'old three-dot control is removed');
+  const menuLabels=()=>page.locator('#jalan-home-menu-panel').evaluate(el=>[el.querySelector('#passenger-voice').textContent.split(':')[0],el.querySelector('summary').textContent,el.querySelector('#passenger-about').textContent,el.querySelector('#jalan-home-menu-close').textContent]);
+  assert.deepEqual(await menuLabels(),['Sound','Navigation','About','Close']);
+  assert.equal(await page.locator('#jalan-home-menu-close').evaluate(x=>x.parentElement.lastElementChild===x),true,'Close is at the bottom');
   assert.equal(await page.locator('#passenger-journey-options').isVisible(),false,'journey controls are hidden before Go');
   await page.evaluate(()=>{
     window.__testVoices=[{voiceURI:'test-voice-us',name:'Test English US',lang:'en-US',localService:true},
@@ -462,6 +466,7 @@ async function main(){
   await page.locator('#jalan-home-menu').click();
   assert.equal(await page.locator('#passenger-voice').isVisible(),true,
     'advanced controls remain accessible when passenger requests them');
+  assert.deepEqual(await menuLabels(),['Sound','Navigation','About','Close'],'same menu after Go');
   await page.screenshot({path:path.join(root,'test-artifacts/passenger-guidance-menu.png')});
   await page.locator('#passenger-voice').click();
   assert.equal(await page.locator('#passenger-sound-dialog').isVisible(),true);
@@ -469,6 +474,7 @@ async function main(){
   await page.locator('#passenger-sound-ok').click();
    assert.equal(await page.locator('#passenger-traffic-toggle').getAttribute('aria-pressed'),'false',
      'OSRM / no-key Go cannot start TomTom traffic checks');
+   await page.locator('#passenger-navigation-settings>summary').click();
    await page.locator('#passenger-traffic-details summary').click();
    await menuClick('#passenger-traffic-toggle');
    assert.equal(await page.locator('#passenger-traffic-toggle').getAttribute('aria-pressed'),'false',
@@ -541,6 +547,7 @@ async function main(){
   assert.ok(await page.evaluate(()=>map.getZoom()>=17),
     'passenger follow zoom must persist after delayed route overview settling');
   assert.equal(await page.locator('#passenger-speed').textContent(),'7','floating speed still uses the matched GPS fix');
+  await page.waitForFunction(()=>{const car=document.getElementById('passenger-vehicle-screen').getBoundingClientRect(),bar=document.getElementById('passenger-journey-sheet').getBoundingClientRect();return Math.abs(bar.top-car.bottom-12)<4;});
   assert.equal(await page.locator('#passenger-gps-status').getAttribute('data-quality'),'green');
   assert.match(await page.locator('#passenger-next').textContent(),/Arrival approx/);
   assert.doesNotMatch(await page.locator('#passenger-next').textContent(),/GPS matched to selected route/);
@@ -826,7 +833,7 @@ async function main(){
     'stationary GPS updates must not redraw the entire route camera');
   await menuClick('#passenger-recenter');
   assert.match(await page.locator('#passenger-gesture-hint').innerText(),/Following GPS/);
-  assert.equal(await page.evaluate(()=>map.getZoom()),17+Math.log2(1.5),
+  assert.equal(await page.evaluate(()=>map.getZoom()),18.8,
     'Recenter explicitly restores navigation zoom after exploration');
   const restored=await page.evaluate(()=>[map.getCenter().lat,map.getCenter().lng]);
   assert.notDeepEqual(restored,exploreCenter,
@@ -862,7 +869,7 @@ async function main(){
   await menuClick('#passenger-recenter');
   assert.equal(await page.evaluate(()=>document.getElementById('map').style.getPropertyValue('--jalan-camera-turn')),
     '0deg','2D Recenter restores north-up');
-  assert.equal(await page.evaluate(()=>map.getZoom()),17+Math.log2(1.5),'2D Recenter returns to GPS zoom');
+  assert.equal(await page.evaluate(()=>map.getZoom()),18.8,'2D Recenter returns to GPS zoom');
   await menuClick('#passenger-2d');
   const headingAfterReturn=await page.evaluate(()=>({
     camera:Number.parseFloat(document.getElementById('map').style.getPropertyValue('--jalan-camera-turn')),

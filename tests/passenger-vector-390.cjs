@@ -116,7 +116,7 @@ async function main(){
   await page.locator('#passenger-route-handle').click();
   assert.equal(await page.locator('#passenger-route-list button').count(),2);
   await page.locator('#passenger-go').click();
-  assert.equal(await page.evaluate(()=>JalanVectorMap.getPitch()),48,'Go uses native pitch');
+  assert.equal(await page.evaluate(()=>JalanVectorMap.getPitch()),60,'Go uses native pitch');
   for(const height of [844,560]){
    await page.setViewportSize({width:390,height});
    const layout=await page.evaluate(()=>{
@@ -135,7 +135,7 @@ async function main(){
   assert.equal(await page.evaluate(()=>JalanVectorMap.active&&JalanGPS.getState().active),true);
   await page.keyboard.press('Escape');
   assert.equal(await page.locator('#jalan-home-sheet').isVisible(),false);
-  assert.equal(await page.evaluate(()=>JalanVectorMap.getPitch()),48,
+  assert.equal(await page.evaluate(()=>JalanVectorMap.getPitch()),60,
     'opening and dismissing Stage C preserves the native pitched map');
   assert.equal(await page.locator('#passenger-map-gestures').isVisible(),false,'native gestures get the touch surface');
   const fix=()=>window.__fix({timestamp:Date.now(),coords:{latitude:3.139,longitude:101.6869,accuracy:8,speed:5,heading:45}});
@@ -153,7 +153,27 @@ async function main(){
    return {dx:Math.abs(box.x+box.width/2-p.x),dy:Math.abs(box.y+box.height/2-p.y),y:p.y};
   });
   assert.ok(placement.dx<2&&placement.dy<2,'vehicle shares native pitched projection with route');
-  assert.ok(placement.y>450&&placement.y<700,'vehicle is in lower visible map area');
+  assert.ok(placement.y>450&&placement.y<750,'vehicle is in lower visible map area');
+  const assertAnchor=async()=>{
+   await page.waitForFunction(()=>{const v=document.getElementById('passenger-vehicle-screen').getBoundingClientRect(),b=document.getElementById('passenger-journey-sheet').getBoundingClientRect();return Math.abs(b.top-v.bottom-12)<3;});
+  };
+  await assertAnchor();
+  await page.locator('#jalan-home-menu').click();
+  await page.locator('#passenger-navigation-settings>summary').click();
+  assert.equal(await page.locator('#passenger-nav-zoom').inputValue(),'80');
+  assert.equal(await page.locator('#passenger-nav-tilt').inputValue(),'100');
+  await page.locator('#passenger-nav-zoom').evaluate(el=>{el.value='50';el.dispatchEvent(new Event('input',{bubbles:true}));});
+  await page.locator('#passenger-nav-tilt').evaluate(el=>{el.value='50';el.dispatchEvent(new Event('input',{bubbles:true}));});
+  assert.ok(Math.abs(await page.evaluate(()=>map.getZoom())-17)<.01);
+  assert.equal(await page.evaluate(()=>JalanVectorMap.getPitch()),30);
+  await assertAnchor();
+  assert.deepEqual(await page.evaluate(()=>JSON.parse(localStorage.getItem('jalan-navigation-view-v1'))),{zoom:50,tilt:50});
+  for(const [key,value]of [['zoom',80],['tilt',100]])await page.locator('#passenger-nav-'+key).evaluate((el,value)=>{el.value=value;el.dispatchEvent(new Event('input',{bubbles:true}));},value);
+  assert.equal(await page.locator('#jalan-home-menu-close').evaluate(el=>{const b=el.getBoundingClientRect();return b.top>=0&&b.bottom<=innerHeight;}),true,'bottom Close stays visible while Navigation is expanded');
+  await page.screenshot({path:path.join(artifacts,'navigation-view-settings.png')});
+  await page.locator('#jalan-home-menu-close').click();
+  for(const height of [560,844]){await page.setViewportSize({width:390,height});await page.evaluate(fix);await assertAnchor();}
+
   await page.screenshot({path:path.join(artifacts,'vector-fixture-navigation.png')});
   // Native gestures must actually change the camera. A former vector-gesture
   // handler called gl.stop() on dragstart, cancelling the map movement.
@@ -227,10 +247,12 @@ async function main(){
   await page.screenshot({path:path.join(artifacts,'vector-report-follow-control.png')});
   console.log('PASS native map: held drag, three-second return after release and report/Recenter swap');
   await page.locator('#jalan-home-menu').click();
+  if(!await page.locator('#passenger-navigation-settings').evaluate(x=>x.open))await page.locator('#passenger-navigation-settings>summary').click();
   await page.locator('#passenger-2d').click();
   assert.equal(await page.evaluate(()=>JalanVectorMap.getPitch()),0);
+  if(!await page.locator('#passenger-navigation-settings').evaluate(x=>x.open))await page.locator('#passenger-navigation-settings>summary').click();
   await page.locator('#passenger-2d').click();
-  assert.equal(await page.evaluate(()=>JalanVectorMap.getPitch()),48);
+  assert.equal(await page.evaluate(()=>JalanVectorMap.getPitch()),60);
   await page.locator('#jalan-home-menu').click();
   await page.evaluate(()=>{
     const route=JalanGPS.getState().route;
@@ -268,6 +290,15 @@ async function main(){
   assert.equal(await page.evaluate(()=>routeLayer.getLayers().length),2);
   assert.match(await page.locator('#jalan-map-status').textContent(),/Basic map/);
   assert.deepEqual(errors,[]);
+  await page.evaluate(()=>{JalanPassengerCamera.setSetting('zoom',55);JalanPassengerCamera.setSetting('tilt',35);});
+  await page.reload();
+  await page.waitForFunction(()=>window.JalanPassengerCamera&&window.JalanVectorMap?.active);
+  assert.deepEqual(await page.evaluate(()=>JalanPassengerCamera.getSettings()),{zoom:55,tilt:35},'view choices survive reload');
+  assert.equal(await page.evaluate(()=>JalanVectorMap.getPitch()),0,'saved view applies to navigation, not route planning');
+  await page.locator('#jalan-home-menu').click();await page.locator('#passenger-navigation-settings>summary').click();
+  assert.equal(await page.locator('#passenger-nav-zoom').inputValue(),'55');
+  assert.equal(await page.locator('#passenger-nav-tilt').inputValue(),'35');
+  await page.evaluate(()=>{JalanPassengerCamera.setSetting('zoom',80);JalanPassengerCamera.setSetting('tilt',100);});
   await page.close();
   // Real browser geolocation (fixture coordinates only) on fresh Passenger
   // Preview opening. No destination is selected and GPS navigation is NOT on.
@@ -396,7 +427,7 @@ async function main(){
   await live.waitForTimeout(5000);
   await live.evaluate(fix);
   assert.deepEqual(mapFailures,[],'public vector resources must load');
-  assert.ok(await live.evaluate(()=>Math.abs(map.getZoom()-(17+Math.log2(1.5)))<.001),'navigation scale is 50% closer');
+  assert.ok(await live.evaluate(()=>Math.abs(map.getZoom()-(18.8))<.001),'navigation uses configured 80% close-up zoom');
   assert.equal(await live.locator('#passenger-vehicle-screen').evaluate(x=>getComputedStyle(x).fontSize),'70px','navigation triangle is doubled');
   // Exercise the display boundary using trusted controller progress, without
   // inventing a road match or waiting for physical travel in this fixture.

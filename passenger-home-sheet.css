@@ -137,3 +137,17 @@ body.passenger-route-search #jalan-home-report,
 body.passenger-guiding:has(#passenger-turn-list:not(.hidden)) #jalan-home-report{display:none!important}
 @media(max-height:650px){body.passenger-guiding #jalan-home-report{
  bottom:calc(105px + var(--passenger-map-footer-offset,0px) + env(safe-area-inset-bottom,0px))}}
+
+/* The same menu entries and navigation controls before and during a journey. */
+#passenger-navigation-settings>summary{list-style:none;cursor:pointer;min-height:44px;box-sizing:border-box;margin:7px 0;padding:12px 9px;border:1px solid #e0e5eb;border-radius:10px;background:#f6f8fb;color:#254361;font:600 13px system-ui}
+#passenger-navigation-settings>summary::-webkit-details-marker{display:none}
+#passenger-navigation-settings>summary::after{content:'⌄';float:right}
+#passenger-navigation-settings[open]>summary::after{content:'⌃'}
+#jalan-home-menu-panel #passenger-journey-options{display:block;margin-top:16px}
+#jalan-home-menu-panel #jalan-home-menu-close{position:sticky;bottom:0;z-index:2;text-align:center;margin-bottom:0}
+.jalan-navigation-view{padding:5px 3px 10px}
+.jalan-navigation-view label{display:flex!important;justify-content:space-between;gap:10px}
+.jalan-navigation-view output{font-weight:750;color:#136dec}
+.jalan-navigation-view input[type=range]{box-sizing:border-box;width:100%;height:34px;accent-color:#136dec;cursor:pointer;touch-action:pan-y}
+#jalan-home-menu-panel button:disabled{opacity:.5;cursor:default}
+#passenger-navigation-settings>summary:focus-visible,.jalan-navigation-view input:focus-visible{outline:3px solid #6cb8ff;outline-offset:2px}
