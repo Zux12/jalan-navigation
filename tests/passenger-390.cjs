@@ -48,6 +48,11 @@ async function main(){
     await page.locator(selector).click();
   };
   page.on('pageerror',error=>errors.push(error.message));
+  const assertVehicleAnchor=()=>page.waitForFunction(()=>{
+    const v=document.getElementById('passenger-vehicle-screen').getBoundingClientRect(),bar=document.getElementById('passenger-journey-sheet').getBoundingClientRect(),position=JalanGPS.getState().vehiclePosition;
+    const marker=Object.values(map._layers).find(layer=>layer.options?.icon?.options.className==='jalan-vehicle-marker');
+    return marker&&Array.isArray(position)&&marker.getLatLng().distanceTo(L.latLng(position))<.2&&v.top>0&&v.left>0&&v.right<innerWidth&&Math.abs(bar.top-v.bottom-12)<4;
+  });
   await page.route('**/*',route=>{
    if(route.request().url().startsWith(base+'/'))return route.continue();
    return route.abort('blockedbyclient');
@@ -574,10 +579,7 @@ async function main(){
     document.getElementById('tt-primary').checked=window.__originalTrafficPrimary;
     document.getElementById('tt-key').value='';
   });
-  const cameraPosition=await page.evaluate(()=>[map.getCenter().lat,map.getCenter().lng]);
-  assert.ok(Math.abs(cameraPosition[0]-3.139)<0.00002&&
-    Math.abs(cameraPosition[1]-101.6869)<0.00002,
-    'follow camera must keep the matched vehicle location in frame');
+  await assertVehicleAnchor();
   assert.match(await page.locator('#passenger-instruction').innerText(),/left/i,
     'the banner shows the next maneuver provided by the selected route');
   // The top banner remains fixed and opening it defaults to available Reports.
@@ -632,9 +634,7 @@ async function main(){
   await page.locator('#passenger-recenter-floating').tap();
   assert.equal(await page.locator('.jalan-report-focus-marker').count(),0,
     'Recenter clears the report highlight');
-  const returned=await reportCenter();
-  assert.ok(Math.abs(returned[0]-3.139)<0.00002&&Math.abs(returned[1]-101.6869)<0.00002,
-    'Recenter returns to the trusted GPS position');
+  await assertVehicleAnchor();
   await page.locator('#passenger-turn-toggle').click();
   await page.locator('#passenger-tab-directions').click();
   assert.equal(await page.locator('#passenger-tab-directions').getAttribute('aria-selected'),'true');
