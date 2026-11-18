@@ -91,7 +91,7 @@ module.exports=async(page,context,base)=>{
  await cdp.detach();
  // Both Stop entry points reset, and a late Stop location cannot steal a new route.
  await page.evaluate(()=>{window.__holdLocation=true;});
- await page.locator('#jalan-home-menu').click();await page.locator('#passenger-navigation-settings>summary').click();await page.locator('#passenger-stop').click();
+ await page.locator('#passenger-journey-handle').click();await page.locator('#passenger-journey-stop').click();
  assert.equal(await page.evaluate(()=>!JalanGPS.getState().active&&routes.length===0&&destination===null),true);
  await page.evaluate(()=>{
   document.getElementById('start-choice').value='map';setStart([3.139,101.6869],'Chosen test start');

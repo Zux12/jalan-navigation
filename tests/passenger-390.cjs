@@ -42,10 +42,12 @@ async function main(){
    }});
   });
   const page=await context.newPage(),errors=[];
+  // Journey controls are no longer public menu actions. Keep regression coverage
+  // of their retained internal engine hooks; Sound remains a real menu interaction.
   const menuClick=async selector=>{
     if(!await page.locator('#jalan-home-menu-panel').isVisible())await page.locator('#jalan-home-menu').click();
-    if(selector!=='#passenger-voice'&&!await page.locator('#passenger-navigation-settings').evaluate(x=>x.open))await page.locator('#passenger-navigation-settings>summary').click();
-    await page.locator(selector).click();
+    if(selector==='#passenger-voice')await page.locator(selector).click();
+    else await page.locator(selector).evaluate(el=>el.click());
   };
   page.on('pageerror',error=>errors.push(error.message));
   const assertVehicleAnchor=()=>page.waitForFunction(()=>{
@@ -93,6 +95,7 @@ async function main(){
   assert.deepEqual(await menuLabels(),['Sound','Navigation','About','Close']);
   assert.equal(await page.locator('#jalan-home-menu-close').evaluate(x=>x.parentElement.lastElementChild===x),true,'Close is at the bottom');
   assert.equal(await page.locator('#passenger-journey-options').isVisible(),false,'journey controls are hidden before Go');
+  assert.equal(await page.locator('#jalan-home-menu-panel #passenger-journey-options').count(),0,'journey controls are removed from the menu');
   await page.evaluate(()=>{
     window.__testVoices=[{voiceURI:'test-voice-us',name:'Test English US',lang:'en-US',localService:true},
       {voiceURI:'test-voice-uk',name:'Test English UK',lang:'en-GB',localService:true}];
@@ -480,7 +483,7 @@ async function main(){
    assert.equal(await page.locator('#passenger-traffic-toggle').getAttribute('aria-pressed'),'false',
      'OSRM / no-key Go cannot start TomTom traffic checks');
    await page.locator('#passenger-navigation-settings>summary').click();
-   await page.locator('#passenger-traffic-details summary').click();
+   await page.locator('#passenger-traffic-details summary').evaluate(el=>el.click());
    await menuClick('#passenger-traffic-toggle');
    assert.equal(await page.locator('#passenger-traffic-toggle').getAttribute('aria-pressed'),'false',
      'no-key / OSRM route cannot enable automatic TomTom checks');
@@ -553,6 +556,8 @@ async function main(){
     'passenger follow zoom must persist after delayed route overview settling');
   assert.equal(await page.locator('#passenger-speed').textContent(),'7','floating speed still uses the matched GPS fix');
   await page.waitForFunction(()=>{const car=document.getElementById('passenger-vehicle-screen').getBoundingClientRect(),bar=document.getElementById('passenger-journey-sheet').getBoundingClientRect();return Math.abs(bar.top-car.bottom-12)<4;});
+  assert.ok(await page.locator('#passenger-journey-sheet').evaluate(el=>Math.abs(innerHeight-el.getBoundingClientRect().bottom)<1),'journey banner reaches the phone bottom');
+  assert.equal(await page.locator('#passenger-journey-options').isVisible(),false,'journey controls stay hidden during navigation');
   assert.equal(await page.locator('#passenger-gps-status').getAttribute('data-quality'),'green');
   assert.match(await page.locator('#passenger-next').textContent(),/Arrival approx/);
   assert.doesNotMatch(await page.locator('#passenger-next').textContent(),/GPS matched to selected route/);

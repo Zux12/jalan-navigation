@@ -48,14 +48,12 @@
  $('passenger-voice').setAttribute('aria-haspopup','dialog');
  $('passenger-voice').setAttribute('aria-controls','passenger-sound-dialog');
  menuPanel.querySelector('#jalan-menu-sound').append($('passenger-voice'));
- menuPanel.querySelector('#passenger-navigation-settings').append($('passenger-journey-options'));
- menuPanel.querySelector('#passenger-journey-options h2').textContent='Journey controls';
+ // Retain internal status/action hooks for the navigation engine, outside the menu.
+ $('passenger-journey-options').classList.add('hidden');
  document.body.append(menu,speed,report,notice,menuPanel);
  const paintNavigation=()=>{
    const settings=window.JalanPassengerCamera.getSettings();
    for(const key of ['zoom','tilt']){$('passenger-nav-'+key).value=settings[key];$('passenger-nav-'+key+'-value').textContent=settings[key]+'%';}
-   const active=!!window.JalanGPS?.getState?.().active;
-   for(const button of $('passenger-journey-options').querySelectorAll('button'))button.disabled=!active;
  };
  for(const key of ['zoom','tilt'])$('passenger-nav-'+key).addEventListener('input',event=>window.JalanPassengerCamera.setSetting(key,Number(event.target.value)));
  window.addEventListener('jalan:navigation-view',paintNavigation);

@@ -143,7 +143,6 @@ body.passenger-guiding:has(#passenger-turn-list:not(.hidden)) #jalan-home-report
 #passenger-navigation-settings>summary::-webkit-details-marker{display:none}
 #passenger-navigation-settings>summary::after{content:'⌄';float:right}
 #passenger-navigation-settings[open]>summary::after{content:'⌃'}
-#jalan-home-menu-panel #passenger-journey-options{display:block;margin-top:16px}
 #jalan-home-menu-panel #jalan-home-menu-close{position:sticky;bottom:0;z-index:2;text-align:center;margin-bottom:0}
 .jalan-navigation-view{padding:5px 3px 10px}
 .jalan-navigation-view label{display:flex!important;justify-content:space-between;gap:10px}

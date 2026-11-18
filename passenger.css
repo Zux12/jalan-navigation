@@ -154,7 +154,7 @@ body.passenger-map-flat .passenger-map-gestures{pointer-events:auto}
 /* Compact metrics-only post-Go HUD; controls live in the shared hamburger menu. */
 body.passenger-guiding .passenger-heading{display:none}
 body.passenger-guiding .passenger-turn{display:flex}
-body.passenger-guiding .passenger-bottom{left:12px;right:12px;bottom:calc(10px + env(safe-area-inset-bottom,0px));padding:12px 14px;border-radius:20px;background:#fffffff2;box-shadow:0 9px 26px #1934524a}
+body.passenger-guiding .passenger-bottom{left:12px;right:12px;bottom:0;padding:12px 14px;border-radius:20px;background:#fffffff2;box-shadow:0 9px 26px #1934524a}
 body.passenger-guiding .passenger-stats{gap:9px;justify-content:space-between}
 body.passenger-guiding .passenger-stats b{font-size:clamp(23px,5.5vw,31px);white-space:nowrap}
 body.passenger-guiding .passenger-stats span{font-size:clamp(12px,3.3vw,16px);white-space:nowrap}
@@ -218,7 +218,6 @@ body.passenger-vector-active #passenger-vehicle-screen{transform:translate(-50%,
 #jalan-map-status:empty{display:none}
 body.passenger-vector-active .maplibregl-ctrl-bottom-right{z-index:4;bottom:env(safe-area-inset-bottom,0px)}
 body.passenger-vector-active .maplibregl-ctrl-attrib{margin:0!important;padding:0 4px;font-size:10px;line-height:14px;min-height:0;background:#fffffff0;color:#425364}
-body.passenger-vector-active.passenger-guiding .passenger-bottom{bottom:calc(32px + env(safe-area-inset-bottom,0px))}
 
 /* Stationary/passenger pre-route GPS: position only, never inferred heading. */
 .passenger-startup-pin{background:transparent;border:0;pointer-events:none}
@@ -228,7 +227,7 @@ body.passenger-vector-active.passenger-guiding .passenger-bottom{bottom:calc(32p
  text-shadow:0 1px 3px #123b5b99;box-shadow:0 3px 12px #102d5580}
 
 /* Search replaces speed in the bottom metrics. Speed mirrors right Recenter. */
-body.passenger-vector-active{--passenger-map-footer-offset:22px}
+body.passenger-vector-active{--passenger-map-footer-offset:0px}
 .passenger-search{flex:0 0 44px;width:44px;height:44px;display:grid;place-items:center;
  border:0;border-radius:50%;background:#edf4fa;color:#166b9d;cursor:pointer;touch-action:manipulation}
 .passenger-search svg{width:25px;height:25px;fill:none;stroke:currentColor;stroke-width:2.4;stroke-linecap:round}
