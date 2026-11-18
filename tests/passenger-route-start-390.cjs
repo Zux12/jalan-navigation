@@ -66,9 +66,10 @@ module.exports=async(browser,base,root)=>{
   await page.locator('#passenger-route-handle').click();
   await page.locator('#jalan-home-menu').click();
   await page.clock.runFor(10000);assert.equal(await starts(),2,'open menu suspends auto-start');
-  await page.locator('#jalan-home-menu-panel [data-menu=settings]').click();
-  await page.clock.runFor(10000);assert.equal(await starts(),2,'settings suspend auto-start');
-  await page.locator('#passenger-setup-close').click();
+  await page.locator('#passenger-voice').click();
+  await page.clock.runFor(10000);assert.equal(await starts(),2,'Sound modal suspends auto-start');
+  await page.locator('#passenger-sound-ok').click();
+  await page.locator('#jalan-home-menu').click();
   await page.clock.runFor(6000);
   await page.evaluate(()=>{window.__hidden=true;document.dispatchEvent(new Event('visibilitychange'));});
   await page.clock.runFor(20000);assert.equal(await starts(),2,'background tabs never auto-start');

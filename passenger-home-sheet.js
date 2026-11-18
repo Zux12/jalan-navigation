@@ -38,36 +38,12 @@
  menuPanel.className='hidden';menuPanel.setAttribute('aria-label','User menu');
  menuPanel.innerHTML='<div class="jalan-home-menu-head"><strong>JALAN menu</strong>'+
   '<button type="button" id="jalan-home-menu-close" aria-label="Close user menu">✕</button></div>'+
-  '<button type="button" data-menu="settings">Routing settings</button>'+
-  '<section class="jalan-voice-settings" aria-label="Navigation voice"><h2>Navigation voice</h2>'+
-  '<label for="passenger-voice-choice">Voice</label><select id="passenger-voice-choice" aria-describedby="passenger-voice-status"></select>'+
-  '<button type="button" id="passenger-voice-preview">Play sample</button>'+
-  '<p id="passenger-voice-status" role="status"></p></section>';
+  '<div id="jalan-menu-sound"></div><button type="button" id="passenger-about" aria-haspopup="dialog" aria-controls="passenger-about-dialog">About</button>';
+ $('passenger-voice').setAttribute('aria-haspopup','dialog');
+ $('passenger-voice').setAttribute('aria-controls','passenger-sound-dialog');
+ menuPanel.querySelector('#jalan-menu-sound').append($('passenger-voice'));
  menuPanel.append($('passenger-journey-options'));
  document.body.append(menu,speed,report,notice,menuPanel);
- const voiceChoice=$('passenger-voice-choice'),voicePreview=$('passenger-voice-preview'),voiceStatus=$('passenger-voice-status');
- const renderVoices=()=>{
-   const state=window.JalanVoice?.getState();
-   voiceChoice.replaceChildren(new Option('Automatic · device default',''));
-   for(const v of state?.voices||[])voiceChoice.add(new Option(v.name+' · '+v.lang,v.id));
-   voiceChoice.value=state?.selected||'';
-   voiceChoice.disabled=!state?.supported;voicePreview.disabled=!state?.supported;
-   voiceStatus.textContent=!state?.supported?'Voice playback is unavailable in this browser.':
-     state.unavailable?'Saved voice is unavailable here. Using the device default.':
-     !state.voices.length?'Using the device default. Additional English voices may appear when the device loads them.':
-     !state.saved?'Voice selected for this visit. Browser storage is blocked.':
-     'English voices available on this device. Your choice is saved for future visits.';
- };
- voiceChoice.addEventListener('change',()=>window.JalanVoice?.choose(voiceChoice.value));
- voicePreview.addEventListener('click',()=>{
-   voiceStatus.textContent=window.JalanVoice?.preview()?'Playing sample…':'Could not play a sample in this browser.';
- });
- window.addEventListener('jalan:voices-changed',renderVoices);
- window.addEventListener('jalan:voice-preview',e=>{
-   if(e.detail?.state==='error')voiceStatus.textContent='Sample could not play. Try another available voice.';
-   else renderVoices();
- });
- renderVoices();
  const input=$('destination'),form=$('search-form'),list=$('jalan-recent-list');
  const recentPlaces=[];
  const routeSearchButton=$('passenger-search'),navigation=$('passenger-navigation');
@@ -233,11 +209,6 @@
  });
  menu.addEventListener('click',()=>toggleMenu(menuPanel.classList.contains('hidden')));
  $('jalan-home-menu-close').addEventListener('click',()=>{toggleMenu(false);menu.focus({preventScroll:true});});
- menuPanel.addEventListener('click',e=>{
-   const action=e.target.closest('button[data-menu]')?.dataset.menu;
-   if(action==='settings'){$('passenger-settings-top').click();toggleMenu(false);}
-   else if(action)showNotice((action==='profile'?'User profile':'Help')+' is coming soon.');
- });
  // Reporting remains an unfinished control; no placeholder popup or submission.
  window.addEventListener('jalan:destination-selected',event=>{
    const place=event.detail;

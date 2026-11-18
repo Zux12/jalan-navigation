@@ -6,7 +6,7 @@
  if(!passenger)return;
  document.body.classList.add('passenger-mode');
  const el=id=>document.getElementById(id),overview=el('passenger-overview'),
-       list=el('passenger-route-list'),settings=el('passenger-setup'),
+       list=el('passenger-route-list'),
        navigation=el('passenger-navigation');
  const routeLabels=L.layerGroup().addTo(map);
  const navigationZoom=17+Math.log2(1.5);
@@ -282,64 +282,6 @@
    scheduleScreenVehicle();
    return true;
  }
- const hideSettings=()=>settings.classList.add('hidden');
- const showSettings=()=>settings.classList.remove('hidden');
- el('passenger-settings-top').addEventListener('click',showSettings);
- el('passenger-setup-close').addEventListener('click',hideSettings);
- el('passenger-use-osrm').addEventListener('click',()=>{
-   const toggle=el('tt-primary');
-   if(toggle.checked){toggle.checked=false;toggle.dispatchEvent(new Event('change',{bubbles:true}));}
-   el('passenger-provider-status').textContent='OSRM manually selected — no live traffic ETA.';
-   hideSettings();
- });
- // Passenger saves an entered key by default at the owner's request.
- // The engineering screen retains its explicit persistence control.
- const sharedKeyInput=el('tt-key'), sharedRemember=el('tt-remember'),
-       passengerRemember=el('passenger-remember');
- const validKey=value=>/^[\w-]{8,160}$/.test(value);
- passengerRemember.checked=true;
- if(validKey(sharedKeyInput.value.trim())){
-   el('passenger-provider-status').textContent=sharedRemember.checked?
-     'Saved TomTom key available on this device — no re-entry needed.':
-     window.JalanTomTomKeyStorage?.configured?
-     'Configured TomTom key ready — no entry needed.':'TomTom key available for this open page.';
- }
- el('passenger-use-tomtom').addEventListener('click',()=>{
-   const input=el('passenger-key'),entered=input.value.trim();
-   const value=entered||sharedKeyInput.value.trim();
-   if(!validKey(value)){
-     el('passenger-provider-status').textContent='No saved key found. Paste a TomTom browser key once.';
-     return;
-   }
-   // A changed key invalidates old provider requests and old browser storage.
-   if(entered&&entered!==sharedKeyInput.value){
-     sharedKeyInput.value=entered;
-     sharedKeyInput.dispatchEvent(new Event('input',{bubbles:true}));
-   }
-   const remember=passengerRemember.checked;
-   // The common TomTom module guards browsers that deny storage access.
-   // A failed remember request must not be presented as a saved key.
-   const storage=window.JalanTomTomKeyStorage;
-   let saved=false;
-   if(remember){saved=storage?.remember(value)===true;}
-   else storage?.forget();
-   sharedRemember.checked=remember&&saved;
-   passengerRemember.checked=remember&&saved;
-   const toggle=el('tt-primary');
-   if(!toggle.checked){toggle.checked=true;toggle.dispatchEvent(new Event('change',{bubbles:true}));}
-   el('passenger-provider-status').textContent=remember&&saved?
-     'TomTom ready. Key saved on this browser only.':
-     remember?'TomTom ready for this page. Browser storage blocked; key not saved.':
-     'TomTom ready for this page. Key not saved.';
-   input.value='';
-   hideSettings();
- });
- el('passenger-forget-key').addEventListener('click',()=>{
-   el('tt-remove-key').click();
-   passengerRemember.checked=false;
-   el('passenger-key').value='';
-   el('passenger-provider-status').textContent=el('tt-status').textContent;
- });
  function refreshOverview(){
    routeLabels.clearLayers();
    if(!routes.length||document.body.classList.contains('passenger-guiding')){
@@ -611,12 +553,12 @@
        rerouteStatus=el('passenger-reroute-status');
  const syncNavigationSettings=()=>{
    const voiceButton=el('gps-voice'),autoButton=el('gps-auto');
-   voiceControl.textContent=voiceButton.textContent;
+   voiceControl.textContent=voiceButton.textContent.replace('Voice:','Sound:');
    voiceControl.setAttribute('aria-pressed',voiceButton.getAttribute('aria-pressed')||'false');
    autoControl.textContent=autoButton.textContent;
    autoControl.setAttribute('aria-pressed',autoButton.getAttribute('aria-pressed')||'false');
  };
- voiceControl.addEventListener('click',()=>{el('gps-voice').click();syncNavigationSettings();});
+ voiceControl.addEventListener('click',()=>window.JalanPassengerSound?.open());
  autoControl.addEventListener('click',()=>{
    el('gps-auto').click();syncNavigationSettings();
    rerouteStatus.dataset.state='idle';
@@ -744,7 +686,6 @@
  el('passenger-go').addEventListener('click',()=>{
    if(!routes.length)return;
    trafficOptOut=false;
-   hideSettings();
    // The owner's explicit Go starts normal detour recovery. The menu can
    // disable it during this journey; internal GPS restarts never re-enable it.
    if(el('gps-auto').getAttribute('aria-pressed')!=='true')el('gps-auto').click();

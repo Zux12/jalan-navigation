@@ -15,6 +15,7 @@
    !panel.classList.contains('passenger-route-dragging')&&
    !document.body.classList.contains('passenger-guiding')&&
    !document.body.classList.contains('passenger-route-search')&&
+   !document.body.classList.contains('passenger-modal-open')&&
    !visible('jalan-home-menu-panel')&&!visible('passenger-setup')&&!visible('jalan-home-notice');
  }
  function cancel(){

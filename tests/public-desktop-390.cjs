@@ -16,7 +16,7 @@ function serve(req,res){
   }
   res.writeHead(200,{'content-type':types[path.extname(p)]||'application/octet-stream',
     'cache-control':'no-store'});
-  res.end(fs.readFileSync(p));
+  res.end(path.basename(p)==='jalan-config.js'?"window.JalanPublicConfig=Object.freeze({tomtomBrowserKey:'',appVersion:'4.8.0-test',buildDate:'2026-11-18'});":fs.readFileSync(p));
 }
 const cors={'access-control-allow-origin':'*','content-type':'application/json'};
 const tomtomOK={routes:[{summary:{travelTimeInSeconds:420,lengthInMeters:3200,

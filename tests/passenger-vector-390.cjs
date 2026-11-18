@@ -14,7 +14,7 @@ const server=http.createServer((req,res)=>{
  const name=path.resolve(root,'.'+new URL(req.url,'http://localhost').pathname);
  if(!name.startsWith(root+path.sep)||!fs.existsSync(name)||!fs.statSync(name).isFile()){res.writeHead(404);return res.end();}
  res.writeHead(200,{'content-type':name.endsWith('.js')?'application/javascript':name.endsWith('.css')?'text/css':'text/html'});
- res.end(fs.readFileSync(name));
+ res.end(path.basename(name)==='jalan-config.js'?"window.JalanPublicConfig=Object.freeze({tomtomBrowserKey:'',appVersion:'4.8.0-test',buildDate:'2026-11-18'});":fs.readFileSync(name));
 });
 async function main(){
  await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));

@@ -56,3 +56,12 @@ test('blocked storage allows page-only choice, and unsupported or hidden context
  assert.equal(absent.api.preview(),false);absent.api.announce('full','left',180,'left');
  assert.equal(absent.utterances.length,0);
 });
+
+test('pending voice sample does not save choice and sound mode persists independently',()=>{
+ const s=scene({voices:[uk,us]});s.api.choose(id(uk));
+ assert.equal(s.api.preview(id(us)),true);assert.equal(s.utterances[0].voice,us);
+ assert.equal(s.api.getState().preference,id(uk));
+ assert.equal(s.api.setMode('alerts'),true);assert.equal(scene({store:s.store}).api.getMode(),'alerts');
+ assert.equal(s.api.setMode('invalid'),false);assert.equal(s.api.getMode(),'alerts');
+ const blocked=scene({blocked:true});blocked.api.setMode('full');assert.equal(blocked.api.getMode(),'full');
+});

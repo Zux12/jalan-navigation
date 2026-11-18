@@ -3,8 +3,8 @@
 'use strict';
 const el=id=>document.getElementById(id), input=el('tt-key');
 const status=s=>el('tt-status').textContent=s;
-// A saved device key overrides the optional public site key. Storage can be
-// denied, so configured and entered keys must still work for the open page.
+// Managed test builds use the site configuration; other builds retain device overrides.
+// Configured and entered keys work even when browser storage is denied.
 const STORAGE_KEY='jalan-tomtom-key',DISABLED_KEY='jalan-tomtom-config-disabled';
 const keyStorage={
  read(){try{return localStorage.getItem(STORAGE_KEY)||''}catch{return ''}},
@@ -19,9 +19,10 @@ try{configDisabled=localStorage.getItem(DISABLED_KEY)==='1';}catch{}
 const configuredKey=String(window.JalanPublicConfig?.tomtomBrowserKey||'').trim();
 const validKey=value=>/^[\w-]{8,160}$/.test(value);
 const rememberedKey=keyStorage.read();
-const usableConfiguredKey=!configDisabled&&validKey(configuredKey)?configuredKey:'';
-input.value=validKey(rememberedKey)?rememberedKey:usableConfiguredKey;
-el('tt-remember').checked=validKey(rememberedKey);
+const managed=window.JalanPublicConfig?.managedTomTom===true&&validKey(configuredKey);
+const usableConfiguredKey=(managed||!configDisabled)&&validKey(configuredKey)?configuredKey:'';
+input.value=managed?usableConfiguredKey:validKey(rememberedKey)?rememberedKey:usableConfiguredKey;
+el('tt-remember').checked=!managed&&validKey(rememberedKey);
 window.JalanTomTomKeyStorage=Object.freeze({remember:keyStorage.remember,forget:keyStorage.forget,
  configured:!!usableConfiguredKey});
 const enabled=()=>el('tt-primary').checked && !!input.value.trim();

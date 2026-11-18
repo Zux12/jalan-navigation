@@ -1,0 +1,23 @@
+.jalan-menu-dialog{box-sizing:border-box;width:min(420px,calc(100vw - 28px));max-height:calc(100dvh - 40px);
+ overflow-y:auto;overscroll-behavior:contain;border:0;border-radius:24px;padding:24px;
+ background:#fff;color:#172b45;box-shadow:0 18px 70px #0d263e55;font:15px system-ui,sans-serif}
+.jalan-menu-dialog::backdrop{background:#13283e66}
+.jalan-menu-dialog h2{font-size:24px;margin:0 0 20px}
+.jalan-menu-dialog fieldset{border:1px solid #d6e1ec;border-radius:14px;margin:0 0 20px;padding:12px 14px}
+.jalan-menu-dialog legend{font-weight:700;padding:0 5px}
+.jalan-menu-dialog label{display:block;font-weight:650;margin:0 0 9px}
+.jalan-menu-dialog fieldset label{display:flex;align-items:center;gap:8px;min-height:38px;margin:0}
+.jalan-menu-dialog input[type=radio]{accent-color:#136dec;width:18px;height:18px}
+.jalan-menu-dialog #passenger-voice-choice{box-sizing:border-box;width:100%;min-height:46px;padding:10px;
+ border:1px solid #b8cadb;border-radius:10px;background:#fff;color:#172b45;font:14px system-ui}
+.jalan-menu-dialog button{width:100%;min-height:46px;border:0;border-radius:12px;padding:11px;
+ cursor:pointer;font:750 16px system-ui}
+.jalan-dialog-secondary{background:#edf4fc;color:#185692;margin-top:12px}
+.jalan-dialog-ok{background:#136dec;color:white;margin-top:10px}
+.jalan-menu-dialog button:focus-visible,.jalan-menu-dialog select:focus-visible{outline:3px solid #6cb8ff;outline-offset:3px}
+#passenger-voice-status{font-size:13px;line-height:1.5;color:#52677e;min-height:38px}
+.jalan-about-version{background:#edf4fc;border-radius:12px;padding:12px;color:#185692;font-weight:700}
+.jalan-menu-dialog dt{font-weight:750;margin-top:16px}
+.jalan-menu-dialog dd{margin:5px 0 0;line-height:1.6}
+.jalan-menu-dialog a{color:#0d60b5}
+#jalan-home-menu-panel #jalan-menu-sound button{width:100%}
