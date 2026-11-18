@@ -39,7 +39,9 @@ async function main(){
   // The local vector bundle itself may stall before it can signal fallback.
   // Advance actual browser timers, then deliver it late: the old map must not
   // suddenly switch after we have deliberately chosen the usable basic view.
-  const late=await context.newPage();
+  const lateContext=await browser.newContext({viewport:{width:390,height:844},isMobile:true,hasTouch:true});
+  await lateContext.addInitScript(()=>Object.defineProperty(navigator,'geolocation',{configurable:true,value:{getCurrentPosition(_ok,fail){fail({code:1,message:'Fixture'});},watchPosition(){return 1;},clearWatch(){}}}));
+  const late=await lateContext.newPage();
   await late.clock.install();
   await late.route('**/*',route=>route.request().url().startsWith(base)?route.continue():route.abort());
   await dependencies(late);
@@ -53,7 +55,7 @@ async function main(){
   releaseBundle();await lateNavigation;
   assert.equal(await late.evaluate(()=>window.JalanLaunch.basicOnly),true);
   assert.equal(await late.evaluate(()=>!!window.JalanVectorMap?.active),false,'late vector script cannot flip to another map');
-  await late.close();
+  await lateContext.close();
   const page=await context.newPage(),errors=[];currentPage=page;
   page.on('pageerror',e=>errors.push(e.message));
   await page.route('**/*',route=>route.request().url().startsWith(base)?route.continue():route.abort());
