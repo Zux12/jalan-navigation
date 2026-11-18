@@ -49,7 +49,7 @@
  $('passenger-voice').setAttribute('aria-controls','passenger-sound-dialog');
  menuPanel.querySelector('#jalan-menu-sound').append($('passenger-voice'));
  menuPanel.querySelector('#passenger-navigation-settings').append($('passenger-journey-options'));
- $('passenger-journey-options').querySelector('h2').textContent='Journey controls';
+ menuPanel.querySelector('#passenger-journey-options h2').textContent='Journey controls';
  document.body.append(menu,speed,report,notice,menuPanel);
  const paintNavigation=()=>{
    const settings=window.JalanPassengerCamera.getSettings();

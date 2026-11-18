@@ -14,8 +14,16 @@
  try{viewSettings=viewModel.sanitize(JSON.parse(localStorage.getItem(viewStorage)||'null'));}catch{}
  if(viewSettings.tilt>0)lastTilt=viewSettings.tilt;
  const navigationZoom=()=>viewModel.zoomLevel(viewSettings.zoom);
- const viewAnchor=()=>viewModel.anchor({height:innerHeight,barTop:el('passenger-journey-sheet').getBoundingClientRect().top,
-   vehicleSize:el('passenger-vehicle-screen').offsetHeight||84});
+ const viewAnchor=()=>{
+   const barTop=el('passenger-journey-sheet').getBoundingClientRect().top;
+   if(document.body.classList.contains('passenger-guiding')){
+     const base=window.JalanVectorMap?.active?22:0,
+       offset=Math.max(base,innerHeight-barTop-(innerHeight<=650?98:108)+12)+'px';
+     if(document.body.style.getPropertyValue('--passenger-map-footer-offset')!==offset)
+       document.body.style.setProperty('--passenger-map-footer-offset',offset);
+   }
+   return viewModel.anchor({height:innerHeight,barTop,vehicleSize:el('passenger-vehicle-screen').offsetHeight||84});
+ };
  const syncViewMode=()=>{
    const flat=viewSettings.tilt===0;document.body.classList.toggle('passenger-map-flat',flat);
    el('passenger-2d').setAttribute('aria-pressed',String(flat));
@@ -202,12 +210,13 @@
    if(Math.abs(delta)>=1.2||!map.getContainer().style.getPropertyValue('--jalan-camera-turn'))
      map.getContainer().style.setProperty('--jalan-camera-turn',angle+'deg');
    map.getContainer().style.setProperty('--jalan-raster-pitch',(17*viewSettings.tilt/100)+'deg');
+   const cameraAnchor=viewAnchor();
    const vector=window.JalanVectorMap;
    if(vector?.active){
      const guiding=document.body.classList.contains('passenger-guiding');
      const flat=document.body.classList.contains('passenger-map-flat');
      vector.setCamera({bearing:-angle,pitch:!guiding||flat||focusedReport?0:exploring?vector.getPitch():viewModel.pitch(viewSettings.tilt),
-       padding:guiding?viewAnchor().padding:
+       padding:guiding?cameraAnchor.padding:
          {top:0,bottom:0,left:0,right:0}});
    }
    scheduleScreenVehicle();
@@ -345,6 +354,7 @@
    closeDirections();
    routeLabels.clearLayers();overview.classList.add('hidden');
    document.body.classList.remove('passenger-guiding','passenger-map-flat');
+   document.body.style.removeProperty('--passenger-map-footer-offset');
    window.JalanVectorMap?.setCamera({pitch:0,bearing:0,padding:{top:0,bottom:0,left:0,right:0}});
    navigation.classList.add('hidden');
  });
@@ -767,6 +777,7 @@
    cancelAutoReturn();mapContacts.clear();exploring=false;lastGPSDetail=null;
    discardVehicle();
    document.body.classList.remove('passenger-guiding','passenger-map-flat');
+   document.body.style.removeProperty('--passenger-map-footer-offset');
    window.JalanVectorMap?.setCamera({pitch:0,bearing:0,padding:{top:0,bottom:0,left:0,right:0}});
    restorePlannerMarkers();
    routeLayer.getLayers().forEach((line,i)=>{
