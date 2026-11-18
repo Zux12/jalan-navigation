@@ -11,7 +11,7 @@
  const maxSamples=6, flowTTL=5*60*1000, incidentTTL=10*60*1000;
  const windowMeters=80, maxOffsetMeters=16;
  let route=null,epoch=0,aborters=[],flowAt=0,lastRequestAt=0,refreshId=null,flowMatches=[],
-     overlay=L.layerGroup().addTo(map),hasFlow=false,trafficSamplingAllowed=false;
+     overlay=L.layerGroup().addTo(map),hasFlow=false,trafficSamplingAllowed=false,trafficSamplingRoute=null;
   // Used by the passenger journey sheet; preserve the public snapshot contract.
   let journeySnapshot={route:null,total:0,segments:[]},journeyExpires=Infinity;
  // Do not recreate the map-covering legacy traffic banner. The published
@@ -238,9 +238,14 @@
  function choose(){
    const candidate=routes?.[selectedRoute];
    if(!candidate||candidate.provider!=='tomtom'){
-     trafficSamplingAllowed=false;reset();return;
+     trafficSamplingAllowed=false;trafficSamplingRoute=null;reset();return;
    }
-   if(candidate!==route){reset();route=candidate;draw();}
+   if(candidate!==route){
+     // Selecting a different alternative cannot inherit permission for key-bearing
+     // Flow Segment requests. Wait for the new route's actual traffic status.
+     if(trafficSamplingRoute!==candidate){trafficSamplingAllowed=false;trafficSamplingRoute=null;}
+     reset();route=candidate;draw();
+   }
    // Bounded point-by-point flow queries only on selected TomTom route and only
    // with an explicitly entered browser-held TomTom key.
    if(trafficSamplingAllowed&&(!lastRequestAt||Date.now()-lastRequestAt>=flowTTL))sampleFlow(candidate);
@@ -250,7 +255,7 @@
  }
  // A revoked/replaced browser-held key must invalidate even an abort-ignoring
  // provider response before it can draw stale colours on the selected route.
- function revokeKey(){trafficSamplingAllowed=false;reset();}
+ function revokeKey(){trafficSamplingAllowed=false;trafficSamplingRoute=null;reset();}
  key?.addEventListener('input',revokeKey);
  key?.addEventListener('change',revokeKey);
  window.addEventListener('jalan:routes-rendered',choose);
@@ -258,19 +263,19 @@
  window.addEventListener('jalan:journey-start',()=>{
    if(route!==routes?.[selectedRoute])choose();
  });
- window.addEventListener('jalan:route-cleared',()=>{trafficSamplingAllowed=false;reset();});
+ window.addEventListener('jalan:route-cleared',()=>{trafficSamplingAllowed=false;trafficSamplingRoute=null;reset();});
  window.addEventListener('jalan:journey-stop',()=>{if(route)draw();});
  window.addEventListener('jalan:traffic-layer-status',event=>{
    const state=event.detail?.state;
    if(state==='off'||state==='error'){
-     trafficSamplingAllowed=false;reset();return;
+     trafficSamplingAllowed=false;trafficSamplingRoute=null;reset();return;
    }
    // Only an event for the currently selected route can authorize extra
    // key-bearing samples. Late status for a superseded route fails closed.
    const candidate=routes?.[selectedRoute];
    if((state==='loading'||state==='ready')&&candidate?.provider==='tomtom'&&
       event.detail?.route===candidate){
-     trafficSamplingAllowed=true;choose();
+     trafficSamplingRoute=candidate;trafficSamplingAllowed=true;choose();
    }
  });
  window.addEventListener('jalan:incidents-updated',()=>{if(route)draw();});
