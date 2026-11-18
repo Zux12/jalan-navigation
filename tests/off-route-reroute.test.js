@@ -5,7 +5,7 @@ const test=require('node:test'),assert=require('node:assert/strict');
 const fs=require('node:fs'),path=require('node:path'),vm=require('node:vm');
 const source=name=>fs.readFileSync(path.join(__dirname,'..',name),'utf8');
 function scene({tomtom=true,auto=true}={}){
- let now=1700000000000,watch=null,watchError=null,watchStarts=0,watchClears=0,renders=0,clears=0;
+ let now=1700000000000,watch=null,watchError=null,watchStarts=0,watchClears=0,renders=0,clears=0,matcherFeeds=0;
  const nodes=new Map(),events=[],requests=[],timers=new Map(),documentEvents={};let timerId=0;
  const node=id=>{
   if(!nodes.has(id))nodes.set(id,{value:'',checked:false,textContent:'',attrs:{},listeners:{},
@@ -36,6 +36,11 @@ function scene({tomtom=true,auto=true}={}){
   setInterval(){return 1},clearInterval(){},$:node};
  vm.createContext(context);
  for(const name of ['predictive-gps.js','tomtom-live.js','gps-navigation.js'])vm.runInContext(source(name),context,{filename:name});
+ const makeMatcher=context.window.JalanPredictiveGPS.create;
+ context.window.JalanPredictiveGPS.create=(...args)=>{
+  const matcher=makeMatcher(...args),feed=matcher.feed;
+  matcher.feed=fix=>{matcherFeeds++;return feed(fix)};return matcher;
+ };
  const app=source('app.js');
  vm.runInContext(app.slice(app.indexOf('async function requestDrivingRoutes('),app.indexOf('async function calculateRoutes(')),context);
  node('tt-primary').checked=tomtom;node('tt-key').value='syntheticTestKey123';
@@ -61,7 +66,7 @@ function scene({tomtom=true,auto=true}={}){
  };
  return {context,node,events,requests,feed,detour,finish,flush,original,destination,
   state:()=>context.window.JalanGPS.getState(),
-  get watches(){return watchStarts},get watchClears(){return watchClears},get renders(){return renders},get clears(){return clears},
+  get matcherFeeds(){return matcherFeeds},get watches(){return watchStarts},get watchClears(){return watchClears},get renders(){return renders},get clears(){return clears},
   failGPS(){watchError({code:2,message:"Position unavailable in fixture"})},
   expireRequest(){for(const t of timers.values())if(t.ms===20000){t.fn();break}},
   background(){context.document.hidden=true;documentEvents.visibilitychange()},
@@ -189,4 +194,14 @@ test('TomTom missing key never silently falls back, while manual recalculation r
  assert.equal(s.requests.length,0);assert.equal(s.state().route,s.original);
  const manual=scene({auto:false});manual.feed([3,101.6],0);manual.advance(11000);
  await manual.node('gps-reroute').onclick();assert.equal(manual.requests.length,0);
+});
+
+test('pending lateral drift does not feed route history or trigger a new route',()=>{
+ const s=scene();s.feed([3,101.601]);const count=s.matcherFeeds;
+ s.feed([3.00025,101.6011]);s.feed([3.0003,101.6012]);
+ assert.equal(s.matcherFeeds,count,'unconfirmed road change is quarantined from route progress');
+ assert.equal(s.state().matched,false);assert.equal(s.state().vehiclePosition[0],3);
+ assert.equal(s.requests.length,0);
+ s.feed([3,101.6013]);assert.equal(s.matcherFeeds,count+1);
+ assert.equal(s.state().matched,true,'credible road-aligned measurements resume matching');
 });

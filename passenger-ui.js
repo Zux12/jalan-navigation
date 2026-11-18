@@ -239,7 +239,7 @@
      Array.isArray(detail.gpsPosition)&&detail.gpsPosition.length===2&&
      detail.gpsPosition.every(Number.isFinite);
    if(!valid){markVehicleUncertain();return false;}
-   const position=detail.gpsPosition;
+   const position=detail.vehiclePosition||detail.gpsPosition;
    if(!vehicle)vehicle=L.marker(position,{icon:vehicleIcon,interactive:false,
      keyboard:false,zIndexOffset:950}).addTo(map);
    else vehicle.setLatLng(position);
@@ -249,8 +249,8 @@
    else accuracyHalo.setLatLng(position).setRadius(Math.max(5,detail.gpsAccuracy))
      .setStyle({color:'#13a8d1',fillColor:'#13a8d1'});
    vehicle.getElement()?.classList.remove('jalan-vehicle-uncertain');
-   screenVehicle.classList.remove('passenger-vehicle-uncertain');
-   const heading=detail.heading,speed=detail.speedMps;
+   screenVehicle.classList.toggle('passenger-vehicle-uncertain',detail.vehicleCertain===false);
+   const heading=detail.vehicleHeading??detail.heading,speed=detail.speedMps;
    // GPS heading is meaningful only when actually moving. At low speed use
    // the direction of the selected route segment, explicitly an estimate.
    const gpsHeadingReliable=Number.isFinite(heading)&&heading>=0&&heading<360&&
@@ -854,7 +854,7 @@
       !detail.gpsPosition.every(Number.isFinite))return;
    // Keeping the trusted vehicle at camera centre avoids the off-screen
    // triangle seen on Safari when 125m look-ahead met a tilted, rotating map.
-   const center=detail.gpsPosition;
+   const center=detail.vehiclePosition||detail.gpsPosition;
    // A preceding route-overview fitBounds() may still be animating; cancel
    // it before taking ownership of the passenger camera.
    // The previous update called map.stop() + setView(...zoom17) for *every*
@@ -1007,7 +1007,7 @@
    updateVehicle(lastGPSDetail);
    const flat=document.body.classList.contains('passenger-map-flat');
    applyCameraAngle(flat?0:lastValidHeading===null?0:-lastValidHeading);
-   const target=state.gpsPosition;
+   const target=state.vehiclePosition||state.gpsPosition;
    map.stop();
    map.setView(target,navigationZoom,{animate:false,reset:true});
    scheduleScreenVehicle();
