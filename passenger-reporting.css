@@ -7,9 +7,11 @@
 .jalan-report-actions .jalan-dialog-ok{background:#136dec;color:#fff;margin:0}
 .jalan-report-actions button:disabled{opacity:.5}
 #passenger-report-location,#passenger-report-status{font-size:14px;line-height:1.5}
-#passenger-report-confirm{position:fixed;z-index:1080;left:14px;right:14px;bottom:calc(110px + env(safe-area-inset-bottom));max-width:420px;margin:auto;background:white;color:#173e67;border-radius:18px;box-shadow:0 6px 28px #183b6055;padding:18px;box-sizing:border-box;font:15px system-ui}
+#passenger-report-confirm{position:fixed;z-index:1080;left:14px;right:14px;bottom:calc(235px + env(safe-area-inset-bottom));max-width:420px;margin:auto;background:white;color:#173e67;border-radius:18px;box-shadow:0 6px 28px #183b6055;padding:18px;box-sizing:border-box;font:15px system-ui}
 #passenger-report-confirm[hidden],#passenger-report-toast[hidden]{display:none}
-#passenger-report-confirm-title{font-weight:750;padding-right:24px}
+#passenger-report-confirm-title{font-weight:750;padding-right:24px;display:flex;align-items:center;gap:8px}
+#passenger-report-confirm-title svg{width:28px;height:28px;flex-shrink:0}
+body.passenger-guiding #passenger-report-confirm{bottom:calc(195px + var(--passenger-map-footer-offset,0px) + env(safe-area-inset-bottom))}
 #passenger-report-confirm p{margin:6px 0}
 #passenger-report-confirm [data-answer=still]{background:#136dec;color:white}
 #passenger-report-dismiss{position:absolute;right:6px;top:4px;border:0;background:transparent;color:#183b60;font-size:20px;padding:8px}

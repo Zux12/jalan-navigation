@@ -16,6 +16,7 @@ module.exports=async(browser,base,root)=>{
  await page.evaluate(()=>{JalanVectorMap.getReportRoad=()=>({key:'fixture-road',level:'0:surface'});});
  await page.locator('#jalan-home-report').click();await page.locator('[data-type=weather]').click();await page.locator('[data-type=flood]').click();
  assert.match(await page.locator('#passenger-report-status').innerText(),/120 minutes/);
+ await page.screenshot({path:path.join(root,'test-artifacts/passenger-report-weather.png')});
  await page.locator('#passenger-report-submit').click();await page.waitForFunction(()=>document.getElementById('passenger-report-status').textContent.includes('Could not confirm submission'));
  assert.equal(await page.locator('.jalan-community-report-pin').count(),0,'server failure cannot claim success or add an icon');
  failed=false;await page.locator('#passenger-report-submit').click();await page.waitForFunction(()=>!document.getElementById('passenger-report-dialog').open);
@@ -39,6 +40,9 @@ module.exports=async(browser,base,root)=>{
  await page.evaluate(()=>{window.__reportFixtureActive=false;document.getElementById('passenger-go').dispatchEvent(new Event('click'));window.__reportFixtureActive=true;});
  await move(101.68864,270);assert.equal(await page.locator('#passenger-report-confirm').isVisible(),false,'opposite traffic does not prompt');
  await move(101.68864);assert.equal(await page.locator('#passenger-report-confirm').isVisible(),true);
+ const card=await page.locator('#passenger-report-confirm').boundingBox(),control=await page.locator('#jalan-home-report').boundingBox();
+ assert.ok(card.y+card.height<control.y,'confirmation card clears map controls');
+ assert.equal(await page.locator('#passenger-report-toast').isVisible(),false,'old toast does not cover confirmation');
  await page.screenshot({path:path.join(root,'test-artifacts/passenger-report-confirm.png')});
  await page.waitForTimeout(10200);assert.equal(await page.locator('#passenger-report-confirm').isVisible(),false);assert.equal(responses.length,1,'timeout sends no vote');
  await page.evaluate(()=>document.getElementById('jalan-home-report').click());await page.locator('[data-type=hazard]').click();await page.evaluate(()=>window.__reportAccuracy=200);const count=submissions.length;
