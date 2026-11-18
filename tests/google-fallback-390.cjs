@@ -16,7 +16,7 @@ function sdkFixture(){
     const attribution=document.createElement('p');attribution.textContent='Google Maps · simulated provider';shadow.append(attribution);
     for(const selected of widget.places){
      const button=document.createElement('button');button.textContent=selected.displayName;
-     button.onclick=()=>{const event=new Event('gmp-select');event.place=selected;widget.dispatchEvent(event);};shadow.append(button);
+     button.onclick=()=>{const event=new Event('gmp-select');event.place=value==='q bistro taman melati'?{id:selected.id,location:selected.location}:selected;widget.dispatchEvent(event);};shadow.append(button);
     }
     widget.dispatchEvent(new Event('gmp-load'));
    },value==='Slow Google'?1000:30);
@@ -68,6 +68,7 @@ module.exports=async function({context,base,root}){
  await input.press('ArrowDown');
  assert.equal(await input.getAttribute('aria-activedescendant'),'destination-suggestion-0');
  await input.fill('q bistro taman melati');await widget.getByRole('button',{name:'Q Bistro Taman Melati'}).waitFor();
+ assert.equal(await widget.locator('template[slot="details-item"]').evaluate(template=>Boolean(template.content.querySelector('gmp-place-address'))),true,'Google renders branch addresses inside its attributed result');
  assert.equal(sdkLoads,1);assert.equal(await page.locator('#results input').count(),0,'one search bar; no second Google field');
  assert.equal(await widget.getAttribute('attribution-position'),'top');
  googleQueries.push(...await page.evaluate(()=>window.__googleQueries));
@@ -79,6 +80,7 @@ module.exports=async function({context,base,root}){
  await widget.getByRole('button',{name:'Q Bistro Taman Melati'}).focus();await page.waitForTimeout(250);
  assert.equal(await widget.isVisible(),true,'keyboard focus inside Google results survives input blur');
  await widget.getByRole('button',{name:'Q Bistro Taman Melati'}).press('Enter');await page.waitForFunction(()=>routes.length===1);
+ assert.equal(await input.inputValue(),'Search “q bistro taman melati”','a Google point without a display name keeps the passenger’s query');
  assert.deepEqual(await page.evaluate(()=>destination),[3.222,101.729]);assert.equal(routeCalls,1);assert.equal(manual,0);
  await boot();await input.fill('Slow Google');await widget.waitFor({state:'attached'});
  await input.fill('KLCC');await page.locator('#results [role=option]').waitFor();await page.waitForTimeout(1100);

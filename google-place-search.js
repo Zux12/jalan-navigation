@@ -35,21 +35,35 @@
   const widget=document.createElement('gmp-place-search');
   widget.setAttribute('selectable','');widget.setAttribute('attribution-position','top');
   widget.className='destination-google-results';
-  const content=document.createElement('gmp-place-standard-content');
+  const content=document.createElement('template');
+  content.slot='details-item';
+  content.content.append(document.createElement('gmp-place-name'),document.createElement('gmp-place-address'));
+  const attribution=document.createElement('gmp-place-attribution');
   const request=document.createElement('gmp-place-text-search-request');
   request.maxResultCount=5;
   // Fixed Malaysia bounds, never the user's precise location. Bounds include
   // Peninsular and East Malaysia; Google may also use its normal IP bias.
   request.locationRestriction={south:0.8,west:99.5,north:7.5,east:119.5};
-  widget.append(content,request);
-  let timeout=setTimeout(()=>{if(!signal.aborted){widget.remove();onError();}},12000);
-  const cleanup=()=>{clearTimeout(timeout);widget.remove();};
+  widget.append(content,request,attribution);
+  // The UI Kit waits for its list to enter view before fetching. The five
+  // TomTom rows can fill the scroll area while the passenger reads them.
+  let timeout,waiting=true;
+  const visibility=new IntersectionObserver(([entry])=>{
+   clearTimeout(timeout);
+   if(waiting&&entry.isIntersecting)timeout=setTimeout(failSearch,15000);
+  });
+  function stopWaiting(){waiting=false;visibility.disconnect();clearTimeout(timeout);}
+  function failSearch(){
+   if(signal.aborted)return;
+   stopWaiting();widget.remove();onError();
+  }
+  const cleanup=()=>{stopWaiting();widget.remove();};
   signal.addEventListener('abort',cleanup,{once:true});
   widget.addEventListener('gmp-load',()=>{
-   if(signal.aborted)return;clearTimeout(timeout);
+   if(signal.aborted)return;stopWaiting();
    if(!widget.places?.length){widget.remove();onEmpty();}else onReady();
   });
-  widget.addEventListener('gmp-error',()=>{if(!signal.aborted){clearTimeout(timeout);widget.remove();onError();}});
+  widget.addEventListener('gmp-error',failSearch);
   widget.addEventListener('gmp-select',event=>{
    if(signal.aborted)return;
    const place=event.place,location=place?.location;
@@ -57,11 +71,17 @@
    const lon=typeof location?.lng==='function'?location.lng():location?.lng;
    if(!Number.isFinite(lat)||!Number.isFinite(lon)||Math.abs(lat)>90||Math.abs(lon)>180){onError();return;}
    // Do not call ordinary Places fetchFields: this integration uses UI Kit.
-   // Some widget versions return only ID/point; never invent a business name.
-   const name=typeof place.displayName==='string'?place.displayName:'Selected destination';
+   // When Google returns just an ID and point, identify the passenger's search.
+   const searchText=query.replace(/[^\p{L}\p{M}\p{N} .’'-]+/gu,' ').trim();
+   const choices=widget.places||[];
+   const index=choices.findIndex(choice=>choice===place||(place.id&&choice.id===place.id));
+   const prefix=choices.length>1&&index>=0?'Result '+(index+1)+' for':'Search';
+   let name=typeof place.displayName==='string'?place.displayName:'';
+   if(!name)name=searchText?prefix+' “'+searchText+'”':'Selected destination';
    onSelect({lat,lon,name,display_name:name});
   });
   container.replaceChildren(widget);
+  visibility.observe(widget);
   request.textQuery=query;
  }
  window.JalanGooglePlaceSearch=Object.freeze({configured,mount});

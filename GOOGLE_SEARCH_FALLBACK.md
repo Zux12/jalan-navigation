@@ -1,6 +1,6 @@
 # One-bar TomTom and Google destination lookup
 
-The Passenger page supports TomTom and optional Google Places UI Kit suggestions. The Google browser key is empty by default. Fixtures are sample data used only in the test suite.
+The Passenger page supports TomTom and optional Google Places UI Kit suggestions. The deployed site uses a dedicated Google browser key. Fixtures are sample data used only in the test suite.
 
 ## Behaviour
 
@@ -18,11 +18,10 @@ The Passenger page supports TomTom and optional Google Places UI Kit suggestions
   controls. No second search field, separate provider button, ordinary Places
   REST request or `fetchFields` call. A Google error or empty response preserves available TomTom suggestions. Both providers may list the same branch.
 - Selecting a returned point calls existing `selectDestinationPlace()`, then
-  existing TomTom route choice. If the UI Kit event omits a display name, use
-  honest `Selected destination` rather than inventing the selected business.
+  existing TomTom route choice. When the UI Kit returns only the point and ID, Recent identifies the passenger’s typed search and, for multiple results, its list position. The result card shows Google’s name and address.
 - New input, clear, collapse, submit, hidden page and destination selection
   detach old results and invalidate callbacks. Google keyboard focus can remain
-  inside its widget after leaving the input. Google content is not cached.
+  inside its widget after leaving the input. Google content is not cached. The result deadline runs only while the Google list is visible.
 - With Google disabled, TomTom still filters multi-word queries and retains its ranked aliases for single-word searches. Explicit Search can use Nominatim. Public Nominatim is never autocomplete.
 
 ## Enable and verify live Google results
@@ -35,8 +34,7 @@ The Passenger page supports TomTom and optional Google Places UI Kit suggestions
    TomTom key cannot authenticate Google.
 3. Run the actual Google SDK under the staged CSP. Only specific Maps/Places,
    Google static/font and image hosts were added, without inline script or
-   eval permissions. This has not yet been validated against the real SDK;
-   evaluate actual violations rather than disabling CSP. Check the built-in
+   eval permissions. The live Passenger page returned a selectable Taman Melati place with the real SDK. Check the built-in
    legal disclosure and attribution at 390px, with the keyboard and scrolling.
 4. Verify `q bistro` offers multiple branches and adding locality narrows the list. Verify `q bistro taman melati` returns the right business and entrance using
    actual Google results. Verify selected coordinates, label and TomTom route
