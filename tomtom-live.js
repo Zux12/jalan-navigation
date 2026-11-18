@@ -3,8 +3,8 @@
 'use strict';
 const el=id=>document.getElementById(id), input=el('tt-key');
 const status=s=>el('tt-status').textContent=s;
-// A saved device key overrides the optional public site key. Storage can be
-// denied, so configured and entered keys must still work for the open page.
+// Managed test builds use the site configuration; other builds retain device overrides.
+// Configured and entered keys work even when browser storage is denied.
 const STORAGE_KEY='jalan-tomtom-key',DISABLED_KEY='jalan-tomtom-config-disabled';
 const keyStorage={
  read(){try{return localStorage.getItem(STORAGE_KEY)||''}catch{return ''}},

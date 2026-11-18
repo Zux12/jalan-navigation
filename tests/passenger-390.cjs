@@ -1210,6 +1210,13 @@ async function main(){
   assert.match(await deniedPage.locator('#status').innerText(),
     /visible for this page only; browser storage unavailable/);
   assert.deepEqual(deniedErrors,[],'storage denial must not crash either TomTom or Passenger scripts');
+  await deniedPage.route('**/jalan-config.js*',route=>route.fulfill({contentType:'application/javascript',
+    body:"window.JalanPublicConfig={managedTomTom:true,tomtomBrowserKey:'SYNTHETIC_MANAGED_TEST_KEY',appVersion:'4.8.0-test'};"}));
+  await deniedPage.reload({waitUntil:'load'});
+  assert.equal(await deniedPage.evaluate(()=>document.getElementById('tt-key').value),'SYNTHETIC_MANAGED_TEST_KEY');
+  assert.equal(await deniedPage.evaluate(()=>document.getElementById('tt-primary').checked),true);
+  assert.equal(await deniedPage.locator('#passenger-key').count(),0,'configured routing needs no passenger key entry');
+  assert.deepEqual(deniedErrors,[]);
   await deniedContext.close();
   assert.deepEqual(errors,[],'no uncaught JS errors in either UI');
   console.log('JALAN passenger 390px offline PASS: two modes, fastest, real alternatives, +minutes, Go, 2D, exit and provider fallback.');

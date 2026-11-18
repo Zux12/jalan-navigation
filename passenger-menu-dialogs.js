@@ -6,6 +6,7 @@
  sound.id='passenger-sound-dialog';about.id='passenger-about-dialog';
  for(const [dialog,title] of [[sound,'passenger-sound-title'],[about,'passenger-about-title']]){
   dialog.className='jalan-menu-dialog';dialog.setAttribute('aria-labelledby',title);
+  dialog.addEventListener('keydown',event=>{if(event.key==='Escape')event.stopPropagation();});
  }
  sound.innerHTML='<h2 id="passenger-sound-title">Sound</h2>'+
   '<fieldset><legend>Voice guidance</legend>'+
