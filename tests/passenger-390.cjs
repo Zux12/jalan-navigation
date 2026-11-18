@@ -464,7 +464,6 @@ async function main(){
   assert.equal(await page.locator('#passenger-sound-dialog').isVisible(),true);
   assert.equal(await page.evaluate(()=>JalanGPS.getState().active),true,'Sound preserves the journey');
   await page.locator('#passenger-sound-ok').click();
-  await page.locator('#jalan-home-menu').click();
    assert.equal(await page.locator('#passenger-traffic-toggle').getAttribute('aria-pressed'),'false',
      'OSRM / no-key Go cannot start TomTom traffic checks');
    await page.locator('#passenger-traffic-details summary').click();
