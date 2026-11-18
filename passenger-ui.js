@@ -787,11 +787,9 @@
    });
    navigation.classList.add('hidden');
  });
- // The old passenger view retained the full-route zoom (often 15) after Go,
- // leaving the vehicle in a distant map overview. Only a predictor-matched,
- // fresh, bounded-accuracy GPS fix may control the passenger camera.
- // This follows the route ahead in north-up 2.5D; it DOES NOT rotate to road
- // bearing or certify lane-level placement/turn legality.
+ // Only fresh accepted measured GPS may control the follow camera.
+ // Camera offsets and view preferences never supply a GPS measurement
+ // or establish legal road, lane or turn evidence.
  const routeAheadCenter=(position,metresAhead=90)=>{
    const coordinates=routes[selectedRoute]?.geometry?.coordinates;
    if(!Array.isArray(coordinates)||coordinates.length<2)return position;
@@ -824,7 +822,7 @@
  const followPassengerGPS=detail=>{
    if(exploring||!document.body.classList.contains('passenger-guiding'))return;
    const state=window.JalanGPS?.getState();
-   if(!state?.active||!detail?.gpsReliable||
+   if(!state?.active||!state.gpsReliable||!Number.isFinite(state.gpsFixAgeMs)||state.gpsFixAgeMs>10000||!detail?.gpsReliable||
       !Number.isFinite(detail.gpsAccuracy)||detail.gpsAccuracy>65||
       !Array.isArray(detail.gpsPosition)||detail.gpsPosition.length!==2||
       !detail.gpsPosition.every(Number.isFinite))return;

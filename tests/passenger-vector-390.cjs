@@ -119,6 +119,7 @@ async function main(){
   assert.equal(await page.evaluate(()=>JalanVectorMap.getPitch()),60,'Go uses native pitch');
   for(const height of [844,560]){
    await page.setViewportSize({width:390,height});
+   await page.waitForFunction(()=>{const speed=document.getElementById('passenger-speed-floating').getBoundingClientRect(),bottom=document.querySelector('.passenger-bottom').getBoundingClientRect();return speed.bottom<bottom.top;});
    const layout=await page.evaluate(()=>{
     const speed=document.getElementById('passenger-speed-floating').getBoundingClientRect(),
       recenter=document.getElementById('passenger-recenter-floating').getBoundingClientRect(),
