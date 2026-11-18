@@ -24,7 +24,8 @@
  recent.innerHTML='<h2>Recent</h2><ol id="jalan-recent-list"></ol>';
  sheet.append(handle,searchTrigger,header,results,quick,recent);document.body.append(sheet);
  const menu=document.createElement('button');menu.id='jalan-home-menu';menu.type='button';
- menu.setAttribute('aria-label','Open user menu');menu.textContent='☰';
+ menu.setAttribute('aria-label','Open JALAN menu');menu.setAttribute('aria-controls','jalan-home-menu-panel');
+ menu.setAttribute('aria-expanded','false');menu.textContent='☰';
  const speed=document.createElement('div');speed.id='jalan-home-speed';
  speed.setAttribute('aria-label','Speed unavailable until reliable GPS');
  speed.innerHTML='<strong id="jalan-home-speed-value">—</strong><small>km/h</small>';
@@ -37,47 +38,108 @@
  menuPanel.className='hidden';menuPanel.setAttribute('aria-label','User menu');
  menuPanel.innerHTML='<div class="jalan-home-menu-head"><strong>JALAN menu</strong>'+
   '<button type="button" id="jalan-home-menu-close" aria-label="Close user menu">✕</button></div>'+
-  '<button type="button" data-menu="profile">User profile · Coming soon</button>'+
   '<button type="button" data-menu="settings">Routing settings</button>'+
-  '<button type="button" data-menu="help">Help · Coming soon</button>'+
-  '<p>Passenger preview only. No account profile is connected.</p>';
+  '<section class="jalan-voice-settings" aria-label="Navigation voice"><h2>Navigation voice</h2>'+
+  '<label for="passenger-voice-choice">Voice</label><select id="passenger-voice-choice" aria-describedby="passenger-voice-status"></select>'+
+  '<button type="button" id="passenger-voice-preview">Play sample</button>'+
+  '<p id="passenger-voice-status" role="status"></p></section>';
+ menuPanel.append($('passenger-journey-options'));
  document.body.append(menu,speed,report,notice,menuPanel);
+ const voiceChoice=$('passenger-voice-choice'),voicePreview=$('passenger-voice-preview'),voiceStatus=$('passenger-voice-status');
+ const renderVoices=()=>{
+   const state=window.JalanVoice?.getState();
+   voiceChoice.replaceChildren(new Option('Automatic · device default',''));
+   for(const v of state?.voices||[])voiceChoice.add(new Option(v.name+' · '+v.lang,v.id));
+   voiceChoice.value=state?.selected||'';
+   voiceChoice.disabled=!state?.supported;voicePreview.disabled=!state?.supported;
+   voiceStatus.textContent=!state?.supported?'Voice playback is unavailable in this browser.':
+     state.unavailable?'Saved voice is unavailable here. Using the device default.':
+     !state.voices.length?'Using the device default. Additional English voices may appear when the device loads them.':
+     !state.saved?'Voice selected for this visit. Browser storage is blocked.':
+     'English voices available on this device. Your choice is saved for future visits.';
+ };
+ voiceChoice.addEventListener('change',()=>window.JalanVoice?.choose(voiceChoice.value));
+ voicePreview.addEventListener('click',()=>{
+   voiceStatus.textContent=window.JalanVoice?.preview()?'Playing sample…':'Could not play a sample in this browser.';
+ });
+ window.addEventListener('jalan:voices-changed',renderVoices);
+ window.addEventListener('jalan:voice-preview',e=>{
+   if(e.detail?.state==='error')voiceStatus.textContent='Sample could not play. Try another available voice.';
+   else renderVoices();
+ });
+ renderVoices();
  const input=$('destination'),form=$('search-form'),list=$('jalan-recent-list');
- const recentNames=[];
+ const recentPlaces=[];
+ const routeSearchButton=$('passenger-search'),navigation=$('passenger-navigation');
+ let routeSearch=null;
  const showNotice=message=>{
    notice.textContent=message;notice.classList.remove('hidden');
  };
  const renderRecent=()=>{
    list.replaceChildren();
-   if(!recentNames.length){
+   if(!recentPlaces.length){
      const empty=document.createElement('li');
      empty.className='jalan-recent-empty';
      empty.textContent='Your recently selected destinations will appear here during this session.';
      list.append(empty);return;
    }
-   for(const name of recentNames){
+   for(const place of recentPlaces){
      const li=document.createElement('li'),btn=document.createElement('button');
-     btn.type='button';btn.textContent=name;
-     btn.addEventListener('click',()=>{setState('c');input.value=name;input.focus();form.requestSubmit();});
+     btn.type='button';btn.textContent=place.label;
+     btn.addEventListener('click',()=>{closeRouteSearch(false,false);input.blur();
+       selectDestinationPlace({lat:place.point[0],lon:place.point[1],name:place.name,display_name:place.label});});
      li.append(btn);list.append(li);
    }
  };
  const setState=next=>{
    const state=['a','b','c'].includes(next)?next:'a';
+   if(routeSearch&&state!=='c'){closeRouteSearch();return;}
    if(state!=='c'&&document.activeElement===input)input.blur();
    sheet.dataset.state=state;
    header.inert=state!=='c';
    handle.setAttribute('aria-expanded',String(state!=='a'));
-   handle.setAttribute('aria-label',state==='c'?'Collapse destination panel':'Expand destination panel');
+   handle.setAttribute('aria-label',routeSearch?'Return to current route':
+     state==='c'?'Collapse destination panel':'Expand destination panel');
    sheet.setAttribute('aria-label','Destination search bottom sheet · state '+state.toUpperCase());
  };
+ // Opening search is a temporary layer over the active journey. It must not
+ // call clearRoute(), stop GPS, select a route or change the map camera.
+ function closeRouteSearch(restoreInput=true,restoreFocus=true){
+   if(!routeSearch)return;
+   const saved=routeSearch;routeSearch=null;
+   cancelGesture();input.blur();
+   if(restoreInput)input.value=saved.inputValue;
+   results.classList.add('hidden');
+   document.body.classList.remove('passenger-route-search');
+   navigation.inert=false;
+   sheet.classList.add('jalan-sheet-route');
+   routeSearchButton.setAttribute('aria-expanded','false');
+   setState('a');
+   if(restoreFocus&&document.body.classList.contains('passenger-guiding'))
+     routeSearchButton.focus({preventScroll:true});
+ }
+ routeSearchButton.addEventListener('click',()=>{
+   if(routeSearch||!document.body.classList.contains('passenger-guiding')||!routes[selectedRoute])return;
+   routeSearch={inputValue:input.value};
+   input.value='';results.replaceChildren();results.classList.add('hidden');
+   toggleMenu(false);
+   sheet.classList.remove('jalan-sheet-route');
+   document.body.classList.add('passenger-route-search');
+   routeSearchButton.setAttribute('aria-expanded','true');
+   setState('c');input.focus({preventScroll:true});
+   navigation.inert=true;
+ });
+ document.addEventListener('keydown',e=>{
+   if(e.key==='Escape'&&routeSearch){e.preventDefault();closeRouteSearch();}
+ });
  // One gesture controller for the whole sheet, including child buttons and
  // list rows. A/B swipes resize the panel; C gives native lists scroll priority.
  // Touch events are separate from mouse/pen pointers because native scrolling
  // can cancel PointerEvents before a C-at-top downward swipe finishes.
  let gesture=null,suppressClickUntil=0;
  const beginGesture=(point,target,kind,id)=>{
-   if(sheet.classList.contains('jalan-sheet-route')||document.body.classList.contains('passenger-guiding'))return;
+   if(sheet.classList.contains('jalan-sheet-route')||
+      (document.body.classList.contains('passenger-guiding')&&!routeSearch))return;
    const scroller=target.closest?.('.results,.jalan-sheet-recent');
    gesture={x:point.clientX,y:point.clientY,at:sheet.dataset.state,kind,id,
      atTop:!scroller||scroller.scrollTop<=1,claimed:false};
@@ -157,29 +219,39 @@
    if(shortcut==='new'){setState('c');input.focus();}
    else showNotice((shortcut==='home'?'Home':'Work')+' shortcut is a placeholder. Address setup comes later.');
  });
- const toggleMenu=visible=>menuPanel.classList.toggle('hidden',!visible);
+ const toggleMenu=visible=>{
+   if(visible){$('passenger-turn-close').click();notice.classList.add('hidden');}
+   menuPanel.classList.toggle('hidden',!visible);
+   menu.setAttribute('aria-expanded',String(visible));
+   if(visible){menuPanel.scrollTop=0;$('jalan-home-menu-close').focus({preventScroll:true});}
+ };
+ window.JalanPassengerMenu={close:()=>toggleMenu(false)};
+ document.addEventListener('keydown',e=>{
+   if(e.key==='Escape'&&!menuPanel.classList.contains('hidden')){
+     e.preventDefault();toggleMenu(false);menu.focus({preventScroll:true});
+   }
+ });
  menu.addEventListener('click',()=>toggleMenu(menuPanel.classList.contains('hidden')));
- $('jalan-home-menu-close').addEventListener('click',()=>toggleMenu(false));
+ $('jalan-home-menu-close').addEventListener('click',()=>{toggleMenu(false);menu.focus({preventScroll:true});});
  menuPanel.addEventListener('click',e=>{
    const action=e.target.closest('button[data-menu]')?.dataset.menu;
    if(action==='settings'){$('passenger-settings-top').click();toggleMenu(false);}
    else if(action)showNotice((action==='profile'?'User profile':'Help')+' is coming soon.');
  });
- report.addEventListener('click',()=>showNotice('Road reporting button is a placeholder. No report was submitted.'));
- results.addEventListener('click',e=>{
-   const button=e.target.closest('button');
-   if(!button)return;
-   const name=button.textContent?.trim();
-   if(!name)return;
-   recentNames.unshift(name);
-   const unique=[...new Set(recentNames)].slice(0,7);
-   recentNames.splice(0,recentNames.length,...unique);
-   renderRecent();
- },true);
- window.addEventListener('jalan:routes-rendered',()=>{cancelGesture();sheet.classList.add('jalan-sheet-route');input.blur();});
- window.addEventListener('jalan:route-cleared',()=>{cancelGesture();sheet.classList.remove('jalan-sheet-route');setState('a');});
- window.addEventListener('jalan:journey-start',()=>{sheet.classList.add('jalan-sheet-route');toggleMenu(false);});
- window.addEventListener('jalan:journey-stop',()=>{sheet.classList.toggle('jalan-sheet-route',routes.length>0);});
+ // Reporting remains an unfinished control; no placeholder popup or submission.
+ window.addEventListener('jalan:destination-selected',event=>{
+   const place=event.detail;
+   if(!Array.isArray(place?.point)||place.point.length!==2||!place.point.every(Number.isFinite))return;
+   const duplicate=recentPlaces.findIndex(p=>p.point[0]===place.point[0]&&p.point[1]===place.point[1]);
+   if(duplicate>=0)recentPlaces.splice(duplicate,1);
+   recentPlaces.unshift({point:[...place.point],name:String(place.name),label:String(place.label)});
+   recentPlaces.length=Math.min(7,recentPlaces.length);
+   renderRecent();closeRouteSearch(false,false);
+ });
+ window.addEventListener('jalan:routes-rendered',()=>{closeRouteSearch(false,false);cancelGesture();sheet.classList.add('jalan-sheet-route');input.blur();});
+ window.addEventListener('jalan:route-cleared',()=>{closeRouteSearch(false,false);cancelGesture();sheet.classList.remove('jalan-sheet-route');setState('a');});
+ window.addEventListener('jalan:journey-start',()=>{closeRouteSearch(false,false);sheet.classList.add('jalan-sheet-route');toggleMenu(false);});
+ window.addEventListener('jalan:journey-stop',()=>{toggleMenu(false);closeRouteSearch(false,false);sheet.classList.toggle('jalan-sheet-route',routes.length>0);});
  window.addEventListener('jalan:gps-fix',e=>{
    const d=e.detail,valid=d?.matched&&Number.isFinite(d.speedMps)&&d.speedMps>=0&&
      Number.isFinite(d.accuracy)&&d.accuracy<=75;

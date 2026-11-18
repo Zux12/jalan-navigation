@@ -3,23 +3,27 @@
 'use strict';
 const el=id=>document.getElementById(id), input=el('tt-key');
 const status=s=>el('tt-status').textContent=s;
-// Default is page-memory only: do not silently keep an unchecked key across
-// reloads in sessionStorage. Clear previously persisted legacy session values.
-// Some Safari/private and enterprise contexts deny storage getter access outright.
-// The TomTom key must remain usable in this page, but never claim persistence
-// when the browser refuses it. No key values are logged or sent to JALAN.
-const STORAGE_KEY='jalan-tomtom-key';
+// A saved device key overrides the optional public site key. Storage can be
+// denied, so configured and entered keys must still work for the open page.
+const STORAGE_KEY='jalan-tomtom-key',DISABLED_KEY='jalan-tomtom-config-disabled';
 const keyStorage={
  read(){try{return localStorage.getItem(STORAGE_KEY)||''}catch{return ''}},
- remember(value){try{localStorage.setItem(STORAGE_KEY,value);return true}catch{return false}},
+ remember(value){try{localStorage.setItem(STORAGE_KEY,value);localStorage.removeItem(DISABLED_KEY);return true}catch{return false}},
  forget(){try{localStorage.removeItem(STORAGE_KEY)}catch{};
-  try{sessionStorage.removeItem(STORAGE_KEY)}catch{}}
+  try{sessionStorage.removeItem(STORAGE_KEY)}catch{}},
+ disableConfigured(){try{localStorage.setItem(DISABLED_KEY,'1');return true}catch{return false}}
 };
 try{sessionStorage.removeItem(STORAGE_KEY)}catch{}
+let configDisabled=false;
+try{configDisabled=localStorage.getItem(DISABLED_KEY)==='1';}catch{}
+const configuredKey=String(window.JalanPublicConfig?.tomtomBrowserKey||'').trim();
+const validKey=value=>/^[\w-]{8,160}$/.test(value);
 const rememberedKey=keyStorage.read();
-window.JalanTomTomKeyStorage=Object.freeze({remember:keyStorage.remember,forget:keyStorage.forget});
-input.value=rememberedKey;
-el('tt-remember').checked=!!rememberedKey;
+const usableConfiguredKey=!configDisabled&&validKey(configuredKey)?configuredKey:'';
+input.value=validKey(rememberedKey)?rememberedKey:usableConfiguredKey;
+el('tt-remember').checked=validKey(rememberedKey);
+window.JalanTomTomKeyStorage=Object.freeze({remember:keyStorage.remember,forget:keyStorage.forget,
+ configured:!!usableConfiguredKey});
 const enabled=()=>el('tt-primary').checked && !!input.value.trim();
 let keyEdited=false;
 function key(){const k=input.value.trim();if(!/^[\w-]{8,160}$/.test(k))throw Error('Enter a valid TomTom key.');if(el('tt-remember').checked){
@@ -37,8 +41,38 @@ const trafficState=(state,message,route=routes[selectedRoute]||null)=>{
 function invalidateIncidents(){incidentEpoch++;incidentAbort?.abort();incidentAbort=null;incidentLayer.clearLayers();publishIncidents({route:null,incidents:[],checkedAt:0});}
 function routeCleared(){token++;routeAbort?.abort();routeAbort=null;invalidateIncidents();}
 function hide(){active=false;clearInterval(timer);clearTimeout(debounce);invalidateIncidents();if(tiles)map.removeLayer(tiles);tiles=null;trafficState('off','Traffic off');}
-function normal(r){const coords=[];for(const leg of r.legs||[])for(const p of leg.points||[]){if(Number.isFinite(p.latitude)&&Number.isFinite(p.longitude))coords.push([p.longitude,p.latitude]);}if(coords.length<2)throw Error('TomTom returned no usable route geometry.');if(!Number.isFinite(r.summary?.travelTimeInSeconds)||r.summary.travelTimeInSeconds<0||!Number.isFinite(r.summary?.lengthInMeters)||r.summary.lengthInMeters<=0||!Number.isFinite(r.summary?.trafficDelayInSeconds??0)||r.summary.trafficDelayInSeconds<0)throw Error('TomTom returned invalid route measurements.');const steps=(r.guidance?.instructions||[]).slice(0,120).map(x=>({name:x.street||x.roadNumbers?.[0]||x.message||'road',street:x.street||'',roadNumbers:Array.isArray(x.roadNumbers)?x.roadNumbers.filter(v=>typeof v==='string').slice(0,6):[],pointIndex:Number.isInteger(x.pointIndex)?x.pointIndex:null,distance:0,location:x.point&&Number.isFinite(x.point.latitude)&&Number.isFinite(x.point.longitude)?[x.point.longitude,x.point.latitude]:null,routeOffsetInMeters:Number.isFinite(x.routeOffsetInMeters)?x.routeOffsetInMeters:null,message:x.message||'',maneuver:{type:x.maneuver||'continue',modifier:x.message||''}}));return {provider:'tomtom',geometry:{type:'LineString',coordinates:coords},duration:r.summary.travelTimeInSeconds,distance:r.summary.lengthInMeters,delay:r.summary.trafficDelayInSeconds||0,trafficSections:Array.isArray(r.sections)?r.sections.filter(s=>s.sectionType==='TRAFFIC').slice(0,120):null,trafficSectionsCheckedAt:Date.now(),legs:[{steps}]};}
-async function calculate(){if(!startPoint||!destination){status('Search for a destination first.');return;}let k;try{k=key();}catch(e){status(e.message);return;}clearRoute(false);const id=++token;routeAbort=new AbortController();statusEl.textContent='Calculating TomTom traffic-aware route…';routeEl.textContent='Loading TomTom routes…';routeEl.classList.remove('hidden');const path=[startPoint,destination].map(p=>p.map(x=>x.toFixed(6)).join(',')).join(':');const url=new URL('https://api.tomtom.com/routing/1/calculateRoute/'+path+'/json');for(const [a,b] of Object.entries({key:k,traffic:'true',departAt:'now',travelMode:'car',routeType:'fastest',maxAlternatives:'2',instructionsType:'text',sectionType:'traffic',language:'en-GB'}))url.searchParams.set(a,b);try{const response=await fetch(url,{signal:routeAbort.signal,cache:'no-store'});if(!response.ok)throw Error('TomTom routing HTTP '+response.status);const data=await response.json();if(id!==token)return;if(!data.routes?.length)throw Error('No routes returned');routes=data.routes.map(normal);selectedRoute=0;setPanelCollapsed(true);renderRoutes();const r=routes[0];el('tt-eta').textContent=`TomTom: ${Math.round(r.duration/60)} min · ${(r.distance/1000).toFixed(1)} km · Traffic delay ${Math.round(r.delay/60)} min · ${routes.length} route(s).`;statusEl.textContent='TomTom traffic-aware route active.';refreshRouteIncidents(true);}catch(e){if(e.name==='AbortError'||id!==token)return;routeEl.textContent='TomTom route unavailable: '+e.message;status('Uncheck TomTom primary routing to use OSRM. '+e.message);}}
+function normal(r){const coords=[];for(const leg of r.legs||[])for(const p of leg.points||[]){if(Number.isFinite(p.latitude)&&Number.isFinite(p.longitude))coords.push([p.longitude,p.latitude]);}if(coords.length<2)throw Error('TomTom returned no usable route geometry.');if(!Number.isFinite(r.summary?.travelTimeInSeconds)||r.summary.travelTimeInSeconds<0||!Number.isFinite(r.summary?.lengthInMeters)||r.summary.lengthInMeters<=0||!Number.isFinite(r.summary?.trafficDelayInSeconds??0)||r.summary.trafficDelayInSeconds<0)throw Error('TomTom returned invalid route measurements.');const steps=(r.guidance?.instructions||[]).slice(0,120).map(x=>({name:x.street||x.roadNumbers?.[0]||x.message||'road',street:x.street||'',roadNumbers:Array.isArray(x.roadNumbers)?x.roadNumbers.filter(v=>typeof v==='string').slice(0,6):[],pointIndex:Number.isInteger(x.pointIndex)?x.pointIndex:null,distance:0,location:x.point&&Number.isFinite(x.point.latitude)&&Number.isFinite(x.point.longitude)?[x.point.longitude,x.point.latitude]:null,routeOffsetInMeters:Number.isFinite(x.routeOffsetInMeters)?x.routeOffsetInMeters:null,message:x.message||'',maneuver:{type:x.maneuver||'continue',modifier:x.message||''}}));return {provider:'tomtom',roadGuidance:(r.guidance?.instructions||[]).map(x=>({street:x.street||'',roadNumbers:Array.isArray(x.roadNumbers)?x.roadNumbers.filter(v=>typeof v==='string').slice(0,6):[],routeOffsetInMeters:x.routeOffsetInMeters,maneuver:x.maneuver})),geometry:{type:'LineString',coordinates:coords},duration:r.summary.travelTimeInSeconds,distance:r.summary.lengthInMeters,delay:r.summary.trafficDelayInSeconds||0,trafficSections:Array.isArray(r.sections)?r.sections.filter(s=>s.sectionType==='TRAFFIC').slice(0,120):null,trafficSectionsCheckedAt:Date.now(),legs:[{steps}]};}
+// Request candidates without clearing the active journey. Both initial route
+// selection and off-route recovery use the same provider normalization/options.
+async function requestRoutes(from,to,{signal}={}){
+ const k=key();
+ const path=[from,to].map(p=>p.map(x=>x.toFixed(6)).join(',')).join(':');
+ const url=new URL('https://api.tomtom.com/routing/1/calculateRoute/'+path+'/json');
+ for(const [a,b] of Object.entries({key:k,traffic:'true',departAt:'now',travelMode:'car',routeType:'fastest',maxAlternatives:'2',instructionsType:'text',sectionType:'traffic',language:'en-GB'}))url.searchParams.set(a,b);
+ const response=await fetch(url,{signal,cache:'no-store'});
+ if(!response.ok)throw Error('TomTom routing HTTP '+response.status);
+ const data=await response.json();
+ if(!data.routes?.length)throw Error('No routes returned');
+ return data.routes.map(normal);
+}
+async function calculate(){
+ if(!startPoint||!destination){status('Search for a destination first.');return;}
+ try{key();}catch(e){status(e.message);return;}
+ clearRoute(false);const id=++token;routeAbort=new AbortController();
+ statusEl.textContent='Calculating TomTom traffic-aware route…';
+ routeEl.textContent='Loading TomTom routes…';routeEl.classList.remove('hidden');
+ try{
+  const candidates=await requestRoutes([...startPoint],[...destination],{signal:routeAbort.signal});
+  if(id!==token)return;
+  routes=candidates;selectedRoute=0;setPanelCollapsed(true);renderRoutes();
+  const r=routes[0];el('tt-eta').textContent=`TomTom: ${Math.round(r.duration/60)} min · ${(r.distance/1000).toFixed(1)} km · Traffic delay ${Math.round(r.delay/60)} min · ${routes.length} route(s).`;
+  statusEl.textContent='TomTom traffic-aware route active.';refreshRouteIncidents(true);
+ }catch(e){
+  if(e.name==='AbortError'||id!==token)return;
+  routeEl.textContent='TomTom route unavailable: '+e.message;
+  status('Uncheck TomTom primary routing to use OSRM. '+e.message);
+ }
+}
 // Incident Details returns an area, not a route match. Use one narrow spatial
 // filter for map pins and the Passenger list. This is not road-ID, direction
 // or level matching: very close parallel/stacked roads remain ambiguous.
@@ -232,7 +266,7 @@ input.addEventListener('input',()=>{
  status('Key changed. Old stored key removed; reconnect to use live traffic.');
 });
 el('tt-remember').onchange=()=>{if(!el('tt-remember').checked){keyStorage.forget();status('Key will be kept only for this open page.');}};
-el('tt-connect').onclick=connect;el('tt-hide').onclick=()=>{hide();status('Traffic overlay hidden.');};el('tt-route').onclick=calculate;el('tt-primary').onchange=()=>{routeCleared();clearRoute(false);status(enabled()?'TomTom routing selected. Search again to apply.':'OSRM routing selected. Search again to apply.');};el('tt-incident-toggle').onchange=()=>{if(!el('tt-incident-toggle').checked)invalidateIncidents();else refreshRouteIncidents(true);};el('tt-toggle-key').onclick=()=>{const show=input.type==='password';input.type=show?'text':'password';el('tt-toggle-key').textContent=show?'Hide':'Show';};el('tt-remove-key').onclick=()=>{routeCleared();hide();clearRoute(false);input.value='';keyStorage.forget();el('tt-remember').checked=false;status('Key cleared from browser. Active route and pending TomTom requests cancelled.');};
+el('tt-connect').onclick=connect;el('tt-hide').onclick=()=>{hide();status('Traffic overlay hidden.');};el('tt-route').onclick=calculate;el('tt-primary').onchange=()=>{routeCleared();clearRoute(false);status(enabled()?'TomTom routing selected. Search again to apply.':'OSRM routing selected. Search again to apply.');};el('tt-incident-toggle').onchange=()=>{if(!el('tt-incident-toggle').checked)invalidateIncidents();else refreshRouteIncidents(true);};el('tt-toggle-key').onclick=()=>{const show=input.type==='password';input.type=show?'text':'password';el('tt-toggle-key').textContent=show?'Hide':'Show';};el('tt-remove-key').onclick=()=>{routeCleared();hide();clearRoute(false);input.value='';keyStorage.forget();const disabled=keyStorage.disableConfigured();el('tt-remember').checked=false;status(disabled?'Key cleared from browser. Site key disabled here; pending TomTom requests cancelled.':'Key cleared for this page. Browser storage blocked; a configured site key may return on reload.');};
 function startPassengerTraffic(){
  if(!el('tt-primary').checked||routes[selectedRoute]?.provider!=='tomtom'){
   trafficState('error','Live traffic unavailable · OSRM route');return false;
@@ -243,6 +277,6 @@ function startPassengerTraffic(){
  el('tt-incident-toggle').checked=true;
  return connect();
 }
-window.JalanTomTom={enabled,calculate,routeCleared,refreshRouteIncidents,
+window.JalanTomTom={enabled,calculate,requestRoutes,routeCleared,refreshRouteIncidents,
  startPassengerTraffic,stopPassengerTraffic:hide,reportRouteTolerance,projectReportPoint,matchReportGeometry,trafficSectionsForRoute};
 })();

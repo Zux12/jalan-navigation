@@ -111,6 +111,9 @@
    ['dragstart','zoomstart','rotatestart','pitchstart'].forEach(event=>gl.on(event,e=>{
      if(e.originalEvent)window.dispatchEvent(new Event('jalan:vector-gesture'));
    }));
+   ['dragend','zoomend','rotateend','pitchend'].forEach(event=>gl.on(event,e=>{
+     if(e.originalEvent)window.dispatchEvent(new Event('jalan:vector-gesture-end'));
+   }));
    gl.on('click',event=>{
      const hit=gl.queryRenderedFeatures(event.point,{layers:['jalan-route-lines']})[0];
      const layer=hit&&map._layers[hit.properties.leafletId];
@@ -193,7 +196,7 @@
    }else if(pin.label){pin.label.remove();pin.label=null;}
  }
  function syncLayers(){
-   const features=[],trafficFeatures=[],seen=new Set(),tileIds=new Set();
+   const features=[],trafficFeatures=[],travelledFeatures=[],seen=new Set(),tileIds=new Set();
    original.eachLayer(layer=>{
      watch(layer);const id=L.stamp(layer);
      if(layer instanceof L.Polyline&&layer.options.opacity!==0){
@@ -202,7 +205,8 @@
        // Traffic must be above the blue route, never competing with it in
        // the base layer's line-sort-key by opacity. Both originate from the
        // same selected TomTom route geometry and share its map projection.
-       if(layer.options.className?.split(' ').includes('jalan-selected-traffic-colour'))
+       if(layer.options.className?.split(' ').includes('jalan-travelled-route'))travelledFeatures.push(feature);
+       else if(layer.options.className?.split(' ').includes('jalan-selected-traffic-colour'))
          trafficFeatures.push(feature);
        else features.push(feature);
      }else if(layer instanceof L.Marker||layer instanceof L.CircleMarker){seen.add(id);pinFor(layer,id);}
@@ -211,6 +215,7 @@
    if(popupLayer&&!original.hasLayer(popupLayer)){popup?.remove();popup=null;popupLayer=null;}
    const signature=JSON.stringify(features);
    if(signature!==lineSignature){lineSignature=signature;gl.getSource('jalan-routes').setData({type:'FeatureCollection',features});}
+   trafficFeatures.push(...travelledFeatures);
    const coloredSignature=JSON.stringify(trafficFeatures);
    if(coloredSignature!==trafficSignature){
      trafficSignature=coloredSignature;trafficFeatureCount=trafficFeatures.length;
@@ -232,10 +237,29 @@
    });
    rasters.forEach((entry,id)=>{if(!tileIds.has(id)){gl.removeLayer(id);gl.removeSource(id);rasters.delete(id);}});
  }
+ function broaderRoadWidth(value){
+   const scale=width=>typeof width==='number'?width*1.5:['*',width,1.5];
+   if(typeof value==='number')return scale(value);
+   // Keep zoom expressions outermost; scaling the entire expression is invalid.
+   if(Array.isArray(value)&&['interpolate','step'].includes(value[0])){
+     const first=value[0]==='interpolate'?4:2;
+     return value.map((part,index)=>index>=first&&index%2===0?scale(part):part);
+   }
+   if(value?.stops)return {...value,stops:value.stops.map(([zoom,width])=>[zoom,scale(width)])};
+   return value;
+ }
  function styleMap(){
    // A light, quiet road map. Provider attribution remains in the source metadata.
    const layers=gl.getStyle().layers;
    layers.forEach(layer=>{
+     if(layer.type==='line'&&layer['source-layer']==='transportation'&&
+       /^(highway_(minor|major|motorway)|tunnel_motorway)/.test(layer.id)){
+       // Widen the road surface and its casing together, including bridges/tunnels.
+       for(const property of ['line-width','line-gap-width']){
+         const width=layer.paint?.[property];
+         if(width!==undefined)gl.setPaintProperty(layer.id,property,broaderRoadWidth(width));
+       }
+     }
      if(layer.type==='background')gl.setPaintProperty(layer.id,'background-color','#f5f3ee');
      if(layer.type==='fill'&&layer['source-layer']==='water')gl.setPaintProperty(layer.id,'fill-color','#b4e0ec');
      if(layer.type==='fill'&&layer['source-layer']==='park')gl.setPaintProperty(layer.id,'fill-color','#d5e8cb');
@@ -291,7 +315,7 @@
      gl=new maplibregl.Map({container,style:'https://tiles.openfreemap.org/styles/positron',
        center:[center.lng,center.lat],zoom:map.getZoom()-1,minZoom:2,maxZoom:19,maxPitch:60,
        maxTileCacheSize:96,pixelRatio:Math.min(window.devicePixelRatio||1,2),
-       attributionControl:{compact:false},canvasContextAttributes:{antialias:true}});
+       attributionControl:{compact:true},canvasContextAttributes:{antialias:true}});
      gl.on('error',event=>{
        if(event.sourceId&&rasters.has(event.sourceId))rasters.get(event.sourceId).layer.fire('tileerror');
        else if(active){
@@ -312,6 +336,17 @@
          document.body.classList.add('passenger-vector-active');
          gl.resize();syncLayers();syncCamera();clearTimeout(timer);
          status.textContent='';emit();
+         // Show required data credits initially, then allow a compact (i) control.
+         // An explicit interaction keeps them open; no credit links are removed.
+         const credit=container.querySelector('.maplibregl-ctrl-attrib');
+         let creditTouched=false;
+         credit?.addEventListener('pointerdown',()=>{creditTouched=true;});
+         credit?.addEventListener('keydown',()=>{creditTouched=true;});
+         setTimeout(()=>{
+           if(active&&!creditTouched&&!credit?.contains(document.activeElement)&&
+              credit?.classList.contains('maplibregl-compact-show'))
+             credit.querySelector('.maplibregl-ctrl-attrib-button')?.click();
+         },5500);
        }catch{fallback();}
      });
    }catch{fallback();}

@@ -9,17 +9,61 @@
        list=el('passenger-route-list'),settings=el('passenger-setup'),
        navigation=el('passenger-navigation');
  const routeLabels=L.layerGroup().addTo(map);
+ const navigationZoom=17+Math.log2(1.5);
+ map.createPane('passenger-travelled');map.getPane('passenger-travelled').style.zIndex='460';
+ map.getPane('passenger-travelled').style.pointerEvents='none';
+ let travelled=null,travelRoute=null,travelFraction=0;
+ const clearTravelled=()=>{if(travelled)map.removeLayer(travelled);travelled=null;travelRoute=null;travelFraction=0;};
+ const paintTravelled=()=>{
+   const state=window.JalanGPS?.getState(),route=state?.route;
+   if(!state?.active||!document.body.classList.contains('passenger-guiding')){clearTravelled();return;}
+   if(route!==travelRoute){clearTravelled();travelRoute=route;}
+   if(!state.matched||state.accuracy>75||state.fixAgeMs>10000||
+      !Number.isFinite(state.remainingMeters)||!(route?.distance>0))return;
+   travelFraction=Math.max(travelFraction,Math.min(1,Math.max(0,1-state.remainingMeters/route.distance)));
+   const points=route.geometry.coordinates.map(p=>L.latLng(p[1],p[0])),lengths=[];
+   let total=0;for(let i=1;i<points.length;i++){const length=points[i-1].distanceTo(points[i]);lengths.push(length);total+=length;}
+   let left=total*travelFraction;const passed=[points[0]];
+   for(let i=1;i<points.length&&left>0;i++){
+     const length=lengths[i-1];
+     if(left>=length){passed.push(points[i]);left-=length;}
+     else{const t=left/length;passed.push(L.latLng(points[i-1].lat+(points[i].lat-points[i-1].lat)*t,
+       points[i-1].lng+(points[i].lng-points[i-1].lng)*t));break;}
+   }
+   if(passed.length<2)return;
+   if(!travelled)travelled=L.polyline(passed,{color:'#8293aa',weight:10,opacity:1,interactive:false,
+     pane:'passenger-travelled',className:'jalan-travelled-route'}).addTo(map);
+   else travelled.setLatLngs(passed);
+ };
+ window.addEventListener('jalan:gps-fix',()=>requestAnimationFrame(paintTravelled));
+ window.addEventListener('jalan:journey-start',clearTravelled);
+ window.addEventListener('jalan:journey-stop',clearTravelled);
+ window.addEventListener('jalan:route-cleared',clearTravelled);
+ // An atomic off-route swap emits route-change before its next GPS fix.
+ // Never leave the *old route's* travelled overlay drawn on the new route.
+ window.addEventListener('jalan:route-change',clearTravelled);
  // Reuse the existing opt-in page-load one-shot geolocation. A pre-route
  // location triangle represents a measured position, never inferred heading
  // or route-matched driving accuracy.
- const startupStatus=document.createElement('div');
- startupStatus.id='passenger-startup-location-status';
- startupStatus.setAttribute('role','status');
- startupStatus.textContent='Finding location · allow browser GPS to centre the map';
- document.body.append(startupStatus);
  const startupPosition={ready:false};
  window.JalanPassengerStartup=startupPosition;
  let startupMarker=null,locationPending=true;
+ let startupTimestamp=-Infinity;
+ let freeLast=null,freeHeading=null,freeExploring=false,freeReturn=null;
+ const freeActive=()=>!destination&&!routes.length&&!document.body.classList.contains('passenger-guiding');
+ const centerFree=()=>{
+   if(freeActive()&&freeLast&&Date.now()-freeLast.timestamp<=15000&&!document.hidden){
+     freeExploring=false;map.panTo(freeLast.point,{animate:false});
+   }
+ };
+ const exploreFree=()=>{if(freeActive()){freeExploring=true;clearTimeout(freeReturn);}};
+ const releaseFree=()=>{if(freeActive()&&freeExploring){clearTimeout(freeReturn);freeReturn=setTimeout(centerFree,3000);}};
+ map.on('dragstart',exploreFree);map.on('dragend',releaseFree);
+ window.addEventListener('jalan:vector-gesture',exploreFree);
+ window.addEventListener('jalan:vector-gesture-end',releaseFree);
+ window.addEventListener('pointerdown',()=>{if(freeActive())clearTimeout(freeReturn);},{passive:true});
+ window.addEventListener('pointerup',releaseFree,{passive:true});
+ window.addEventListener('pointercancel',releaseFree,{passive:true});
  const clearStartupMarker=()=>{
    if(startupMarker){map.removeLayer(startupMarker);startupMarker=null;}
  };
@@ -33,25 +77,53 @@
    locationPending=false;
    clearStartupMarker();
    startupPosition.ready=locationConfidence(detail);
+   if(startupPosition.ready){startupTimestamp=detail.timestamp;freeLast=detail;}
    // The original public location circle cannot masquerade as a trusted fix.
    if(locationMarker){pointLayer.removeLayer(locationMarker);locationMarker=null;}
    if(!startupPosition.ready){
-     startupStatus.textContent='GPS position uncertain · enable precise location or tap Locate';
      return;
    }
    const icon=L.divIcon({className:'passenger-startup-pin',
-     html:'<span aria-hidden="true">▲</span>',iconSize:[42,42],iconAnchor:[21,21]});
+     html:'<span aria-hidden="true">▲</span>',iconSize:[84,84],iconAnchor:[42,42]});
    startupMarker=L.marker(detail.point,{icon,interactive:false,keyboard:false,
      title:'GPS location measured; direction not yet verified'}).addTo(map);
-   startupStatus.textContent='GPS location found · triangle shows position, not heading';
  });
  window.addEventListener('jalan:initial-location-error',()=>{
    if(!locationPending)return;
    locationPending=false;
-   startupStatus.textContent='Location unavailable · grant permission or use Locate';
+   startupPosition.ready=false;clearStartupMarker();
+ });
+ window.addEventListener('jalan:free-location',event=>{
+   const detail=event.detail;
+   if(document.body.classList.contains('passenger-guiding')||destination||routes.length||
+      !locationConfidence(detail)||detail.timestamp<startupTimestamp)return;
+   const previous=freeLast;
+   let heading=null;
+   if(Number.isFinite(detail.heading)&&detail.heading>=0&&detail.heading<360&&detail.speed>=1)
+     heading=detail.heading;
+   else if(previous&&detail.timestamp>previous.timestamp&&detail.timestamp-previous.timestamp<=30000){
+     const a=L.latLng(previous.point),b=L.latLng(detail.point);
+     if(a.distanceTo(b)>=Math.max(5,Math.min(20,detail.accuracy))){
+       const rad=Math.PI/180,p=a.lat*rad,q=b.lat*rad,dl=(b.lng-a.lng)*rad;
+       heading=(Math.atan2(Math.sin(dl)*Math.cos(q),Math.cos(p)*Math.sin(q)-Math.sin(p)*Math.cos(q)*Math.cos(dl))/rad+360)%360;
+     }
+   }
+   if(heading!==null)freeHeading=heading;
+   freeLast=detail;
+   startupTimestamp=detail.timestamp;
+   if(!startupMarker){
+     window.dispatchEvent(new CustomEvent('jalan:initial-location',{detail}));
+   }else startupMarker.setLatLng(detail.point);
+   const angle=(freeHeading||0)-(window.JalanVectorMap?.active?window.JalanVectorMap.getBearing():0);
+   const html='<span aria-hidden="true" style="transform:rotate('+angle+'deg)">▲</span>';
+   if(startupMarker&&startupMarker.options.icon.options.html!==html)
+     startupMarker.setIcon(L.divIcon({className:'passenger-startup-pin',html,iconSize:[84,84],iconAnchor:[42,42]}));
+   if(!freeExploring)centerFree();
+   // Keep the original blue location circle from duplicating the triangle.
+   if(locationMarker){pointLayer.removeLayer(locationMarker);locationMarker=null;}
  });
  window.addEventListener('jalan:routes-rendered',()=>{
-   clearStartupMarker();startupStatus.classList.add('hidden');
+   clearStartupMarker();
  });
  // Route-planning markers are useful before Go but misleading when a separate
  // GPS-matched vehicle marker owns passenger guidance.
@@ -67,8 +139,16 @@
  };
  // Vehicle icon is georeferenced. Never show a fixed screen arrow implying
  // a valid position before the GPS predictor has actually matched a route.
- let vehicle=null,lastValidHeading=null,directionSource='unavailable';
- let exploring=false,lastGPSDetail=null;
+ let vehicle=null,accuracyHalo=null,lastValidHeading=null,directionSource='unavailable';
+ let routeLineMuted=false;
+ let exploring=false,lastGPSDetail=null,returnTimer=null,returnPending=false;
+ const mapContacts=new Set();
+ const cancelAutoReturn=()=>{clearTimeout(returnTimer);returnTimer=null;returnPending=false;};
+ const syncMapAction=()=>{
+   const visible=!screenVehicle.classList.contains('hidden');
+   document.body.classList.toggle('passenger-following-location',
+     document.body.classList.contains('passenger-guiding')&&!exploring&&visible);
+ };
  const gestureSurface=el('passenger-map-gestures'),hint=el('passenger-gesture-hint');
  const screenVehicle=el('passenger-vehicle-screen');
  let pendingOverlay=false;
@@ -77,7 +157,7 @@
    const vector=window.JalanVectorMap;
    const anchor=vehicle?.getElement();
    if(!vehicle||(!vector?.active&&!anchor)||!document.body.classList.contains('passenger-guiding')){
-     screenVehicle.classList.add('hidden');return;
+     screenVehicle.classList.add('hidden');syncMapAction();return;
    }
    const bounds=(vector?.active?map.getContainer():anchor).getBoundingClientRect();
    const point=vector?.active?vector.project(vehicle.getLatLng()):null;
@@ -86,10 +166,10 @@
      ((lastValidHeading||0)-vector.getBearing())+'deg':'0deg');
    const maxX=window.innerWidth,maxY=window.innerHeight;
    if(!Number.isFinite(x)||!Number.isFinite(y)||x<0||x>maxX||
-     y<0||y>maxY){screenVehicle.classList.add('hidden');return;}
+     y<0||y>maxY){screenVehicle.classList.add('hidden');syncMapAction();return;}
    screenVehicle.style.left=x+'px';
    screenVehicle.style.top=y+'px';
-   screenVehicle.classList.remove('hidden');
+   screenVehicle.classList.remove('hidden');syncMapAction();
  };
  const scheduleScreenVehicle=()=>{
    if(pendingOverlay)return;
@@ -124,24 +204,52 @@
    html:'<span class="jalan-vehicle-symbol" data-heading="unavailable">▲</span>',
    iconSize:[40,40],iconAnchor:[20,20]
  });
+ const setRouteMuted=muted=>{
+   if(routeLineMuted===muted)return;
+   routeLineMuted=muted;
+   if(!document.body.classList.contains('passenger-guiding'))return;
+   routeLayer.getLayers().forEach((line,i)=>{
+     if(typeof line.setStyle==='function')line.setStyle({
+       opacity:i===selectedRoute?(muted?0.25:1):0
+     });
+   });
+ };
+ function markVehicleUncertain(){
+   if(!vehicle)return;
+   vehicle.getElement()?.classList.add('jalan-vehicle-uncertain');
+   screenVehicle.classList.add('passenger-vehicle-uncertain');
+   accuracyHalo?.setStyle({color:'#8090a0',fillColor:'#8090a0'});
+ }
  function discardVehicle(){
    if(vehicle){map.removeLayer(vehicle);vehicle=null;}
+   if(accuracyHalo){map.removeLayer(accuracyHalo);accuracyHalo=null;}
    lastValidHeading=null;
    directionSource='unavailable';
    map.getContainer().style.removeProperty('--jalan-camera-turn');
-   screenVehicle.classList.add('hidden');
+   screenVehicle.classList.add('hidden');syncMapAction();
+   screenVehicle.classList.remove('passenger-vehicle-uncertain');
+   routeLineMuted=false;
  }
  function updateVehicle(detail){
    const state=window.JalanGPS?.getState();
-   const valid=state?.active&&state.matched&&Number.isFinite(state.accuracy)&&
-     state.accuracy<=65&&state.fixAgeMs<=5000&&detail?.matched&&
-     Array.isArray(detail.matchedPosition)&&detail.matchedPosition.length===2&&
-     detail.matchedPosition.every(Number.isFinite);
-   if(!valid){discardVehicle();return false;}
-   const position=detail.matchedPosition;
+   // Measured GPS can remain reliable while the old route is NOT matched.
+   // No new point is synthesized from the predictor during a wrong turn.
+   const valid=state?.active&&detail?.gpsReliable&&
+     Number.isFinite(detail.gpsAccuracy)&&detail.gpsAccuracy<=65&&
+     Array.isArray(detail.gpsPosition)&&detail.gpsPosition.length===2&&
+     detail.gpsPosition.every(Number.isFinite);
+   if(!valid){markVehicleUncertain();return false;}
+   const position=detail.gpsPosition;
    if(!vehicle)vehicle=L.marker(position,{icon:vehicleIcon,interactive:false,
      keyboard:false,zIndexOffset:950}).addTo(map);
    else vehicle.setLatLng(position);
+   if(!accuracyHalo)accuracyHalo=L.circle(position,{radius:Math.max(5,detail.gpsAccuracy),
+     color:'#13a8d1',fillColor:'#13a8d1',fillOpacity:0.08,weight:1,
+     interactive:false}).addTo(map);
+   else accuracyHalo.setLatLng(position).setRadius(Math.max(5,detail.gpsAccuracy))
+     .setStyle({color:'#13a8d1',fillColor:'#13a8d1'});
+   vehicle.getElement()?.classList.remove('jalan-vehicle-uncertain');
+   screenVehicle.classList.remove('passenger-vehicle-uncertain');
    const heading=detail.heading,speed=detail.speedMps;
    // GPS heading is meaningful only when actually moving. At low speed use
    // the direction of the selected route segment, explicitly an estimate.
@@ -156,11 +264,13 @@
    if(gpsHeadingReliable){
      lastValidHeading=heading;
      directionSource='gps';
-   }else if(routeBearing!==null){
+   }else if(lastValidHeading!==null){
+     // At low speed the last reliable bearing is safer than an old route.
+     directionSource='held';
+   }else if(detail.matched&&routeBearing!==null){
      lastValidHeading=routeBearing;
      directionSource='route';
    }else{
-     lastValidHeading=null;
      directionSource='unavailable';
    }
    const symbol=vehicle.getElement()?.querySelector('.jalan-vehicle-symbol');
@@ -175,7 +285,6 @@
  const hideSettings=()=>settings.classList.add('hidden');
  const showSettings=()=>settings.classList.remove('hidden');
  el('passenger-settings-top').addEventListener('click',showSettings);
- el('passenger-settings').addEventListener('click',showSettings);
  el('passenger-setup-close').addEventListener('click',hideSettings);
  el('passenger-use-osrm').addEventListener('click',()=>{
    const toggle=el('tt-primary');
@@ -183,22 +292,23 @@
    el('passenger-provider-status').textContent='OSRM manually selected — no live traffic ETA.';
    hideSettings();
  });
- // The engineering and passenger screens share one browser origin and key policy.
- // Never copy the key into source code, URLs, logs or a remote database.
+ // Passenger saves an entered key by default at the owner's request.
+ // The engineering screen retains its explicit persistence control.
  const sharedKeyInput=el('tt-key'), sharedRemember=el('tt-remember'),
        passengerRemember=el('passenger-remember');
  const validKey=value=>/^[\w-]{8,160}$/.test(value);
- passengerRemember.checked=sharedRemember.checked;
+ passengerRemember.checked=true;
  if(validKey(sharedKeyInput.value.trim())){
    el('passenger-provider-status').textContent=sharedRemember.checked?
      'Saved TomTom key available on this device — no re-entry needed.':
-     'TomTom key available for this open page.';
+     window.JalanTomTomKeyStorage?.configured?
+     'Configured TomTom key ready — no entry needed.':'TomTom key available for this open page.';
  }
  el('passenger-use-tomtom').addEventListener('click',()=>{
    const input=el('passenger-key'),entered=input.value.trim();
    const value=entered||sharedKeyInput.value.trim();
    if(!validKey(value)){
-     el('passenger-provider-status').textContent='No saved key found. Enter a restricted TomTom key once.';
+     el('passenger-provider-status').textContent='No saved key found. Paste a TomTom browser key once.';
      return;
    }
    // A changed key invalidates old provider requests and old browser storage.
@@ -228,7 +338,7 @@
    el('tt-remove-key').click();
    passengerRemember.checked=false;
    el('passenger-key').value='';
-   el('passenger-provider-status').textContent='Saved TomTom key cleared from this browser.';
+   el('passenger-provider-status').textContent=el('tt-status').textContent;
  });
  function refreshOverview(){
    routeLabels.clearLayers();
@@ -236,10 +346,8 @@
      overview.classList.add('hidden');return;
    }
    overview.classList.remove('hidden');
-   const chosen=routes[selectedRoute],valid=routes.filter(r=>Number.isFinite(r.duration));
+   const valid=routes.filter(r=>Number.isFinite(r.duration));
    const fastest=valid.length?Math.min(...valid.map(r=>r.duration)):null;
-   const name=chosen?.provider==='tomtom'?'TomTom · traffic-aware ETA':'OSRM · no live traffic';
-   el('passenger-route-provider').textContent=name+' · experimental, not approved for driving';
    list.replaceChildren();
    routes.forEach((r,i)=>{
      if(!r?.geometry?.coordinates?.length||!Number.isFinite(r.duration))return;
@@ -401,7 +509,7 @@
        (current?'Distances are approximate along-route values.':'Showing the selected route; distance from you awaits verified GPS.'):
      'No applicable reports ahead on this selected route.'+
        (hasIncidents?' TomTom incident check returned no applicable items.':
-        ' '+el('passenger-traffic-summary').textContent);
+        ' '+trafficSummary.message);
  };
  const selectInfoTab=tab=>{
    activeInfoTab=tab==='directions'?'directions':'reports';
@@ -449,6 +557,7 @@
    }
  };
  turnToggle.addEventListener('click',()=>{
+   window.JalanPassengerMenu?.close();
    const open=turnList.classList.contains('hidden');
    if(open){selectInfoTab('reports');turnList.classList.remove('hidden');}
    else closeDirections();
@@ -458,22 +567,37 @@
   const syncGPS=(fix=null)=>{
    if(!document.body.classList.contains('passenger-guiding'))return;
    el('passenger-instruction').textContent=el('gps-instruction').textContent||'Acquiring GPS…';
-   el('passenger-next').textContent=el('gps-detail').textContent||'Route preview';
+   el('passenger-next').textContent=(el('gps-detail').textContent||'Route preview')
+     .replace(/\s*·\s*GPS matched to selected route\s*$/,'');
    el('passenger-eta').textContent=el('gps-eta').textContent||'—';
    el('passenger-distance').textContent=el('gps-distance').textContent||'—';
    const state=window.JalanGPS?.getState();
    const matched=state?.matched&&Number.isFinite(state.accuracy)&&state.accuracy<=75&&state.fixAgeMs<10000;
+   const measured=state?.active&&fix?.gpsReliable&&Number.isFinite(fix.gpsAccuracy)&&fix.gpsAccuracy<=65;
    const alert=el('passenger-signal-alert');
-   alert.classList.toggle('hidden',!!matched);
-   alert.textContent=matched?'':'GPS uncertain · wait for a verified position';
-   el('passenger-fix').textContent=!matched?
-     'GPS uncertain or unavailable · vehicle position not verified':
+   const offRoute=state?.deviationConfirmed;
+   alert.classList.toggle('hidden',!!matched&&!!measured);
+   alert.textContent=matched?'':offRoute?
+     (state.rerouting?'Recalculating route from your current location…':
+      rerouteStatus.dataset.state==='error'?rerouteStatus.textContent:
+      autoControl.getAttribute('aria-pressed')==='true'?'Off route · waiting for the next route check':
+      'Off route · auto rerouting is off'):
+     measured?'GPS position measured · selected road not verified; turn guidance paused':
+     'GPS uncertain · showing grey last-known position, not live movement';
+   el('passenger-fix').textContent=!measured?
+     'GPS uncertain · grey triangle shows last known position only':
+     !matched?'GPS measured independently · route alignment pending':
      directionSource==='gps'?'GPS matched · heading-up experimental preview':
      directionSource==='route'?'GPS matched · road direction estimated from route':
-     'GPS matched · direction unavailable; north-up preview';
-   const speed=fix?.matched&&Number.isFinite(fix.speedMps)&&fix.speedMps>=0?
-     Math.round(fix.speedMps*3.6)+' km/h':'— km/h';
+     'GPS matched · direction held or unavailable';
+   // Before the first GPS callback the chosen route remains clearly visible.
+   // Dim it only once a fix shows the old road alignment is unverified.
+   if(fix&&(matched||measured))setRouteMuted(!matched);
+   const speed=fix?.gpsReliable&&Number.isFinite(fix.speedMps)&&fix.speedMps>=0?
+     String(Math.round(fix.speedMps*3.6)):'—';
    el('passenger-speed').textContent=speed;
+   el('passenger-speed-floating').setAttribute('aria-label',speed==='—'?
+     'Speed unavailable':speed+' kilometres per hour');
    const message=el('passenger-instruction').textContent;
    el('passenger-turn-arrow').textContent=turnIcon(message);
    if(!turnList.classList.contains('hidden')){
@@ -482,7 +606,7 @@
    el('passenger-turn-details').textContent=message;
  };
  // Passenger controls mirror the existing engineering GPS buttons; no
- // duplicate voice engine, no accidental opt-in to automatic rerouting.
+ // duplicate voice engine. Explicit Go enables off-route recovery for the trip.
  const voiceControl=el('passenger-voice'),autoControl=el('passenger-auto-reroute'),
        rerouteStatus=el('passenger-reroute-status');
  const syncNavigationSettings=()=>{
@@ -509,6 +633,10 @@
    const detail=event.detail||{};
    rerouteStatus.dataset.state=detail.state||'idle';
    rerouteStatus.textContent=String(detail.message||'Route status unavailable.');
+   if(window.JalanGPS?.getState()?.deviationConfirmed){
+     const alert=el('passenger-signal-alert');alert.classList.remove('hidden');
+     alert.textContent=rerouteStatus.textContent;
+   }
  });
  syncNavigationSettings();
  // Go starts the existing traffic layers/checker for this passenger session.
@@ -516,14 +644,14 @@
  const trafficToggle=el('passenger-traffic-toggle'),
        trafficStatus=el('passenger-traffic-status'),
        trafficOffer=el('passenger-traffic-offer');
- const trafficSummary=el('passenger-traffic-summary');
+ const trafficSummary={state:'off',message:'Traffic starts with Go'};
  let trafficOptOut=false;
  window.addEventListener('jalan:traffic-layer-status',event=>{
    if(!document.body.classList.contains('passenger-guiding'))return;
    const detail=event.detail||{},state=window.JalanGPS?.getState?.();
    if(detail.route&&detail.route!==state?.route)return;
-   trafficSummary.dataset.state=detail.state||'off';
-   trafficSummary.textContent=String(detail.message||'Traffic unavailable');
+   trafficSummary.state=detail.state||'off';
+   trafficSummary.message=String(detail.message||'Traffic unavailable');
    if(!turnList.classList.contains('hidden')&&activeInfoTab==='reports')renderReports();
  });
  const liveEta=el('passenger-live-eta');
@@ -601,6 +729,8 @@
    trafficOffer.classList.remove('hidden');
  });
  window.addEventListener('jalan:route-change',()=>{
+   routeLineMuted=false;
+   setRouteMuted(!window.JalanGPS?.getState()?.matched);
    hideTrafficOffer();clearLiveEta();clearReportFocus();refreshDemoReportMarkers();
  });
  window.addEventListener('jalan:route-cleared',()=>{clearReportFocus();passengerDemoReports.clearLayers();});
@@ -610,16 +740,21 @@
    if(!routes.length)return;
    trafficOptOut=false;
    hideSettings();
+   // The owner's explicit Go starts normal detour recovery. The menu can
+   // disable it during this journey; internal GPS restarts never re-enable it.
+   if(el('gps-auto').getAttribute('aria-pressed')!=='true')el('gps-auto').click();
+   syncNavigationSettings();
    el('gps-start').click();
    if(!window.JalanGPS?.getState()?.active){
-     el('passenger-route-provider').textContent='GPS preview could not start. Check browser permissions or use Engineering tests.';
+     el('passenger-route-title').textContent='GPS unavailable · check browser permissions';
    }
  });
  window.addEventListener('jalan:journey-start',()=>{
+   map.options.zoomSnap=0;
    closeDirections();
    clearReportFocus();
    incidentSnapshot={route:null,incidents:[],checkedAt:0};
-   el('passenger-options').open=false;
+   window.JalanPassengerMenu?.close();
    clearLiveEta();
    el('passenger-signal-alert').classList.remove('hidden');
    el('passenger-signal-alert').textContent='Waiting for verified GPS';
@@ -628,7 +763,7 @@
    rerouteStatus.textContent=autoControl.getAttribute('aria-pressed')==='true'?
      'Auto rerouting enabled · watching for sustained deviation.':
      'Auto rerouting off · manual Recalculate available.';
-   exploring=false;lastGPSDetail=null;hint.textContent='Drag · pinch · twist to explore · Recenter to resume following';
+   cancelAutoReturn();mapContacts.clear();exploring=false;lastGPSDetail=null;hint.textContent='Drag · pinch · twist to explore · Recenter to resume following';
    discardVehicle();
    if(!routes.length)return;
    hidePlannerMarkers();
@@ -644,6 +779,7 @@
    overview.classList.add('hidden');
    navigation.classList.remove('hidden');
    document.body.classList.add('passenger-guiding');
+   routeLineMuted=false;
    document.body.classList.remove('passenger-map-flat');
    el('passenger-2d').setAttribute('aria-pressed','false');
    el('passenger-2d').textContent='2D map';
@@ -657,12 +793,12 @@
    clearReportFocus();
    passengerDemoReports.clearLayers();
    if(!map.hasLayer(reportLayer))reportLayer.addTo(map);
-   el('passenger-options').open=false;
+   window.JalanPassengerMenu?.close();
    clearLiveEta();
    el('passenger-signal-alert').classList.add('hidden');
    hideTrafficOffer();
    stopPassengerTraffic();
-   exploring=false;lastGPSDetail=null;
+   cancelAutoReturn();mapContacts.clear();exploring=false;lastGPSDetail=null;
    discardVehicle();
    document.body.classList.remove('passenger-guiding','passenger-map-flat');
    window.JalanVectorMap?.setCamera({pitch:0,bearing:0,padding:{top:0,bottom:0,left:0,right:0}});
@@ -712,14 +848,13 @@
    if(exploring||!document.body.classList.contains('passenger-guiding')||
       document.body.classList.contains('passenger-map-flat'))return;
    const state=window.JalanGPS?.getState();
-   if(!state?.active||!state.matched||!Number.isFinite(state.accuracy)||
-      state.accuracy>75||state.fixAgeMs>10000||
-      !detail?.matched||!Array.isArray(detail.matchedPosition)||
-      detail.matchedPosition.length!==2||
-      !detail.matchedPosition.every(Number.isFinite))return;
+   if(!state?.active||!detail?.gpsReliable||
+      !Number.isFinite(detail.gpsAccuracy)||detail.gpsAccuracy>65||
+      !Array.isArray(detail.gpsPosition)||detail.gpsPosition.length!==2||
+      !detail.gpsPosition.every(Number.isFinite))return;
    // Keeping the trusted vehicle at camera centre avoids the off-screen
    // triangle seen on Safari when 125m look-ahead met a tilted, rotating map.
-   const center=detail.matchedPosition;
+   const center=detail.gpsPosition;
    // A preceding route-overview fitBounds() may still be animating; cancel
    // it before taking ownership of the passenger camera.
    // The previous update called map.stop() + setView(...zoom17) for *every*
@@ -728,12 +863,13 @@
    const zoom=map.getZoom();
    const camera=map.getCenter(),dx=(camera.lng-center[1])*111320*Math.cos(center[0]*Math.PI/180),
          dy=(camera.lat-center[0])*111320;
-   if(!Number.isFinite(zoom)||zoom<17)map.setView(center,17,{animate:false});
+   if(!Number.isFinite(zoom)||zoom<navigationZoom)map.setView(center,navigationZoom,{animate:false});
    else if(Math.hypot(dx,dy)>8)map.panTo(center,{animate:false});
    scheduleScreenVehicle();
  };
  window.addEventListener('jalan:gps-fix',event=>{
    lastGPSDetail=event.detail;
+   if(returnPending&&!mapContacts.size&&!gesture&&!document.hidden)recenterPassenger();
    // Never move the camera on an unmatched, stale, or inaccurate fix.
    if(updateVehicle(event.detail))followPassengerGPS(event.detail);
    requestAnimationFrame(()=>syncGPS(event.detail));
@@ -743,22 +879,22 @@
  const expireStalePassengerGPS=()=>{
    if(!document.body.classList.contains('passenger-guiding'))return;
    const state=window.JalanGPS?.getState();
-   if(state?.active&&state.matched&&Number.isFinite(state.fixAgeMs)&&
-      state.fixAgeMs<=10000&&!document.hidden)return;
-   discardVehicle();
+   if(state?.active&&lastGPSDetail?.gpsReliable&&
+      Number.isFinite(state.gpsFixAgeMs)&&state.gpsFixAgeMs<=10000&&!document.hidden)return;
+   markVehicleUncertain();
    el('passenger-signal-alert').classList.remove('hidden');
    el('passenger-signal-alert').textContent=document.hidden?
      'Safari backgrounded · position unverified':'GPS signal stale · position unverified';
    el('passenger-fix').textContent=document.hidden?
-     'Safari in background · GPS cannot be verified':
-     'GPS signal stale or unavailable · waiting for fresh position';
-   hint.textContent='GPS follow paused · Recenter after a fresh location update';
+     'Safari in background · last-known position only':
+     'GPS stale or unavailable · grey triangle is last-known position only';
+   hint.textContent='GPS follow paused · waiting for a fresh location update';
  };
  setInterval(expireStalePassengerGPS,2000);
  document.addEventListener('visibilitychange',expireStalePassengerGPS);
  // Heading-up map: custom touch gestures because Leaflet's 2-D hit-testing
  // does not match a CSS-tilted/rotated perspective. Gesture exploration
- // deliberately suspends automatic follow until Recenter is pressed.
+ // pauses follow until three seconds after release or an explicit Recenter.
  let gesture=null;
  const snapshot=touches=>{
    const a=touches[0],b=touches[1];
@@ -769,14 +905,34 @@
  };
  const startExplore=(stopCamera=true)=>{
    if(!document.body.classList.contains('passenger-guiding'))return false;
-   exploring=true;
+   cancelAutoReturn();clearReportFocus();exploring=true;syncMapAction();
    // A MapLibre gesture is already underway when its start event fires.
    // Calling gl.stop() here would interrupt drag, pinch or rotation.
    if(stopCamera)map.stop();
-   hint.textContent='Exploring map · tap Recenter to follow GPS again';
+   hint.textContent='Exploring map · returns to your location 3 seconds after release';
    return true;
  };
+ const queueAutoReturn=()=>{
+   if(returnTimer||!exploring||focusedReport||mapContacts.size||gesture||document.hidden||
+      !document.body.classList.contains('passenger-guiding'))return;
+   returnTimer=setTimeout(()=>{returnTimer=null;returnPending=true;recenterPassenger();},3000);
+ };
  window.addEventListener('jalan:vector-gesture',()=>{startExplore(false);});
+ window.addEventListener('jalan:vector-gesture-end',queueAutoReturn);
+ map.getContainer().addEventListener('pointerdown',event=>{
+   mapContacts.add(event.pointerId);cancelAutoReturn();
+ },true);
+ const releaseMapContact=event=>{
+   if(mapContacts.delete(event.pointerId)&&!mapContacts.size)queueAutoReturn();
+ };
+ window.addEventListener('pointerup',releaseMapContact);
+ window.addEventListener('pointercancel',releaseMapContact);
+ document.addEventListener('visibilitychange',()=>{
+   if(document.hidden){cancelAutoReturn();mapContacts.clear();gesture=null;}
+   else queueAutoReturn();
+ });
+ window.addEventListener('pagehide',cancelAutoReturn);
+
  window.addEventListener('jalan:map-renderer',()=>{
    applyCameraAngle(focusedReport||document.body.classList.contains('passenger-map-flat')?
      0:lastValidHeading===null?0:-lastValidHeading);
@@ -828,28 +984,32 @@
  gestureSurface.addEventListener('touchend',event=>{
    if(event.cancelable)event.preventDefault();
    gesture=event.touches.length?{...snapshot(event.touches),pinchTotal:0}:null;
+   if(!gesture)queueAutoReturn();
  },{passive:false});
- gestureSurface.addEventListener('touchcancel',()=>{gesture=null;});
+ gestureSurface.addEventListener('touchcancel',()=>{gesture=null;queueAutoReturn();});
  // Both 2D and 2.5D views use this gesture surface so rotating the map
  // does not invalidate Leaflet's original hit-testing.
  const recenterPassenger=()=>{
    clearReportFocus();
-   gesture=null;exploring=false;
+   clearTimeout(returnTimer);returnTimer=null;returnPending=true;
+   if(mapContacts.size||gesture||document.hidden)return;
    hint.textContent='Following GPS · drag, pinch or twist to explore';
    const state=window.JalanGPS?.getState();
-   const reliable=state?.active&&state.matched&&
-     Number.isFinite(state.accuracy)&&state.accuracy<=65&&
-     state.fixAgeMs<=5000&&Array.isArray(state.position);
-   if(!reliable||!lastGPSDetail?.matched){
+   const reliable=state?.active&&state.gpsReliable&&
+     Number.isFinite(state.gpsAccuracy)&&state.gpsAccuracy<=65&&
+     state.gpsFixAgeMs<=5000&&Array.isArray(state.gpsPosition)&&
+     state.gpsPosition.length===2&&state.gpsPosition.every(Number.isFinite);
+   if(!reliable||!lastGPSDetail?.gpsReliable){
      hint.textContent='Waiting for reliable GPS · cannot recenter yet';
      return;
    }
+   returnPending=false;exploring=false;
    updateVehicle(lastGPSDetail);
    const flat=document.body.classList.contains('passenger-map-flat');
    applyCameraAngle(flat?0:lastValidHeading===null?0:-lastValidHeading);
-   const target=state.position;
+   const target=state.gpsPosition;
    map.stop();
-   map.setView(target,17,{animate:false,reset:true});
+   map.setView(target,navigationZoom,{animate:false,reset:true});
    scheduleScreenVehicle();
  };
  el('passenger-recenter').addEventListener('click',recenterPassenger);
@@ -864,6 +1024,6 @@
    el('passenger-2d').textContent=flat?(window.JalanVectorMap?.active?'3D map':'2.5D preview'):'2D map';
    el('passenger-2d').setAttribute('aria-pressed',String(flat));
  });
- el('passenger-stop').addEventListener('click',()=>el('gps-exit').click());
+ el('passenger-stop').addEventListener('click',()=>window.JalanPassengerJourney?.stop());
  // Keep engineering test panels and private KL coordinate-GET panels untouched.
 })();

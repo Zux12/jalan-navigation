@@ -99,8 +99,44 @@ async function main(){
   await page.locator('#passenger-route-list button').nth(1).click();
   assert.equal(await page.evaluate(()=>selectedRoute),1);
   await page.locator('#passenger-route-list button').first().click();
+  assert.equal(await page.locator('#jalan-route-traffic-legend').count(),0);
+  await page.locator('#passenger-route-handle').click();
+  assert.equal(await page.locator('#passenger-overview').getAttribute('data-collapsed'),'true');
+  await page.waitForTimeout(300);
+  const routeBeforePan=await page.evaluate(()=>{
+    window.__planningRoute=routes[selectedRoute];return [map.getCenter().lat,map.getCenter().lng];
+  });
+  await page.mouse.move(170,400);await page.mouse.down();
+  await page.mouse.move(240,450,{steps:10});await page.mouse.up();
+  await page.waitForTimeout(900);
+  const routeAfterPan=await page.evaluate(()=>[map.getCenter().lat,map.getCenter().lng]);
+  assert.ok(Math.hypot(routeAfterPan[0]-routeBeforePan[0],routeAfterPan[1]-routeBeforePan[1])>0.00001,
+    'native map can be explored with the route panel collapsed');
+  assert.equal(await page.evaluate(()=>routes[selectedRoute]===window.__planningRoute),true);
+  await page.locator('#passenger-route-handle').click();
+  assert.equal(await page.locator('#passenger-route-list button').count(),2);
   await page.locator('#passenger-go').click();
   assert.equal(await page.evaluate(()=>JalanVectorMap.getPitch()),48,'Go uses native pitch');
+  for(const height of [844,560]){
+   await page.setViewportSize({width:390,height});
+   const layout=await page.evaluate(()=>{
+    const speed=document.getElementById('passenger-speed-floating').getBoundingClientRect(),
+      recenter=document.getElementById('passenger-recenter-floating').getBoundingClientRect(),
+      bottom=document.querySelector('.passenger-bottom').getBoundingClientRect();
+    return {aligned:Math.abs(speed.top+speed.height/2-recenter.top-recenter.height/2)<2,
+      clear:speed.bottom<bottom.top&&recenter.bottom<bottom.top,separated:speed.right<recenter.left};
+   });
+   assert.deepEqual(layout,{aligned:true,clear:true,separated:true},
+     'speed and Recenter stay opposite and above the vector map bottom bar');
+  }
+  await page.setViewportSize({width:390,height:844});
+  await page.locator('#passenger-search').click();
+  assert.equal(await page.locator('#jalan-home-sheet').getAttribute('data-state'),'c');
+  assert.equal(await page.evaluate(()=>JalanVectorMap.active&&JalanGPS.getState().active),true);
+  await page.keyboard.press('Escape');
+  assert.equal(await page.locator('#jalan-home-sheet').isVisible(),false);
+  assert.equal(await page.evaluate(()=>JalanVectorMap.getPitch()),48,
+    'opening and dismissing Stage C preserves the native pitched map');
   assert.equal(await page.locator('#passenger-map-gestures').isVisible(),false,'native gestures get the touch surface');
   const fix=()=>window.__fix({timestamp:Date.now(),coords:{latitude:3.139,longitude:101.6869,accuracy:8,speed:5,heading:45}});
   await page.evaluate(fix);
@@ -176,13 +212,26 @@ async function main(){
   // window. Recenter should require a fresh fix rather than bypassing it.
   await page.evaluate(fix);
   await page.locator('#passenger-recenter-floating').click();
-  assert.equal(await page.evaluate(()=>Math.round(map.getZoom())),17);
-  await page.locator('#passenger-options > summary').click();
+  assert.equal(await page.evaluate(()=>Math.round(map.getZoom())),18);
+  await page.waitForFunction(()=>document.body.classList.contains('passenger-following-location'));
+  assert.equal(await page.locator('#jalan-home-report').isVisible(),true);
+  await page.mouse.move(180,360);await page.mouse.down();await page.mouse.move(270,415,{steps:8});
+  await page.evaluate(fix);await page.waitForTimeout(3200);
+  assert.equal(await page.locator('#passenger-recenter-floating').isVisible(),true,'native held drag never auto-returns');
+  assert.equal(await page.locator('#jalan-home-report').isVisible(),false);
+  await page.mouse.up();await page.evaluate(fix);await page.waitForTimeout(1800);
+  assert.equal(await page.locator('#passenger-recenter-floating').isVisible(),true,'native return waits after release');
+  await page.evaluate(fix);
+  await page.waitForFunction(()=>document.body.classList.contains('passenger-following-location'),null,{timeout:2500});
+  assert.equal(await page.locator('#jalan-home-report').isVisible(),true);
+  await page.screenshot({path:path.join(artifacts,'vector-report-follow-control.png')});
+  console.log('PASS native map: held drag, three-second return after release and report/Recenter swap');
+  await page.locator('#jalan-home-menu').click();
   await page.locator('#passenger-2d').click();
   assert.equal(await page.evaluate(()=>JalanVectorMap.getPitch()),0);
   await page.locator('#passenger-2d').click();
   assert.equal(await page.evaluate(()=>JalanVectorMap.getPitch()),48);
-  await page.locator('#passenger-options > summary').click();
+  await page.locator('#jalan-home-menu').click();
   await page.evaluate(()=>{
     const route=JalanGPS.getState().route;
     const projected=window.JalanTomTom.projectReportPoint(
@@ -248,7 +297,30 @@ async function main(){
   assert.equal(await startup.evaluate(()=>routes.length),0,'no route is invented at startup');
   assert.equal(await startup.evaluate(()=>JalanGPS.getState().active),false,
     'a one-shot location does not start GPS journey tracking');
-  assert.match(await startup.locator('#passenger-startup-location-status').innerText(),/position, not heading/);
+  assert.equal(await startup.locator('#passenger-startup-location-status').count(),0);
+  await startupContext.setGeolocation({latitude:3.13900001,longitude:101.6869,accuracy:8});
+  await startup.waitForFunction(()=>document.getElementById('passenger-gps-status').dataset.quality==='green');
+  await startup.evaluate(()=>{window.__freeMarker=Object.values(map._layers).find(x=>x.options?.icon?.options.className==='passenger-startup-pin');});
+  await startupContext.setGeolocation({latitude:3.1394,longitude:101.6873,accuracy:8});
+  await startup.waitForFunction(()=>Math.abs(window.__freeMarker.getLatLng().lat-3.1394)<.000001);
+  assert.equal(await startup.evaluate(()=>Object.values(map._layers).filter(x=>x.options?.icon?.options.className==='passenger-startup-pin').length),1,
+    'pre-route GPS moves the same triangle without duplicate markers');
+  assert.equal(await startup.evaluate(()=>routes.length===0&&!JalanGPS.getState().active),true,
+    'moving before a destination never starts navigation or calculates a route');
+  assert.ok(await startup.evaluate(()=>Math.abs(map.getCenter().lat-3.1394)<.00001),
+    'pre-route map follows the live triangle');
+  await startup.evaluate(()=>window.dispatchEvent(new CustomEvent('jalan:free-location',{detail:{
+    point:[3.1394,101.6873],accuracy:8,timestamp:Date.now()+1,heading:90,speed:5}})));
+  await startup.waitForFunction(()=>document.querySelector('.jalan-vector-pin .passenger-startup-pin span')?.style.transform==='rotate(90deg)');
+  await startup.evaluate(()=>window.dispatchEvent(new CustomEvent('jalan:free-location',{detail:{point:[4,102],accuracy:180,timestamp:Date.now()}})));
+  assert.equal(await startup.evaluate(()=>window.__freeMarker.getLatLng().lat),3.1394,'poor GPS cannot move the triangle');
+  await startup.screenshot({path:path.join(artifacts,'gps-badge-startup-green.png')});
+  await startupContext.setGeolocation({latitude:3.13900002,longitude:101.6869,accuracy:80});
+  await startup.waitForFunction(()=>document.getElementById('passenger-gps-status').dataset.quality==='yellow');
+  await startupContext.setGeolocation({latitude:3.13900003,longitude:101.6869,accuracy:180});
+  await startup.waitForFunction(()=>document.getElementById('passenger-gps-status').dataset.quality==='red');
+  assert.ok(await startup.evaluate(()=>Math.abs(map.getCenter().lat-3.1394)<.00001),
+    'quality tracking changes only the indicator, without moving the map');
   await startup.close();await startupContext.close();
   // Inaccurate geolocation must not display a false current-position arrow or
   // auto-zoom, and browser permission denial must remain usable.
@@ -261,7 +333,7 @@ async function main(){
   await weak.route('https://tiles.openfreemap.org/styles/positron',route=>route.fulfill({json:style}));
   await weak.goto(base+'/index.html?mode=passenger');
   await weak.waitForFunction(()=>window.JalanVectorMap?.active&&
-    document.getElementById('passenger-startup-location-status')?.textContent.includes('uncertain'),null,{timeout:12000});
+    document.getElementById('passenger-gps-status')?.dataset.quality==='red',null,{timeout:12000});
   assert.equal(await weak.locator('.passenger-startup-pin').count(),0);
   assert.equal(await weak.evaluate(()=>Math.round(map.getZoom())),12);
   await weak.close();await weakContext.close();
@@ -324,11 +396,59 @@ async function main(){
   await live.waitForTimeout(5000);
   await live.evaluate(fix);
   assert.deepEqual(mapFailures,[],'public vector resources must load');
+  assert.ok(await live.evaluate(()=>Math.abs(map.getZoom()-(17+Math.log2(1.5)))<.001),'navigation scale is 50% closer');
+  assert.equal(await live.locator('#passenger-vehicle-screen').evaluate(x=>getComputedStyle(x).fontSize),'70px','navigation triangle is doubled');
+  // Exercise the display boundary using trusted controller progress, without
+  // inventing a road match or waiting for physical travel in this fixture.
+  await live.evaluate(()=>{
+   window.__originalState=JalanGPS.getState;
+   const state=JalanGPS.getState();
+   JalanGPS.getState=()=>({...state,matched:true,accuracy:8,fixAgeMs:0,remainingMeters:state.route.distance/2});
+   window.dispatchEvent(new CustomEvent('jalan:gps-fix',{detail:{matched:false}}));
+  });
+  await live.waitForFunction(()=>Object.values(map._layers).some(x=>x.options?.className==='jalan-travelled-route'));
+  const trail=await live.evaluate(()=>{
+   const line=Object.values(map._layers).find(x=>x.options?.className==='jalan-travelled-route');
+   return {color:line.options.color,last:line.getLatLngs().at(-1),end:JalanGPS.getState().route.geometry.coordinates.at(-1)};
+  });
+  assert.equal(trail.color,'#8293aa');assert.ok(trail.last.lng<trail.end[0],'travelled colour stops before the destination');
+  await live.screenshot({path:path.join(artifacts,'vector-travelled-route.png')});
+  // The real continuous-GPS controller emits this after a successful atomic
+  // off-route route swap; old geometry must disappear before the next fix.
+  await live.evaluate(()=>window.dispatchEvent(new CustomEvent('jalan:route-change',{detail:{reason:'off-route'}})));
+  assert.equal(await live.evaluate(()=>Object.values(map._layers).some(x=>x.options?.className==='jalan-travelled-route')),false,
+    'atomic replacement immediately clears obsolete travelled-route geometry');
+  await live.evaluate(()=>{JalanGPS.getState=window.__originalState;});
   assert.ok(tileResponses.some(code=>code===200),'actual vector/glyph resources received');
   assert.equal(await live.evaluate(()=>JalanVectorMap.active),true);
   assert.ok(await live.evaluate(()=>document.querySelector('.passenger-bottom').getBoundingClientRect().bottom<=
     document.querySelector('.maplibregl-ctrl-attrib').getBoundingClientRect().top),'map attribution stays below the HUD');
+  assert.equal(await live.locator('#passenger-traffic-summary').count(),0);
+  assert.equal(await live.evaluate(()=>getComputedStyle(document.getElementById('passenger-distance')).fontSize===
+    getComputedStyle(document.getElementById('passenger-eta')).fontSize),true);
+  assert.match(await live.locator('#passenger-next').textContent(),/Arrival approx/);
+  assert.doesNotMatch(await live.locator('#passenger-next').textContent(),/GPS matched to selected route/);
+  const creditControl=live.locator('.maplibregl-ctrl-attrib');
+  assert.equal(await creditControl.evaluate(x=>x.classList.contains('maplibregl-compact')),true);
+  // Wait for the existing 5.5 s automatic collapse before toggling. Testing
+  // across that timer can otherwise close it just before the click reopens it.
+  await live.waitForFunction(()=>!document.querySelector('.maplibregl-ctrl-attrib').classList.contains('maplibregl-compact-show'));
+  await live.locator('.maplibregl-ctrl-attrib-button').click();
+  assert.equal(await live.locator('.maplibregl-ctrl-attrib-inner a[href="https://openfreemap.org"]').isVisible(),false,
+    'optional OpenFreeMap branding is removed');
+  assert.equal(await live.locator('.maplibregl-ctrl-attrib-inner a[href*="openstreetmap.org/copyright"]').isVisible(),true,
+    'required data credit remains accessible');
+  await live.locator('.maplibregl-ctrl-attrib-button').click();
+  assert.equal(await creditControl.evaluate(x=>x.classList.contains('maplibregl-compact-show')),false);
   await live.screenshot({path:path.join(artifacts,'vector-live-kl-mobile.png')});
+  await live.evaluate(()=>{window.__journeyVectorBefore={route:JalanGPS.getState().route,bearing:JalanVectorMap.getBearing()};});
+  await live.locator('#passenger-journey-handle').click();
+  assert.equal(await live.locator('#passenger-journey-content').isVisible(),true);
+  await live.screenshot({animations:'disabled',path:path.join(artifacts,'vector-live-journey-details.png')});
+  await live.locator('#passenger-journey-resume').click();
+  assert.equal(await live.evaluate(()=>JalanGPS.getState().active&&JalanGPS.getState().route===window.__journeyVectorBefore.route),true);
+  assert.equal(await live.locator('#passenger-journey-sheet').getAttribute('data-expanded'),'false');
+
   await live.setViewportSize({width:1280,height:800});
   await live.screenshot({path:path.join(artifacts,'vector-live-kl-desktop.png')});
   console.log('PASS: native WebGL map, GPS projection, gestures, report zoom, traffic lifecycle, graphics and post-style tile-outage fallback, live OpenFreeMap');

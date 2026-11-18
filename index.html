@@ -15,9 +15,10 @@
   <title>Jalan — Navigation Prototype V4.7.4 Shared Traffic Pilot</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
   <link rel="stylesheet" href="style.css?v=4-7-1" />
-  <link rel="stylesheet" href="passenger.css?v=14" />
-  <link rel="stylesheet" href="passenger-route-traffic.css?v=1" />
-  <link rel="stylesheet" href="passenger-home-sheet.css?v=2" />
+  <link rel="stylesheet" href="passenger.css?v=21" />
+  <link rel="stylesheet" href="passenger-home-sheet.css?v=5" />
+  <link rel="stylesheet" href="passenger-route-sheet.css?v=2" />
+  <link rel="stylesheet" href="passenger-journey-sheet.css?v=1" />
   <link rel="stylesheet" href="jalan-kl-preview.css?v=3a1">
   <link rel="stylesheet" href="jalan-kl-3b.css?v=3b1">
   <link rel="stylesheet" href="jalan-kl-3c.css?v=3c1">
@@ -31,21 +32,25 @@
   </nav>
   <div id="passenger-setup" class="passenger-setup hidden" role="region" aria-label="Passenger routing setup">
     <strong>Routing provider</strong>
-    <p>TomTom provides traffic-aware routes using your restricted browser key. Choose OSRM explicitly for a non-traffic demonstration.</p>
-    <label for="passenger-key">TomTom API key (required only the first time)</label>
-    <input id="passenger-key" type="password" autocomplete="off" spellcheck="false" placeholder="Enter restricted TomTom key" />
-    <label class="passenger-remember-label"><input id="passenger-remember" type="checkbox" /> Remember on this device (not recommended for shared devices)</label>
+    <p>TomTom provides traffic-aware routes using the configured browser key. Choose OSRM explicitly for a non-traffic demonstration.</p>
+    <label for="passenger-key">TomTom API key (only if no key is configured)</label>
+    <input id="passenger-key" type="password" autocomplete="off" spellcheck="false" placeholder="Paste TomTom browser key once" />
+    <label class="passenger-remember-label"><input id="passenger-remember" type="checkbox" checked /> Save for future visits</label>
     <div class="passenger-setup-actions"><button id="passenger-use-tomtom" type="button">Use TomTom</button><button id="passenger-use-osrm" type="button">Use OSRM demo</button></div>
     <div id="passenger-provider-status" role="status">TomTom is preferred when a key is configured.</div>
     <button id="passenger-forget-key" type="button">Forget saved TomTom key</button>
     <button id="passenger-setup-close" type="button">Close settings</button>
   </div>
   <section id="passenger-overview" class="passenger-overview hidden" aria-label="Choose route">
-    <div class="passenger-overview-heading"><div><strong id="passenger-route-title">Choose your route</strong><small id="passenger-route-provider">Routes are estimates</small></div><button id="passenger-settings" type="button">⚙ Route settings</button></div>
+    <button id="passenger-route-handle" class="passenger-route-handle" type="button" aria-label="Collapse route choices" aria-expanded="true" aria-controls="passenger-route-content"><span aria-hidden="true"></span></button>
+    <div class="passenger-overview-heading"><strong id="passenger-route-title">Choose your route</strong></div>
+    <div id="passenger-route-content" class="passenger-route-content">
     <div id="passenger-route-list" class="passenger-route-list" aria-live="polite"></div>
-    <button id="passenger-go" class="passenger-go" type="button">Go · Passenger preview</button>
-    <small>Go starts TomTom traffic reports and 5-minute checks when a TomTom key and route are available.</small>
-    <small>Experimental preview, not approved for driving guidance. A passenger may evaluate the interface; the driver must use approved navigation.</small>
+    <div class="passenger-route-actions">
+      <button id="passenger-go" class="passenger-go" type="button" aria-description="Starts after seven seconds without interaction. Interacting resets the wait."><span id="passenger-go-fill" aria-hidden="true"></span><span class="passenger-go-label">Go</span></button>
+      <button id="passenger-route-cancel" type="button">Cancel</button>
+    </div>
+    </div>
   </section>
   <section id="passenger-navigation" class="passenger-navigation hidden" aria-label="Passenger navigation preview">
     <div id="passenger-vehicle-screen" class="passenger-vehicle-screen hidden" aria-hidden="true">▲</div>
@@ -58,9 +63,17 @@
     <div class="passenger-heading">PASSENGER PREVIEW · 2.5D map, not true 3D</div>
     <div id="passenger-signal-alert" class="passenger-signal-alert" role="status" aria-live="polite">Waiting for matched GPS</div>
     <button id="passenger-recenter-floating" class="passenger-recenter-floating" type="button" aria-label="Recenter map on matched GPS position" title="Recenter map">◎</button>
-    <div class="passenger-bottom"><div class="passenger-stats"><b id="passenger-eta">—</b><span id="passenger-distance">—</span><span id="passenger-speed">— km/h</span></div>
-      <div id="passenger-traffic-summary" class="passenger-traffic-summary" role="status" aria-live="polite" data-state="off">Traffic starts with Go</div>
-      <details id="passenger-options" class="passenger-options"><summary aria-label="Open navigation options" title="Navigation options">⋯</summary><div class="passenger-options-content">
+    <div id="passenger-speed-floating" class="passenger-speed-floating" role="img" aria-label="Speed unavailable"><strong id="passenger-speed">—</strong><small>km/h</small></div>
+    <div id="passenger-journey-sheet" class="passenger-bottom" data-expanded="false"><button id="passenger-journey-handle" class="passenger-journey-handle" type="button" aria-controls="passenger-journey-content" aria-expanded="false" aria-label="Expand journey details"><span></span></button><div class="passenger-stats"><b id="passenger-eta">—</b><b id="passenger-distance">—</b><button id="passenger-search" class="passenger-search" type="button" aria-label="Search destination" aria-controls="jalan-home-sheet" aria-expanded="false" title="Search destination"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m15.5 15.5 5 5"/></svg></button></div>
+      <section id="passenger-journey-content" class="passenger-journey-content" aria-label="Journey details" aria-hidden="true" inert>
+        <h2 id="passenger-journey-destination" class="passenger-journey-destination">Destination: Selected destination</h2>
+        <p id="passenger-journey-via" class="passenger-journey-via">Via selected route</p>
+        <div class="passenger-journey-track"><span class="passenger-journey-car" aria-hidden="true">▶</span><div id="passenger-journey-line" class="passenger-journey-line" role="img" aria-label="Traffic detail unavailable"></div><svg class="passenger-journey-flag" viewBox="0 0 30 32" aria-hidden="true"><path d="M4 30V2" stroke="#26384c" stroke-width="2.5"/><path d="M5 3h22v18H5z" fill="#fff" stroke="#26384c"/><path d="M5 3h5.5v6H5zm11 0h5.5v6H16zM10.5 9H16v6h-5.5zm11 0H27v6h-5.5zM5 15h5.5v6H5zm11 0h5.5v6H16z" fill="#26384c"/></svg></div>
+        <div class="passenger-journey-ends"><span id="passenger-journey-origin">You</span><span>Destination</span></div>
+        <p id="passenger-journey-traffic-note" class="passenger-journey-traffic-note">Traffic detail unavailable</p>
+        <div class="passenger-journey-actions"><button id="passenger-journey-stop" type="button">Stop</button><button id="passenger-journey-resume" type="button">Resume</button></div>
+      </section>
+      <section id="passenger-journey-options" class="passenger-journey-options" aria-label="Current journey"><h2>Current journey</h2>
       <div id="passenger-turn-details" class="passenger-fix">Acquiring GPS…</div><div id="passenger-fix" class="passenger-fix">Waiting for GPS</div><div id="passenger-gesture-hint" class="passenger-gesture-hint">Drag · pinch · twist to explore · Recenter to resume following</div>
       <div id="passenger-reroute-status" class="passenger-reroute-status" role="status" aria-live="polite">Rerouting is off until you enable it.</div>
       <details id="passenger-traffic-details" class="passenger-traffic-details"><summary>TomTom traffic &amp; ETA checks</summary>
@@ -71,7 +84,7 @@
       </details>
       <div class="passenger-nav-options"><button id="passenger-voice" type="button" aria-pressed="false">Voice: Mute</button><button id="passenger-auto-reroute" type="button" aria-pressed="false">Auto reroute: Off</button><button id="passenger-reroute-now" type="button">Recalculate</button></div>
       <div class="passenger-controls"><button id="passenger-2d" type="button" aria-pressed="false">2D map</button><button id="passenger-recenter" type="button">Recenter</button><button id="passenger-stop" type="button">End preview</button></div>
-      </div></details>
+      </section>
     </div>
   </section>
   <div id="perspective-note" class="perspective-note hidden" role="status">3D-style perspective preview · not real 3D terrain · return to 2D to interact with the map</div>
@@ -247,14 +260,15 @@
     </div>
   </section>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
-  <script src="app.js?v=4-7-7"></script>
+  <script src="app.js?v=4-7-12"></script>
   <script src="comparison.js?v=4-2"></script>
   <script src="traffic-test.js?v=4-2"></script>
-  <script src="tomtom-live.js?v=4-9"></script>
-  <script src="voice-guidance.js?v=4-5-1"></script>
+  <script src="jalan-config.js?v=1"></script>
+  <script src="tomtom-live.js?v=4-12"></script>
+  <script src="voice-guidance.js?v=4-6"></script>
   <script src="navigation-sim.js?v=4-5-1"></script>
-  <script src="predictive-gps.js?v=4-3"></script>
-  <script src="gps-navigation.js?v=4-8"></script>
+  <script src="predictive-gps.js?v=4-4"></script>
+  <script src="gps-navigation.js?v=4-11"></script>
   <script src="proactive-routing.js?v=4-4"></script>
   <script src="journey-log.js?v=4-2"></script>
   <script src="speed-intelligence.js?v=4-3"></script>
@@ -268,9 +282,14 @@
   <script src="jalan-kl-preview.js?v=3a1"></script>
   <script src="jalan-kl-3b.js?v=3b1"></script>
   <script src="jalan-kl-3c.js?v=3c2"></script>
-  <script src="passenger-ui.js?v=17"></script>
-  <script src="passenger-route-traffic.js?v=1"></script>
-  <script src="passenger-home-sheet.js?v=2"></script>
-  <script src="passenger-vector-map.js?v=2"></script>
+  <script src="passenger-ui.js?v=27"></script>
+  <script src="passenger-route-traffic.js?v=3"></script>
+  <script src="passenger-home-sheet.js?v=5"></script>
+  <script src="passenger-route-sheet.js?v=1"></script>
+  <script src="passenger-gps-status.js?v=3"></script>
+  <script src="passenger-journey-model.js?v=1"></script>
+  <script src="passenger-journey-sheet.js?v=2"></script>
+  <script src="passenger-route-start.js?v=1"></script>
+  <script src="passenger-vector-map.js?v=6"></script>
 </body>
 </html>
