@@ -60,10 +60,19 @@ module.exports=async function({context,base,root}){
  await boot();await input.fill('KLCC');await page.locator('#results [role=option]').waitFor();
  await page.waitForFunction(()=>window.__googleQueries.some(request=>request.query==='KLCC'));
  await widget.waitFor({state:'detached'});
+ assert.equal(await page.getByRole('heading',{name:'JALAN Result',exact:true}).count(),1);
+ assert.equal(await page.getByRole('heading',{name:'Google Maps Result',exact:true}).count(),0);
  assert.equal(sdkLoads,1,'Google is checked even for a TomTom match');
  await input.fill('q bistro');
  await widget.getByRole('button',{name:'Q Bistro Taman Melati'}).waitFor();
  assert.deepEqual(await page.locator('#results [role=option] strong').allTextContents(),['Q Bistro TTDI','Q Bistro Cheras']);
+ const jalanHeading=page.getByRole('heading',{name:'JALAN Result',exact:true});
+ const googleHeading=page.getByRole('heading',{name:'Google Maps Result',exact:true});
+ await googleHeading.waitFor();
+ assert.equal(await googleHeading.innerText(),'Result','the provider supplies its own Google Maps wordmark');
+ const typography=el=>{const s=getComputedStyle(el);return [s.fontFamily,s.fontSize,s.fontWeight,s.lineHeight,s.letterSpacing,s.color];};
+ assert.deepEqual(await jalanHeading.evaluate(typography),await googleHeading.evaluate(typography),'both headings use identical typography');
+ assert.equal(await googleHeading.evaluate(el=>getComputedStyle(el).pointerEvents),'none','caption cannot intercept the info button');
  const rowStyle=await widget.evaluate(el=>{
   const style=getComputedStyle(el);
   return [style.borderTopWidth,style.borderRadius,style.getPropertyValue('--gmp-card-border-radius').trim()];
@@ -76,6 +85,8 @@ module.exports=async function({context,base,root}){
  assert.equal(await widget.locator('template[slot="details-item"]').evaluate(template=>Boolean(template.content.querySelector('gmp-place-address'))),true,'Google renders branch addresses inside its attributed result');
  assert.equal(sdkLoads,1);assert.equal(await page.locator('#results input').count(),0,'one search bar; no second Google field');
  assert.equal(await widget.getAttribute('attribution-position'),'top');
+ assert.equal(await jalanHeading.count(),0,'no JALAN heading when only Google matches');
+ assert.equal(await googleHeading.count(),1);
  googleQueries.push(...await page.evaluate(()=>window.__googleQueries));
  assert.equal(await page.locator('#results [role=option]').count(),0,'a narrowed query hides unrelated TomTom branches');
  assert.deepEqual(googleQueries.at(-1),{query:'q bistro taman melati',count:5,bounds:{south:0.8,west:99.5,north:7.5,east:119.5}});
@@ -94,7 +105,9 @@ module.exports=async function({context,base,root}){
  await input.fill('Slow Google');await widget.waitFor({state:'attached'});await input.fill('');await page.waitForTimeout(1100);
  assert.equal(await page.locator('#results').isVisible(),false,'clear detaches pending Google component');
  await input.fill('Nothing here');await page.getByText('No matching places found. Try a fuller place name.').waitFor();
+ assert.equal(await googleHeading.count(),0,'no Google heading on an empty response');
  await input.fill('Google error');await page.getByText('Google suggestions unavailable. Try again shortly.').waitFor();
+ assert.equal(await googleHeading.count(),0,'no Google heading on provider error');
  assert.match(await page.locator('#results [role=option]').innerText(),/Google error avenue/,'Google failure retains TomTom matches');
  await input.fill('TomTom error');await widget.getByRole('button',{name:'Q Bistro Taman Melati'}).waitFor();
  await input.fill('Slow Google');await widget.waitFor({state:'attached'});await page.locator('#jalan-sheet-handle').click();await page.waitForTimeout(1100);

@@ -20,9 +20,25 @@
  function open(){ownsList=true;list.classList.remove('hidden');list.setAttribute('role','listbox');list.setAttribute('aria-label','Destination suggestions');input.setAttribute('aria-expanded','true');}
  function message(text){list.replaceChildren();const row=document.createElement('p');row.className='destination-search-note';row.setAttribute('role','status');row.textContent=text;list.append(row);open();}
  function select(index){const place=items[index];if(!place)return;cancel();input.blur();selectDestinationPlace(place);}
- function render(places,container=list){
-  container.replaceChildren();items=places;active=-1;input.removeAttribute('aria-activedescendant');
+ function resultHeading(text){
+  const heading=document.createElement('h3');
+  heading.className='destination-result-heading';
+  heading.textContent=text;
+  return heading;
+ }
+ function render(places){
+  list.replaceChildren();items=places;active=-1;input.removeAttribute('aria-activedescendant');
   if(!places.length){message('No suggestions yet. Try a fuller place name or tap Search.');return;}
+  open();
+  list.setAttribute('role','region');
+  const heading=resultHeading('JALAN Result');
+  heading.id='jalan-result-heading';
+  const container=document.createElement('div');
+  container.id='tomtom-destination-results';
+  container.setAttribute('role','listbox');
+  container.setAttribute('aria-labelledby',heading.id);
+  list.append(heading,container);
+  input.setAttribute('aria-controls',container.id);
   places.forEach((place,index)=>{
    const button=document.createElement('button');button.type='button';button.id='destination-suggestion-'+index;
    button.className='destination-suggestion';button.setAttribute('role','option');button.setAttribute('aria-selected','false');
@@ -30,7 +46,7 @@
    const copy=document.createElement('span'),name=document.createElement('strong'),address=document.createElement('small');
    name.textContent=place.name;address.textContent=place.address;copy.append(name,address);button.append(icon,copy);
    button.addEventListener('click',()=>select(index));container.append(button);
-  });if(container===list)open();
+  });
  }
  function normalize(payload){
   const seen=new Set();return (Array.isArray(payload?.results)?payload.results:[]).flatMap(result=>{
@@ -98,19 +114,12 @@
   list.replaceChildren();
   list.setAttribute('role','region');
   list.setAttribute('aria-label','Destination suggestions');
-  if(matching.length){
-   const options=document.createElement('div');
-   options.id='tomtom-destination-results';
-   options.setAttribute('role','listbox');
-   options.setAttribute('aria-label','TomTom suggestions');
-   list.append(options);
-   input.setAttribute('aria-controls',options.id);
-   render(matching,options);
-  }
+  if(matching.length)render(matching);
   input.setAttribute('aria-expanded',String(matching.length>0));
   const section=document.createElement('div');
+  section.className='destination-google-section';
   section.setAttribute('role','region');
-  section.setAttribute('aria-label','Google destination results');
+  section.setAttribute('aria-label','Google Maps Result');
   section.setAttribute('aria-busy','true');
   list.append(section);
   function googleNote(text){
@@ -121,7 +130,15 @@
    section.replaceChildren(note);
   }
   googleNote('Checking Google for places…');
+  const caption=resultHeading('Result');
+  caption.classList.add('destination-google-caption');
+  caption.setAttribute('aria-label','Google Maps Result');
   function finished(){section.removeAttribute('aria-busy');}
+  function googleReady(){
+   if(!current())return;
+   finished();
+   section.prepend(caption);
+  }
   function failed(){
    if(!current())return;
    finished();
@@ -136,7 +153,7 @@
      if(matching.length)section.remove();
      else googleNote(tomTomFailed?'TomTom is unavailable and Google found no matches.':'No matching places found. Try a fuller place name.');
     },
-    onError:failed,onReady:finished
+    onError:failed,onReady:googleReady
    });
   }catch{failed();}
  }
