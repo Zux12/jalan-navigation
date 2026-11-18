@@ -5,7 +5,42 @@
 .destination-suggestion small{display:block;margin-top:4px;color:#637487;font:12px/1.4 system-ui;overflow-wrap:anywhere}
 .results .destination-suggestion[aria-selected=true],.results .destination-suggestion:focus-visible{background:#eaf2ff;outline:2px solid #4087e7;outline-offset:-2px}
 .destination-search-note{margin:0;padding:14px 10px;color:#637487;font:13px/1.5 system-ui}
-/* Style the supported host only. Google's attribution, legal button and
-   shadow content remain intact; never clip or restyle them individually. */
-.destination-google-results{display:block;width:100%;color-scheme:light;--gmp-mat-font-family:system-ui;--gmp-mat-color-primary:#1764dc}
-
+/* Both providers share a scroll area and the same name/address hierarchy. */
+.passenger-mode .jalan-home-sheet .results[role="region"] {
+  border-radius: 0;
+}
+#tomtom-destination-results .destination-suggestion {
+  padding-inline: 12px;
+  border: 0;
+  border-bottom: 1px solid #e6ebf2;
+  border-radius: 0;
+}
+#tomtom-destination-results .destination-suggestion-pin {
+  display: none;
+}
+#tomtom-destination-results + [role="region"] {
+  padding-block-start: 4px;
+}
+.destination-google-results {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  color-scheme: light;
+  background-color: #fff;
+  --gmp-card-border-radius: 0px;
+  --gmp-mat-font-family: system-ui, sans-serif;
+  --gmp-mat-font-title-medium: 700 14px/1.35 system-ui, sans-serif;
+  --gmp-mat-font-body-small: 400 12px/1.4 system-ui, sans-serif;
+  --gmp-mat-color-surface: #fff;
+  --gmp-mat-color-on-surface: #19334e;
+  --gmp-mat-color-on-surface-variant: #637487;
+  --gmp-mat-color-outline-decorative: #e6ebf2;
+  --gmp-mat-color-secondary-container: #fff;
+  --gmp-mat-color-on-secondary-container: #435970;
+  --gmp-button-border-width: 0px;
+  --gmp-mat-color-primary: #1764dc;
+}

@@ -64,6 +64,11 @@ module.exports=async function({context,base,root}){
  await input.fill('q bistro');
  await widget.getByRole('button',{name:'Q Bistro Taman Melati'}).waitFor();
  assert.deepEqual(await page.locator('#results [role=option] strong').allTextContents(),['Q Bistro TTDI','Q Bistro Cheras']);
+ const rowStyle=await widget.evaluate(el=>{
+  const style=getComputedStyle(el);
+  return [style.borderTopWidth,style.borderRadius,style.getPropertyValue('--gmp-card-border-radius').trim()];
+ });
+ assert.deepEqual(rowStyle,['0px','0px','0px'],'Google suggestions share the list without a second card');
  assert.equal(routeCalls,0,'listing multiple branches must not start a route');
  await input.press('ArrowDown');
  assert.equal(await input.getAttribute('aria-activedescendant'),'destination-suggestion-0');
