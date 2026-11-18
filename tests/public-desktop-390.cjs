@@ -80,8 +80,9 @@ async function main(){
   const connections=csp.policy.split(';').map(x=>x.trim()).find(x=>x.startsWith('connect-src ')).split(/\s+/).slice(1);
   assert.deepEqual(connections.sort(),["'self'",'https://api.tomtom.com','https://tiles.openfreemap.org',
     'https://router.project-osrm.org','https://nominatim.openstreetmap.org','https://overpass-api.de',
-    'https://mterm2026-559f9bf571b5.herokuapp.com'].sort(),
-    'Only the documented providers and the public vector tile host may receive requests');
+    'https://mterm2026-559f9bf571b5.herokuapp.com','https://maps.googleapis.com',
+    'https://places.googleapis.com','https://maps.gstatic.com'].sort(),
+    'Only documented routing, vector tile and staged Google UI Kit hosts may receive requests');
   assert.equal(await page.evaluate(()=>!!window.JalanVectorMap),false,'Engineering Mode does not load the vector renderer');
   assert.equal(csp.result?.directive,'connect-src',
     'Browser must block unexpected cross-origin network calls via CSP');
@@ -451,3 +452,4 @@ async function main(){
  }finally{if(browser)await browser.close();await new Promise(resolve=>server.close(resolve))}
 }
 main().catch(e=>{console.error('PUBLIC NON-PHONE BROWSER GATE FAILED:',e);process.exitCode=1});
+

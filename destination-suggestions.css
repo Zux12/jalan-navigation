@@ -5,3 +5,7 @@
 .destination-suggestion small{display:block;margin-top:4px;color:#637487;font:12px/1.4 system-ui;overflow-wrap:anywhere}
 .results .destination-suggestion[aria-selected=true],.results .destination-suggestion:focus-visible{background:#eaf2ff;outline:2px solid #4087e7;outline-offset:-2px}
 .destination-search-note{margin:0;padding:14px 10px;color:#637487;font:13px/1.5 system-ui}
+/* Style the supported host only. Google's attribution, legal button and
+   shadow content remain intact; never clip or restyle them individually. */
+.destination-google-results{display:block;width:100%;color-scheme:light;--gmp-mat-font-family:system-ui;--gmp-mat-color-primary:#1764dc}
+

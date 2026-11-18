@@ -16,7 +16,11 @@ module.exports=async function({context,base,root}){
   for(const name of ['lat','lon','geobias'])assert.equal(url.searchParams.has(name),false,'typing never shares current coordinates');
   if(['Slow','Clear','Collapse'].includes(query))await new Promise(resolve=>setTimeout(resolve,900));
   if(query==='Failure')return route.fulfill({status:503,headers,body:'Unavailable'}).catch(()=>{});
-  const results=query==='KLCC'?[result('Petronas Twin Towers'),result('KLCC Park',3.155,101.715),result('Invalid',NaN,101),result('<img src=x onerror=alert(1)>')]:[result(query+' place')];
+  const branches=[
+   result('Q Bistro TTDI',3.15,101.62),result('Q Bistro Cheras',3.10,101.71),
+   result('Restoran Zaynas Bistro',3.22,101.73)
+  ];
+  const results=query.startsWith('q bistro')?branches:query==='KLCC'?[result('Petronas Twin Towers'),result('KLCC Park',3.155,101.715),result('Invalid',NaN,101),result('<img src=x onerror=alert(1)>')]:[result(query+' place')];
   await route.fulfill({contentType:'application/json',headers,body:JSON.stringify({results})}).catch(()=>{});
  });
  await page.route('https://api.tomtom.com/routing/**',route=>route.fulfill({contentType:'application/json',headers,body:JSON.stringify({routes:[{summary:{travelTimeInSeconds:420,lengthInMeters:3200,trafficDelayInSeconds:0},legs:[{points:[{latitude:3.139,longitude:101.6869},{latitude:3.15785,longitude:101.71165}]}],guidance:{instructions:[]}}]})}));
@@ -30,6 +34,13 @@ module.exports=async function({context,base,root}){
  for(const icon of manifest.icons){const png=fs.readFileSync(path.join(root,icon.src)),size=Number(icon.sizes.split('x')[0]);assert.equal(png.toString('hex',0,8),'89504e470d0a1a0a');assert.equal(png.readUInt32BE(16),size);assert.equal(png.readUInt32BE(20),size);}
  const touch=fs.readFileSync(path.join(root,'icons/jalan-touch-180.png'));assert.equal(touch.readUInt32BE(16),180);
  await input.fill('KL');await page.waitForTimeout(550);assert.equal(requests.length,0,'short query makes no network lookup');
+ await input.fill('q bistro');await options.first().waitFor();
+ assert.deepEqual(await options.locator('strong').allTextContents(),['Q Bistro TTDI','Q Bistro Cheras']);
+ await input.fill('q bistro taman melati');await page.getByText('No suggestions yet. Try a fuller place name or tap Search.').waitFor();
+ assert.equal(await options.count(),0,'unrelated TomTom names stay hidden with no Google key');
+ await input.fill('q bistro');await options.first().waitFor();
+ assert.equal(await options.count(),2,'cached broad query retains multiple matching branches');
+ requests.length=0;
  await input.fill('KLC');await page.waitForTimeout(100);await input.fill('KLCC');
  await options.first().waitFor();assert.deepEqual(requests,['KLCC'],'rapid edits collapse to one debounced request');
  assert.equal(await options.count(),3,'invalid coordinates are ignored');assert.equal(await page.locator('#results img').count(),0,'provider names render as text');
@@ -59,3 +70,4 @@ module.exports=async function({context,base,root}){
  assert.deepEqual(errors,[]);await page.close();
  console.log('PASS destination typeahead: debounce, text safety, exact route selection, stale/clear/collapse/IME, keyboard, cache, no-key manual fallback and install icons');
 };
+
