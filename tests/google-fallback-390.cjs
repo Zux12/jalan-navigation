@@ -68,15 +68,15 @@ module.exports=async function({context,base,root}){
  assert.equal(await widget.isVisible(),true,'keyboard focus inside Google results survives input blur');
  await widget.getByRole('button',{name:'Q Bistro Taman Melati'}).press('Enter');await page.waitForFunction(()=>routes.length===1);
  assert.deepEqual(await page.evaluate(()=>destination),[3.222,101.729]);assert.equal(routeCalls,1);assert.equal(manual,0);
- await boot();await input.fill('Slow Google');await widget.waitFor();
+ await boot();await input.fill('Slow Google');await widget.waitFor({state:'attached'});
  await input.fill('KLCC');await page.locator('#results [role=option]').waitFor();await page.waitForTimeout(1100);
  assert.equal(await widget.count(),0,'late Google response cannot overwrite newer TomTom results');
  assert.match(await page.locator('#results').innerText(),/KLCC/);
- await input.fill('Slow Google');await widget.waitFor();await input.fill('');await page.waitForTimeout(1100);
+ await input.fill('Slow Google');await widget.waitFor({state:'attached'});await input.fill('');await page.waitForTimeout(1100);
  assert.equal(await page.locator('#results').isVisible(),false,'clear detaches pending Google component');
  await input.fill('Nothing here');await page.getByText('No matching places found. Try a fuller place name.').waitFor();
  await input.fill('Google error');await page.getByText('Google suggestions unavailable. Try again shortly.').waitFor();
- await input.fill('Slow Google');await widget.waitFor();await page.locator('#jalan-sheet-handle').click();await page.waitForTimeout(1100);
+ await input.fill('Slow Google');await widget.waitFor({state:'attached'});await page.locator('#jalan-sheet-handle').click();await page.waitForTimeout(1100);
  assert.equal(await page.locator('#results').isVisible(),false,'sheet collapse dismisses fallback');
  await page.locator('#jalan-search-trigger').click();await input.fill('q bistro taman melati');await input.press('Enter');
  await widget.getByRole('button',{name:'Q Bistro Taman Melati'}).waitFor();assert.equal(manual,0,'submit shares the same provider flow when configured');
