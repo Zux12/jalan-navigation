@@ -76,6 +76,7 @@
    getPitch(){return active?gl.getPitch():0;},
    setCamera(options){if(active)gl.jumpTo(options);},
    getReportRoad(position,heading){
+     try{
      const P=window.JalanReportModel;if(!active||!P||!P.coord(position)||!P.heading(heading))return null;
      const layers=gl.getStyle().layers.filter(l=>l.type==='line'&&l['source-layer']==='transportation').map(l=>l.id);
      if(!layers.length)return null;
@@ -94,6 +95,7 @@
      // Ambiguous parallel/crossing roads remain unmatched rather than guessed.
      if(!candidates.length||(candidates[1]&&candidates[1].offset-candidates[0].offset<5))return null;
      return {key:candidates[0].key,level:candidates[0].level};
+     }catch{return null;}
    },
    nearbyRoads(position,origin=position){
      if(!active)return null;
