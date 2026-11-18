@@ -208,3 +208,13 @@ test('pending lateral drift does not feed route history or trigger a new route',
  s.feed([3,101.6013]);assert.equal(s.matcherFeeds,count+1);
  assert.equal(s.state().matched,true,'credible road-aligned measurements resume matching');
 });
+
+test('route-locked display favours the current leg over a nearby opposite-direction return leg',()=>{
+ const s=scene();s.context.window.JalanGPS.stop();
+ s.context.routes=[{provider:'osrm',duration:600,distance:2300,legs:[],geometry:{type:'LineString',
+  coordinates:[[101.6,3],[101.61,3],[101.61,3.00012],[101.6,3.00012]]}}];
+ s.node('gps-start').onclick();s.feed([3,101.6008]);
+ s.feed([3.00011,101.601]);
+ assert.equal(s.state().vehiclePosition[0],3,'drift toward the opposite return leg cannot transfer the display to it');
+ assert.ok(s.state().gpsPosition[0]>3,'actual GPS is not rewritten to make that display claim');
+});

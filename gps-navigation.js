@@ -66,8 +66,9 @@
   for(let i=1;i<points.length;i++){
    const a=points[i-1],b=points[i],dx=(b[1]-a[1])*sx,dy=(b[0]-a[0])*sy,
     ax=(a[1]-raw[1])*sx,ay=(a[0]-raw[0])*sy,
-    t=Math.max(0,Math.min(1,-(ax*dx+ay*dy)/(dx*dx+dy*dy||1))),d=Math.hypot(ax+t*dx,ay+t*dy);
-   if(d<best){best=d;position=[a[0]+t*(b[0]-a[0]),a[1]+t*(b[1]-a[1])];}
+    t=Math.max(0,Math.min(1,-(ax*dx+ay*dy)/(dx*dx+dy*dy||1))),d=Math.hypot(ax+t*dx,ay+t*dy),
+    along=cum[i-1]+t*(cum[i]-cum[i-1]),score=d+Math.min(160,Math.abs(along-progress)*.18);
+   if(score<best){best=score;position=[a[0]+t*(b[0]-a[0]),a[1]+t*(b[1]-a[1])];}
   }return position?[...position]:null;
  }
  function project(p){const sx=111320*Math.cos(rad(p[0])),sy=111320;let best={distance:Infinity,along:0};for(let i=1;i<points.length;i++){const a=points[i-1],b=points[i],ax=(a[1]-p[1])*sx,ay=(a[0]-p[0])*sy,dx=(b[1]-a[1])*sx,dy=(b[0]-a[0])*sy,t=Math.max(0,Math.min(1,-(ax*dx+ay*dy)/(dx*dx+dy*dy||1))),d=Math.hypot(ax+t*dx,ay+t*dy);if(d<best.distance)best={distance:d,along:cum[i-1]+t*(cum[i]-cum[i-1])};}return best;}
