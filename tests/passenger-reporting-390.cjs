@@ -14,7 +14,9 @@ module.exports=async(browser,base,root)=>{
  await r.fulfill({status,contentType:'application/json',headers:{'access-control-allow-origin':'*'},body:JSON.stringify(data)});});
  await page.goto(base+'/index.html?mode=passenger');
  assert.equal(await page.locator('#passenger-reports-panel input[type=checkbox]').count(),0);
- assert.equal(await page.locator('#passenger-navigation-settings #passenger-nearby-consent').count(),1);
+ const sharing=page.locator('#passenger-navigation-settings .passenger-nearby-consent');
+ assert.equal(await sharing.locator('input').count(),1);
+ assert.equal(await sharing.evaluate(el=>getComputedStyle(el).display),'none','per-journey option is hidden before Go');
  await page.evaluate(()=>{JalanVectorMap.getReportRoad=()=>({key:'fixture-road',level:'0:surface'});});
  await page.locator('#jalan-home-report').click();await page.locator('[data-type=weather]').click();await page.locator('[data-type=flood]').click();
  assert.equal(await page.locator('#passenger-report-location').count(),0);
