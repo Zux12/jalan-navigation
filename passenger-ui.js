@@ -63,11 +63,48 @@
  // Reuse the existing opt-in page-load one-shot geolocation. A pre-route
  // location triangle represents a measured position, never inferred heading
  // or route-matched driving accuracy.
+ const screenVehicle=el('passenger-vehicle-screen');
+ const guidedShape=screenVehicle.querySelector('svg');
+ const freeShape=guidedShape.cloneNode(true);
+ // Local ground coordinates (right, forward is negative Y, height above road).
+ // The first three vertices form the footprint, the next three its raised rim.
+ const vehicleVertices=[[0,-34,0],[27,23,0],[-27,23,0],
+   [0,-34,10],[27,23,6],[-27,23,6],[0,11,20]];
+ const vehicleFaces=[
+   [[4,3,0,1],[5,4,1,2],[3,5,2,0]], // side walls
+   [[3,6,5]], [[3,4,6]], [[4,5,6]] // left, right and tail facets
+ ];
+ function drawVehicleShape(svg,heading,pitch){
+   const degrees=Math.PI/180;
+   const turn=(Math.round(heading)%360+360)%360;
+   const tilt=Math.round(pitch);
+   if(svg.dataset.heading===String(turn)&&svg.dataset.pitch===String(tilt))return false;
+   svg.dataset.heading=turn;svg.dataset.pitch=tilt;
+   const c=Math.cos(turn*degrees),s=Math.sin(turn*degrees);
+   const cp=Math.cos(tilt*degrees),sp=Math.sin(tilt*degrees);
+   const points=vehicleVertices.map(([x,y,z])=>[x*c-y*s,(x*s+y*c)*cp-z*sp]);
+   function visiblePath(indices){
+     const [a,b,c]=indices.map(i=>points[i]);
+     if((b[0]-a[0])*(c[1]-a[1])-(b[1]-a[1])*(c[0]-a[0])<=0.01)return '';
+     return 'M'+indices.map(i=>points[i].map(n=>n.toFixed(2)).join(' ')).join('L')+'Z';
+   }
+   const faces=vehicleFaces.map(group=>group.map(visiblePath).join(''));
+   svg.children[0].setAttribute('d',faces.join(''));
+   faces.forEach((face,i)=>svg.children[i+1].setAttribute('d',face));
+   return true;
+ }
  const startupPosition={ready:false};
  window.JalanPassengerStartup=startupPosition;
  let startupMarker=null,locationPending=true;
  let startupTimestamp=-Infinity;
  let freeLast=null,freeHeading=null,freeExploring=false,freeReturn=null;
+ const freeIcon=()=>L.divIcon({className:'passenger-startup-pin',html:freeShape.outerHTML,
+   iconSize:[84,84],iconAnchor:[42,42]});
+ const drawFreeVehicle=()=>{
+   const vector=window.JalanVectorMap;
+   return drawVehicleShape(freeShape,(freeHeading||0)-(vector?.active?vector.getBearing():0),
+     vector?.active?vector.getPitch():0);
+ };
  const freeActive=()=>!destination&&!routes.length&&!document.body.classList.contains('passenger-guiding');
  const centerFree=()=>{
    if(freeActive()&&freeLast&&Date.now()-freeLast.timestamp<=15000&&!document.hidden){
@@ -101,9 +138,8 @@
    if(!startupPosition.ready){
      return;
    }
-   const icon=L.divIcon({className:'passenger-startup-pin',
-     html:'<span aria-hidden="true">▲</span>',iconSize:[84,84],iconAnchor:[42,42]});
-   startupMarker=L.marker(detail.point,{icon,interactive:false,keyboard:false,
+   drawFreeVehicle();
+   startupMarker=L.marker(detail.point,{icon:freeIcon(),interactive:false,keyboard:false,
      title:'GPS location measured; direction not yet verified'}).addTo(map);
  });
  window.addEventListener('jalan:initial-location-error',()=>{
@@ -132,10 +168,7 @@
    if(!startupMarker){
      window.dispatchEvent(new CustomEvent('jalan:initial-location',{detail}));
    }else startupMarker.setLatLng(detail.point);
-   const angle=(freeHeading||0)-(window.JalanVectorMap?.active?window.JalanVectorMap.getBearing():0);
-   const html='<span aria-hidden="true" style="transform:rotate('+angle+'deg)">▲</span>';
-   if(startupMarker&&startupMarker.options.icon.options.html!==html)
-     startupMarker.setIcon(L.divIcon({className:'passenger-startup-pin',html,iconSize:[84,84],iconAnchor:[42,42]}));
+   if(startupMarker&&drawFreeVehicle())startupMarker.setIcon(freeIcon());
    if(!freeExploring)centerFree();
    // Keep the original blue location circle from duplicating the triangle.
    if(locationMarker){pointLayer.removeLayer(locationMarker);locationMarker=null;}
@@ -167,21 +200,22 @@
      document.body.classList.contains('passenger-guiding')&&!exploring&&visible);
  };
  const gestureSurface=el('passenger-map-gestures'),hint=el('passenger-gesture-hint');
- const screenVehicle=el('passenger-vehicle-screen');
  let pendingOverlay=false;
  const syncScreenVehicle=()=>{
    pendingOverlay=false;
    const vector=window.JalanVectorMap;
    const anchor=vehicle?.getElement();
    if(!vehicle||!document.body.classList.contains('passenger-guiding')){
+     if(startupMarker&&drawFreeVehicle())startupMarker.setIcon(freeIcon());
      screenVehicle.classList.add('hidden');syncMapAction();return;
    }
    const bounds=(vector?.active?map.getContainer():anchor)?.getBoundingClientRect();
    const point=vector?.active?vector.project(vehicle.getLatLng()):null;
    let x=bounds&&(bounds.left+(point?point.x:bounds.width/2));
    let y=bounds&&(bounds.top+(point?point.y:bounds.height/2));
-   screenVehicle.style.setProperty('--jalan-screen-heading',vector?.active?
-     ((lastValidHeading||0)-vector.getBearing())+'deg':'0deg');
+   const pitch=vector?.active?vector.getPitch():
+     (document.body.classList.contains('passenger-map-flat')?0:17*viewSettings.tilt/100);
+   drawVehicleShape(guidedShape,(lastValidHeading||0)+currentCameraAngle(),pitch);
    const maxX=window.innerWidth,maxY=window.innerHeight;
    if(!Number.isFinite(x)||!Number.isFinite(y)||x<0||x>maxX||
      y<0||y>maxY){
