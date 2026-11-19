@@ -4,7 +4,7 @@ const fs=require('node:fs'),vm=require('node:vm'),path=require('node:path');
 const code=fs.readFileSync(path.join(__dirname,'..','passenger-route-traffic.js'),'utf8');
 const point=(east,north=0)=>[101.68+east/(111320*Math.cos(3.14*Math.PI/180)),3.14+north/111320];
 const geometry=[point(0),point(100),point(200),point(300)];
-function scene({flow=null,clock=null}={}){
+function scene({flow=null}={}){
  const handlers=new Map(),keyListeners=new Map(),all=[],urls=[];
  const layerGroup=()=>{const layers=[];const group={
   addTo(){return group;},clearLayers(){layers.length=0;},getLayers(){return layers;}
@@ -21,7 +21,7 @@ function scene({flow=null,clock=null}={}){
   listeners.push(fn);handlers.set(name,listeners);}};
  let routes=[],selectedRoute=0;
  const ctx={window,document,map:{},L,location:{search:'?mode=passenger'},
-  URL,URLSearchParams,AbortController,Date:clock?class extends Date{static now(){return clock.now}}:Date,Math,Number,Array,console,
+  URL,URLSearchParams,AbortController,Date,Math,Number,Array,console,
   setInterval:()=>1,clearInterval:()=>{},routes,selectedRoute,
   fetch:async(url)=>{
    urls.push(String(url));
@@ -104,6 +104,9 @@ test('selected TomTom route requests bounded flow samples only; no nearby road o
   coordinates:{coordinate:geometry.map(([longitude,latitude])=>({longitude,latitude}))}};
  const s=scene({flow}),r=route([section(0,1,3)]);
  s.ctx.routes=[r];s.dispatch('jalan:routes-rendered');await s.tick();
+ assert.equal(s.urls.length,0,'route preview must not make extra flow calls before live traffic opt-in');
+ assert.ok(s.api.getState().overlayCount>0,'route-indexed snapshot remains visible before Go');
+ s.dispatch('jalan:traffic-layer-status',{state:'loading',route:r});await s.tick();
  const requests=s.urls.length;
  s.dispatch('jalan:routes-rendered');await s.tick();
  assert.equal(s.urls.length,requests,'repaint must not spend more key-bearing flow requests');
@@ -126,20 +129,185 @@ test('revoking TomTom key while provider response is pending prevents stale flow
   coordinates:{coordinate:geometry.map(([longitude,latitude])=>({longitude,latitude}))}};
  const s=scene({flow}),r=route([]);
  s.ctx.routes=[r];s.dispatch('jalan:routes-rendered');
- assert.ok(s.urls.length>0,'request begins for explicitly configured key');
+ s.dispatch('jalan:traffic-layer-status',{state:'loading',route:r});
+ assert.ok(s.urls.length>0,'request begins only after live traffic opt-in');
  s.setKey('');await s.tick();
  assert.equal(s.api.getState().active,false,'key revocation clears selected traffic layer');
  assert.equal(s.api.getState().overlayCount,0,'late provider response cannot recolour route');
 });
 
-test('journey traffic snapshot reuses existing evidence, expires and clears on key revocation',async()=>{
- const clock={now:Date.now()},s=scene({clock}),r=route([section(1,2,2)]);
- r.trafficSectionsCheckedAt=clock.now;s.ctx.routes=[r];s.dispatch('jalan:routes-rendered');await s.tick();
- const count=s.urls.length,a=s.api.getJourneySnapshot();
- assert.equal(a.route,r);assert.ok(a.total>290);assert.equal(a.segments[0].type,'moderate');
- a.segments[0].type='heavy';assert.equal(s.api.getJourneySnapshot().segments[0].type,'moderate');
- clock.now+=10*60*1000+1;
- assert.equal(s.api.getJourneySnapshot().segments.length,0,'expired colour evidence is removed without new requests');
- assert.equal(s.urls.length,count);
- s.setKey('');assert.equal(s.api.getJourneySnapshot().route,null);
+
+// These are synthetic geometry controls, never independent road acceptance.
+const flowOn=coords=>({currentSpeed:20,freeFlowSpeed:80,confidence:.9,
+ coordinates:{coordinate:coords.map(([longitude,latitude])=>({longitude,latitude}))}});
+test('a crossing flow segment must not paint selected-route traffic',()=>{
+ const s=scene(),p=s.api.makePath(geometry);
+ for(const angle of [45,60,90]){
+  const a=angle*Math.PI/180;
+  const flow=flowOn([point(150-100*Math.cos(a),-100*Math.sin(a)),
+   point(150+100*Math.cos(a),100*Math.sin(a))]);
+  assert.equal(s.api.makeFlowMatch(p,150,flow),null,`crossing at ${angle} degrees`);
+ }
+});
+test('degenerate flow and a short endpoint touch are not a road-stretch match',()=>{
+ const s=scene(),p=s.api.makePath(geometry);
+ assert.equal(s.api.makeFlowMatch(p,150,flowOn([point(150),point(150)])),null);
+ assert.equal(s.api.makeFlowMatch(p,150,flowOn([point(150),point(155)])),null);
+ assert.equal(s.api.makeFlowMatch(p,150,flowOn([point(160),point(260,100)])),null);
+});
+
+test('continuous exact bends and dense short segments retain sampled flow',()=>{
+ const s=scene();
+ const dense=Array.from({length:17},(_,i)=>point(i*10));
+ assert.ok(s.api.makeFlowMatch(s.api.makePath(dense),80,flowOn(dense)));
+ const bent=[point(0),point(100),point(100,100),point(200,100)];
+ const result=s.api.makeFlowMatch(s.api.makePath(bent),150,flowOn(bent));
+ assert.ok(result,'connected geometry through bends is not a crossing');
+ assert.ok(result.segments[0][1]-result.segments[0][0]>150);
+});
+test('disconnected parallel touches cannot accumulate a flow match',()=>{
+ const s=scene(),p=s.api.makePath(geometry);
+ const touches=[point(80),point(100),point(100,100),point(140,100),
+  point(140),point(160),point(160,100),point(200,100),point(200),point(220)];
+ assert.equal(s.api.makeFlowMatch(p,150,flowOn(touches)),null);
+});
+test('short flow is bounded to actual overlap and cannot extend beyond its endpoints',()=>{
+ const s=scene(),p=s.api.makePath(geometry);
+ const match=s.api.makeFlowMatch(p,150,flowOn([point(125),point(175)]));
+ assert.ok(match);
+ assert.ok(Math.abs(match.segments[0][0]-125)<.001);
+ assert.ok(Math.abs(match.segments[0][1]-175)<.001);
+ assert.equal(s.api.makeFlowMatch(p,110,flowOn([point(125),point(175)])),null,
+  'being near a provider endpoint is not being on its affected stretch');
+});
+test('parallel/opposite/coincident geometry remains explicitly unverified, never direction proof',()=>{
+ const s=scene(),p=s.api.makePath(geometry);
+ for(const coords of [geometry,[...geometry].reverse(),geometry.map(([x,y])=>[x,y+8/111320])]){
+  const match=s.api.makeFlowMatch(p,150,flowOn(coords));
+  assert.ok(match,'geometry alone cannot identify travel direction or grade');
+  assert.equal(match.directionVerified,false);
+  assert.equal(match.gradeVerified,false);
+ }
+ const tooFar=geometry.map(([x,y])=>[x,y+20/111320]);
+ assert.equal(s.api.makeFlowMatch(p,150,flowOn(tooFar)),null);
+ const invalid=flowOn(geometry);invalid.confidence=1.5;
+ assert.equal(s.api.makeFlowMatch(p,150,invalid),null);
+});
+test('rejected crossing flow does not reach coloured overlays while route incidents remain',async()=>{
+ const s=scene({flow:flowOn([point(150,-100),point(150,100)])}),r=route([]);
+ s.ctx.routes=[r];s.dispatch('jalan:routes-rendered');
+ s.dispatch('jalan:traffic-layer-status',{state:'loading',route:r});await s.tick();
+ assert.equal(s.api.getState().sampledFlow,false);
+ assert.equal(s.api.getState().overlayCount,0);
+ r.trafficSections=[section(0,1,2)];s.dispatch('jalan:incidents-updated');
+ assert.ok(s.api.getState().overlayCount>0,'authoritative route-indexed incident survives');
+});
+
+test('rendered flow and incidents end at exact evidence boundaries, without 20m cell expansion',async()=>{
+ const s=scene({flow:flowOn([point(125),point(175)])}),r=route([]);
+ s.ctx.routes=[r];s.dispatch('jalan:routes-rendered');
+ s.dispatch('jalan:traffic-layer-status',{state:'loading',route:r});await s.tick();
+ const line=s.all.at(-1);
+ assert.ok(line);
+ assert.ok(Math.abs(line.points[0][1]-point(125)[0])<1e-9);
+ assert.ok(Math.abs(line.points.at(-1)[1]-point(175)[0])<1e-9);
+ const irregular=[point(0),point(73),point(137),point(300)];
+ const incident=s.api.classify({...route([section(1,2,3)]),
+  geometry:{type:'LineString',coordinates:irregular}});
+ assert.equal(incident.length,1);
+ assert.ok(Math.abs(incident[0].start-73)<.001);
+ assert.ok(Math.abs(incident[0].end-137)<.001);
+});
+
+test('exact boundary sweep keeps strongest overlapping incident and preserves unknown gaps',()=>{
+ const s=scene();
+ const r={...route([section(0,3,1),section(1,2,3)]),
+  geometry:{type:'LineString',coordinates:[point(0),point(73),point(137),point(251),point(300)]}};
+ const pieces=s.api.classify(r);
+ assert.deepEqual(Array.from(pieces,p=>p.type),['light','heavy','light']);
+ for(const [i,start,end] of [[0,0,73],[1,73,137],[2,137,251]]){
+  assert.ok(Math.abs(pieces[i].start-start)<.001);
+  assert.ok(Math.abs(pieces[i].end-end)<.001);
+ }
+ assert.equal(s.api.classify({...r,trafficSectionsCheckedAt:Date.now()-11*60*1000}).length,0);
+});
+
+test('traffic Off stays opted out after later route repaints while route-indexed colour survives',async()=>{
+ const s=scene({flow:flowOn(geometry)}),r=route([section(0,1,1)]);
+ s.ctx.routes=[r];s.dispatch('jalan:routes-rendered');await s.tick();
+ assert.equal(s.urls.length,0,'planning alone must not request Flow Segment');
+ s.dispatch('jalan:traffic-layer-status',{state:'loading',route:r});await s.tick();
+ assert.ok(s.urls.length>0,'explicit activation permits bounded Flow Segment');
+ const requestCount=s.urls.length;
+ s.dispatch('jalan:traffic-layer-status',{state:'off'});
+ s.dispatch('jalan:routes-rendered');await s.tick();
+ assert.equal(s.urls.length,requestCount,'repaint cannot restart opted-out sampling');
+ assert.equal(s.api.getState().sampledFlow,false);
+ assert.ok(s.api.getState().overlayCount>0,'TomTom route-indexed snapshot remains');
+});
+test('silent key replacement prevents pending abort-ignoring flow response from painting',async()=>{
+ const s=scene({flow:flowOn(geometry)}),r=route([]);
+ s.ctx.routes=[r];s.dispatch('jalan:routes-rendered');
+ s.dispatch('jalan:traffic-layer-status',{state:'loading',route:r});
+ assert.ok(s.urls.length>0,'sampling begins after opt-in');
+ s.ctx.document.getElementById('tt-key').value='REPLACED_TEST_KEY_1234';
+ await s.tick();
+ assert.equal(s.api.getState().active,false,'silent replacement invalidates pending flow');
+ assert.equal(s.api.getState().overlayCount,0);
+});
+
+test('route-cleared revokes flow consent and stale route status cannot reactivate it',async()=>{
+ const s=scene({flow:flowOn(geometry)}),r=route([section(0,1,1)]),old=route([]);
+ s.ctx.routes=[r];s.dispatch('jalan:routes-rendered');await s.tick();
+ assert.equal(s.urls.length,0);
+ s.dispatch('jalan:traffic-layer-status',{state:'loading',route:old});await s.tick();
+ assert.equal(s.urls.length,0,'stale route status cannot authorize key-bearing fetch');
+ s.dispatch('jalan:traffic-layer-status',{state:'loading'});await s.tick();
+ assert.equal(s.urls.length,0,'route-less status cannot authorize key-bearing fetch');
+ s.dispatch('jalan:traffic-layer-status',{state:'loading',route:r});await s.tick();
+ assert.ok(s.urls.length>0,'current route event from TomTom enables sampling');
+ const count=s.urls.length;
+ s.dispatch('jalan:route-cleared');
+ const next=route([section(0,1,2)]);
+ s.ctx.routes=[next];s.dispatch('jalan:routes-rendered');await s.tick();
+ assert.equal(s.urls.length,count,'clearing route revokes consent for next route');
+ assert.ok(s.api.getState().overlayCount>0,'new route-indexed snapshot renders without flow');
+ s.dispatch('jalan:traffic-layer-status',{state:'ready',route:r});await s.tick();
+ assert.equal(s.urls.length,count,'late status for previous route cannot restart sampling');
+ s.dispatch('jalan:traffic-layer-status',{state:'ready',route:next});await s.tick();
+ assert.ok(s.urls.length>count,'explicit new route status re-enables sampling');
+});
+
+
+test('changing an alternative cannot inherit authorization to spend flow requests on another route',async()=>{
+ const s=scene({flow:flowOn(geometry)}),first=route([]),second=route([section(0,1,2)]);
+ s.ctx.routes=[first,second];s.dispatch('jalan:routes-rendered');await s.tick();
+ s.dispatch('jalan:traffic-layer-status',{state:'loading',route:first});await s.tick();
+ const count=s.urls.length;
+ assert.ok(count>0,'first selected route received its own traffic activation');
+ s.ctx.selectedRoute=1;s.dispatch('jalan:route-change');await s.tick();
+ assert.equal(s.urls.length,count,'new alternative cannot inherit old key-bearing flow authorization');
+ assert.ok(s.api.getState().overlayCount>0,'new route-indexed incident still renders without sampled flow');
+ s.dispatch('jalan:traffic-layer-status',{state:'ready',route:first});await s.tick();
+ assert.equal(s.urls.length,count,'old-route delayed status must not reauthorize sampling');
+ s.dispatch('jalan:traffic-layer-status',{state:'loading',route:second});await s.tick();
+ assert.ok(s.urls.length>count,'current alternative may sample after its own traffic activation');
+});
+
+test('journey-sheet snapshot remains available after draft traffic matcher integration',()=>{
+ const s=scene(),r=route([section(0,1,1),section(1,2,3)]);
+ assert.equal(typeof s.api.getJourneySnapshot,'function','existing journey sheet API cannot be removed');
+ s.ctx.routes=[r];s.dispatch('jalan:routes-rendered');
+ const snapshot=s.api.getJourneySnapshot();
+ assert.equal(snapshot.route,r);
+ assert.ok(snapshot.total>290&&snapshot.total<310);
+ assert.deepEqual(Array.from(snapshot.segments,x=>x.type),['light','heavy']);
+ assert.ok(Math.abs(snapshot.segments[0].end-100)<.1);
+ snapshot.segments[0].type='corrupted';
+ assert.equal(s.api.getJourneySnapshot().segments[0].type,'light','consumer mutation must not alter cached evidence');
+ s.dispatch('jalan:route-cleared');
+ const cleared=s.api.getJourneySnapshot();
+ assert.equal(cleared.route,null);
+ assert.equal(cleared.total,0);
+ assert.equal(cleared.segments.length,0);
 });
