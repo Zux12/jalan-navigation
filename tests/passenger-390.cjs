@@ -74,7 +74,15 @@ async function main(){
   assert.equal(await page.locator('#search-form').isVisible(),true);
   assert.equal(await page.locator('#passenger-overview').isVisible(),false);
   const sheetState=()=>page.locator('#jalan-home-sheet').getAttribute('data-state');
-  assert.equal(await sheetState(),'a','Passenger preview opens with collapsed search sheet');
+  await page.waitForFunction(()=>document.querySelector('#jalan-home-sheet').dataset.state==='b');
+  assert.equal(await page.locator('.jalan-sheet-quick').isVisible(),true,'idle startup opens shortcuts');
+  const credit=page.locator('#jalan-home-credits a[href*="openstreetmap.org/copyright"]');
+  assert.equal(await credit.isVisible(),true,'basic map keeps its data credit visible in B');
+  await page.locator('#jalan-sheet-handle').press('ArrowDown');
+  assert.equal(await sheetState(),'a','passenger can lower the default sheet to A');
+  await page.waitForTimeout(550);
+  assert.equal(await sheetState(),'a','the opening move never repeats');
+  assert.equal(await credit.isVisible(),true);
   assert.equal(await page.locator('#jalan-home-menu').isVisible(),true);
   assert.equal(await page.locator('#passenger-startup-location-status').count(),0,'startup GPS message is removed');
   assert.equal(await page.locator('#passenger-gps-status').isVisible(),true);

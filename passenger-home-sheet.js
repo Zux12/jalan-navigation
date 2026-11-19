@@ -10,6 +10,7 @@
  handle.type='button';handle.id='jalan-sheet-handle';handle.className='jalan-sheet-handle';
  handle.setAttribute('aria-label','Expand destination panel');
  handle.setAttribute('aria-expanded','false');
+ handle.setAttribute('aria-keyshortcuts','ArrowUp ArrowDown');
  handle.innerHTML='<span aria-hidden="true"></span>';
  const header=document.querySelector('.topbar'),results=$('results');
  const searchTrigger=document.createElement('button');
@@ -252,6 +253,12 @@
  handle.addEventListener('click',()=>{
    const state=sheet.dataset.state;setState(state==='a'?'b':state==='b'?'c':'b');
  });
+ handle.addEventListener('keydown',event=>{
+   if(event.key!=='ArrowDown'&&event.key!=='ArrowUp')return;
+   event.preventDefault();
+   const state=sheet.dataset.state;
+   setState(event.key==='ArrowDown'?(state==='c'?'b':'a'):(state==='a'?'b':'c'));
+ });
  searchTrigger.addEventListener('click',()=>{setState('c');input.focus({preventScroll:true});});
  input.addEventListener('focus',()=>setState('c'));
  form.addEventListener('submit',()=>setState('c'));
@@ -289,4 +296,21 @@
    speed.setAttribute('aria-label',valid?'Speed '+v+' kilometres per hour':'Speed unavailable until reliable GPS');
  });
  setState('a');
+ // Offer shortcuts once on launch. Any touch, keyboard action or map interaction takes priority.
+ const opening=new AbortController();
+ const cancelOpening=()=>opening.abort();
+ for(const type of ['pointerdown','touchstart','wheel','keydown','click','focusin']){
+   window.addEventListener(type,cancelOpening,{capture:true,passive:true,signal:opening.signal});
+ }
+ window.JalanLaunch.mainScreenReady.then(shownAt=>{
+   if(opening.signal.aborted)return;
+   const timer=setTimeout(()=>{
+     cancelOpening();
+     if(!document.hidden && sheet.dataset.state==='a' && !sheet.classList.contains('jalan-sheet-route') &&
+        !routeSearch && !routes.length && menuPanel.classList.contains('hidden')){
+       setState('b');
+     }
+   },Math.max(0,500-(performance.now()-shownAt)));
+   opening.signal.addEventListener('abort',()=>clearTimeout(timer),{once:true});
+ });
 })();

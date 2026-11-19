@@ -5,18 +5,28 @@
  if(params.get('mode')!=='passenger')return;
  const root=document.documentElement;
  root.classList.add('passenger-launching');
- let done=false,basicOnly=params.get('renderer')==='raster',deadline;
+ let done=false,basicOnly=params.get('renderer')==='raster',deadline,showMain;
+ const mainScreenReady=new Promise(resolve=>{showMain=resolve;});
+ // Start the reading interval as soon as the credits paint, in parallel with loading the map.
+ const creditReadTime=new Promise(resolve=>{
+  requestAnimationFrame(function firstPaint(){
+   if(!document.getElementById('jalan-home-credits')){requestAnimationFrame(firstPaint);return;}
+   requestAnimationFrame(()=>setTimeout(resolve,5000));
+  });
+ });
  function finish(){
   if(done)return;done=true;clearTimeout(deadline);
   // Allow the renderer's canvas and latest layer changes to paint first.
-  setTimeout(()=>requestAnimationFrame(()=>requestAnimationFrame(()=>{
+  const brandingReadTime=new Promise(resolve=>setTimeout(resolve,4000));
+  Promise.all([brandingReadTime,creditReadTime]).then(()=>requestAnimationFrame(()=>requestAnimationFrame(()=>{
    const splash=document.getElementById('jalan-launch');
    root.classList.remove('passenger-launching');
    // A single hint on the existing menu button. Route and renderer changes never restart it.
    root.classList.add('jalan-map-info-hint');
    setTimeout(()=>root.classList.remove('jalan-map-info-hint'),1000);
-   if(splash){splash.setAttribute('aria-hidden','true');splash.classList.add('jalan-launch-finished');setTimeout(()=>splash.remove(),200);}
-  })),4000);
+   if(splash){splash.setAttribute('aria-hidden','true');splash.classList.add('jalan-launch-finished');}
+   setTimeout(()=>{splash?.remove();showMain(performance.now());},200);
+  })));
  }
  function timedOut(){
   basicOnly=true;
@@ -27,7 +37,7 @@
   if(status)status.textContent='The map could not load. Please try again.';
   if(retry){retry.hidden=false;retry.focus({preventScroll:true});}
  }
- window.JalanLaunch=Object.freeze({get basicOnly(){return basicOnly;}});
+ window.JalanLaunch=Object.freeze({mainScreenReady,get basicOnly(){return basicOnly;}});
  window.addEventListener('jalan:map-renderer',finish);
  document.addEventListener('DOMContentLoaded',()=>{
   document.getElementById('jalan-launch-retry')?.addEventListener('click',()=>location.reload());

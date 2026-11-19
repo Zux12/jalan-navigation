@@ -1,17 +1,32 @@
 /* Passenger home screen: anchored three-stage destination sheet. */
 body.passenger-mode:not(.passenger-guiding) .interface-switch{display:none!important}
-body.passenger-mode .jalan-home-sheet{--sheet-height:128px;position:fixed!important;
+body.passenger-mode{--jalan-home-height:128px}
+body.passenger-mode .jalan-home-sheet{position:fixed!important;
  inset:auto 0 0 0!important;z-index:1350;max-width:none;width:100%;
- height:var(--sheet-height);padding:8px 16px calc(12px + env(safe-area-inset-bottom,0px));
+ height:var(--jalan-home-height);padding:8px 16px calc(12px + env(safe-area-inset-bottom,0px));
  background:#fff;color:#182735;border-radius:30px 30px 0 0;
  box-shadow:0 -7px 26px #0b203729;display:flex;flex-direction:column;overflow:hidden;
  transition:height .22s ease;touch-action:pan-y}
+/* The credit returns above A whenever the passenger lowers the home sheet. */
+html:not(.passenger-launching) body.passenger-mode:has(.jalan-home-sheet[data-state="a"]:not(.jalan-sheet-route)) #jalan-home-credits,
+html:not(.passenger-launching) body.passenger-mode:not(.passenger-vector-active) #jalan-home-credits{
+ display:block;z-index:1340;bottom:calc(var(--jalan-home-height) + 3px)
+}
+/* The basic tile service keeps its credit visible above the active sheet. */
+body.passenger-mode:not(.passenger-vector-active) #jalan-home-credits{transition:bottom .22s ease}
+html:not(.passenger-launching) body.passenger-mode:not(.passenger-vector-active):not(.passenger-route-search):not(.passenger-guiding):has(.jalan-sheet-route) #jalan-home-credits{
+ bottom:auto;top:calc(4px + env(safe-area-inset-top,0px))
+}
+html:not(.passenger-launching) body.passenger-guiding:not(.passenger-vector-active):not(.passenger-route-search) #jalan-home-credits{
+ z-index:1501;top:auto;bottom:calc(102px + var(--passenger-map-footer-offset,0px))
+}
+@media(prefers-reduced-motion:reduce){body.passenger-mode:not(.passenger-vector-active) #jalan-home-credits{transition:none}}
 /* Compact states belong to sheet gestures; expanded lists retain native scroll. */
 body.passenger-mode .jalan-home-sheet:not([data-state="c"]){touch-action:none}
 .jalan-home-sheet.jalan-sheet-dragging{user-select:none;-webkit-user-select:none}
 
-body.passenger-mode .jalan-home-sheet[data-state="b"]{--sheet-height:min(350px,46dvh)}
-body.passenger-mode .jalan-home-sheet[data-state="c"]{--sheet-height:92dvh}
+body.passenger-mode:has(.jalan-home-sheet[data-state="b"]){--jalan-home-height:min(350px,46dvh)}
+body.passenger-mode:has(.jalan-home-sheet[data-state="c"]){--jalan-home-height:92dvh}
 body.passenger-mode .jalan-home-sheet.jalan-sheet-route,
 body.passenger-guiding .jalan-home-sheet{display:none!important}
 .jalan-sheet-handle{flex:0 0 26px;width:100%;border:0;background:transparent;
@@ -99,8 +114,8 @@ body.passenger-guiding #jalan-home-speed{display:none!important}
  color:#664812;font:600 12px system-ui;box-shadow:0 4px 18px #25364738;pointer-events:none}
 body.passenger-guiding #jalan-home-notice{display:none!important}
 @media(max-height:650px){
- body.passenger-mode .jalan-home-sheet[data-state="b"]{--sheet-height:52dvh}
- body.passenger-mode .jalan-home-sheet[data-state="c"]{--sheet-height:90dvh}
+ body.passenger-mode:has(.jalan-home-sheet[data-state="b"]){--jalan-home-height:52dvh}
+ body.passenger-mode:has(.jalan-home-sheet[data-state="c"]){--jalan-home-height:90dvh}
 }
 @media(prefers-reduced-motion:reduce){body.passenger-mode .jalan-home-sheet{transition:none}}
 
