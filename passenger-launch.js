@@ -7,26 +7,48 @@
  root.classList.add('passenger-launching');
  let done=false,basicOnly=params.get('renderer')==='raster',deadline,showMain;
  const mainScreenReady=new Promise(resolve=>{showMain=resolve;});
- // Start the reading interval as soon as the credits paint, in parallel with loading the map.
- const creditReadTime=new Promise(resolve=>{
-  requestAnimationFrame(function firstPaint(){
-   if(!document.getElementById('jalan-home-credits')){requestAnimationFrame(firstPaint);return;}
-   requestAnimationFrame(()=>setTimeout(resolve,5000));
-  });
- });
+ // Count foreground time on the main map only. Sheet changes never restart this interval.
+ function showMapCredits(){
+  const credits=document.getElementById('jalan-home-credits');
+  credits.classList.add('show-osm');
+  credits.hidden=false;
+  let remaining=5000,startedAt=null,timer;
+  function expire(){
+   credits.classList.remove('show-osm');
+   document.removeEventListener('visibilitychange',sync);
+  }
+  function sync(){
+   const now=performance.now();
+   if(startedAt!==null){
+    remaining-=now-startedAt;
+    clearTimeout(timer);
+    startedAt=null;
+   }
+   if(remaining<=0){expire();return;}
+   if(!document.hidden){
+    startedAt=now;
+    timer=setTimeout(expire,remaining);
+   }
+  }
+  document.addEventListener('visibilitychange',sync);
+  sync();
+ }
  function finish(){
   if(done)return;done=true;clearTimeout(deadline);
   // Allow the renderer's canvas and latest layer changes to paint first.
-  const brandingReadTime=new Promise(resolve=>setTimeout(resolve,4000));
-  Promise.all([brandingReadTime,creditReadTime]).then(()=>requestAnimationFrame(()=>requestAnimationFrame(()=>{
+  setTimeout(()=>requestAnimationFrame(()=>requestAnimationFrame(()=>{
    const splash=document.getElementById('jalan-launch');
    root.classList.remove('passenger-launching');
    // A single hint on the existing menu button. Route and renderer changes never restart it.
    root.classList.add('jalan-map-info-hint');
    setTimeout(()=>root.classList.remove('jalan-map-info-hint'),1000);
    if(splash){splash.setAttribute('aria-hidden','true');splash.classList.add('jalan-launch-finished');}
-   setTimeout(()=>{splash?.remove();showMain(performance.now());},200);
-  })));
+   setTimeout(()=>{
+    splash?.remove();
+    showMapCredits();
+    showMain(performance.now());
+   },200);
+  })),4000);
  }
  function timedOut(){
   basicOnly=true;
