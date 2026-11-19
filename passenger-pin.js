@@ -117,7 +117,8 @@
  function endHold(){clearTimeout(holdTimer);hold=null;}
  const surface=e=>!!e.target.closest?.('#map,#passenger-map-gestures')&&!e.target.closest('button,a,input,.leaflet-control,.maplibregl-control-container,.leaflet-popup,.maplibregl-popup');
  window.addEventListener('pointerdown',e=>{
-   contacts.add(e.pointerId);endHold();
+   // A new physical tap must never inherit the previous press's synthetic click.
+   ignoreClickUntil=0;contacts.add(e.pointerId);endHold();
    if(picked){
      deadline=0;
      if(!card.contains(e.target)&&!surface(e))close();
