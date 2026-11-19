@@ -410,8 +410,7 @@ async function main(){
     iconClasses:[...document.querySelectorAll('.leaflet-marker-icon')].map(node=>node.className),
     layerIcons:Object.values(map._layers).filter(layer=>layer instanceof L.Marker).map(layer=>layer.options.icon?.options.className)
   }))));
-  await startup.waitForFunction(()=>[...document.querySelectorAll('.jalan-vector-pin')]
-    .some(node=>node.textContent?.includes('▲')),null,{timeout:8000});
+  await startup.locator('.jalan-vector-pin .passenger-startup-pin .vehicle-left[d^="M"]').waitFor({timeout:8000});
   assert.equal(await startup.evaluate(()=>Math.round(map.getZoom())),17,
     'accurate permission-granted startup position zooms to street scale');
   assert.ok(await startup.evaluate(()=>Math.abs(map.getCenter().lat-3.139)<.00001&&
@@ -433,7 +432,7 @@ async function main(){
     'pre-route map follows the live triangle');
   await startup.evaluate(()=>window.dispatchEvent(new CustomEvent('jalan:free-location',{detail:{
     point:[3.1394,101.6873],accuracy:8,timestamp:Date.now()+1,heading:90,speed:5}})));
-  await startup.waitForFunction(()=>document.querySelector('.jalan-vector-pin .passenger-startup-pin span')?.style.transform==='rotate(90deg)');
+  await startup.waitForFunction(()=>document.querySelector('.jalan-vector-pin .passenger-startup-pin svg')?.dataset.heading==='90');
   await startup.evaluate(()=>window.dispatchEvent(new CustomEvent('jalan:free-location',{detail:{point:[4,102],accuracy:180,timestamp:Date.now()}})));
   assert.equal(await startup.evaluate(()=>window.__freeMarker.getLatLng().lat),3.1394,'poor GPS cannot move the triangle');
   await startup.screenshot({path:path.join(artifacts,'gps-badge-startup-green.png')});
@@ -522,7 +521,10 @@ async function main(){
   await live.evaluate(fix);
   assert.deepEqual(mapFailures,[],'public vector resources must load');
   assert.ok(await live.evaluate(()=>Math.abs(map.getZoom()-(18.8))<.001),'navigation uses configured 80% close-up zoom');
-  assert.equal(await live.locator('#passenger-vehicle-screen').evaluate(x=>getComputedStyle(x).fontSize),'70px','navigation triangle is doubled');
+  const shape=live.locator('#passenger-vehicle-screen .jalan-vehicle-shape');
+  assert.equal((await shape.boundingBox()).width,84,'vehicle keeps its readable screen size');
+  assert.ok(Number(await shape.getAttribute('data-pitch'))>0,'vehicle uses the tilted map camera');
+  assert.match(await shape.locator('.vehicle-rim').getAttribute('d'),/^M/,'pitch reveals a raised side wall');
   // Exercise the display boundary using trusted controller progress, without
   // inventing a road match or waiting for physical travel in this fixture.
   await live.evaluate(()=>{

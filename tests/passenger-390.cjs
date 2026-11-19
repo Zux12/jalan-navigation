@@ -667,7 +667,9 @@ async function main(){
     'verified GPS must create one georeferenced marker');
   assert.equal(await page.locator('#passenger-vehicle-screen').isVisible(),true,
     'upright vehicle HUD is visible only on matched GPS');
-  assert.equal(await page.locator('#passenger-vehicle-screen').textContent(),'▲');
+  const vehicleFace=page.locator('#passenger-vehicle-screen .vehicle-left');
+  assert.match(await vehicleFace.getAttribute('d'),/^M.*Z$/);
+  const liveFill=await vehicleFace.evaluate(x=>getComputedStyle(x).fill);
   assert.equal(await page.evaluate(()=>getComputedStyle(document.querySelector('.jalan-vehicle-marker')).opacity),'0',
     'rotating map must not draw a second triangle');
   assert.equal(await page.evaluate(()=>!!locationMarker&&pointLayer.hasLayer(locationMarker)),false,
@@ -685,6 +687,7 @@ async function main(){
     'stale Safari GPS retains one frozen georeferenced triangle');
   assert.equal(await page.locator('#passenger-vehicle-screen').isVisible(),true,
     'upright grey last-known triangle stays visible');
+  assert.notEqual(await vehicleFace.evaluate(x=>getComputedStyle(x).fill),liveFill,'stale GPS greys the visible mesh');
   await page.waitForFunction(()=>document.getElementById('passenger-fix').textContent.includes('last known position'),null,{timeout:1500});
   assert.match(await page.locator('#passenger-fix').innerText(),/last known position/i);
   await page.evaluate(()=>{
