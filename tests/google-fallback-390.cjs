@@ -24,6 +24,15 @@ function sdkFixture(){
  }
  customElements.define('gmp-place-search',class extends HTMLElement{constructor(){super();this.attachShadow({mode:'open'});}});
  customElements.define('gmp-place-text-search-request',Request);
+ customElements.define('gmp-place-details-place-request',class extends HTMLElement{
+  set place(id){
+   const widget=this.parentElement;
+   setTimeout(()=>{
+    widget.place={id,location:{lat:()=>3.222,lng:()=>101.729}};
+    widget.dispatchEvent(new Event(id==='SYNTHETIC_Q_BISTRO'?'gmp-load':'gmp-error'));
+   },20);
+  }
+ });
  window.google={maps:{importLibrary:async()=>({})}};
  const callback=new URL(document.currentScript.src).searchParams.get('callback');window[callback]();
 }
@@ -39,7 +48,7 @@ module.exports=async function({context,base,root}){
   sdkLoads++;const url=new URL(route.request().url());assert.equal(url.searchParams.get('region'),'MY');
   return route.fulfill({contentType:'application/javascript',body:'('+sdkFixture.toString()+')()'});
  });
- const headers={'access-control-allow-origin':'*'};
+ const headers={'access-control-allow-origin':'*'};let expectedEndpoint=[3.222,101.729];
  await page.route('https://api.tomtom.com/search/2/search/**',route=>{
   const url=new URL(route.request().url()),query=decodeURIComponent(url.pathname.split('/').pop().replace(/\.json$/,''));ttQueries.push(query);
   for(const field of ['lat','lon','geobias'])assert.equal(url.searchParams.has(field),false);
@@ -51,7 +60,7 @@ module.exports=async function({context,base,root}){
  await page.route('https://api.tomtom.com/routing/**',route=>{
   routeCalls++;
   const endpoint=new URL(route.request().url()).pathname.split('/').at(-2).split(':').at(-1).split(',').map(Number);
-  assert.deepEqual(endpoint,[3.222,101.729],'route request uses the exact synthetic Google destination (provider formats six decimals)');
+  assert.deepEqual(endpoint,expectedEndpoint,'route request uses the exact synthetic Google destination (provider formats six decimals)');
   return route.fulfill({contentType:'application/json',headers,body:JSON.stringify({routes:[{summary:{travelTimeInSeconds:420,lengthInMeters:3200,trafficDelayInSeconds:0},legs:[{points:[{latitude:3.139,longitude:101.6869},{latitude:3.222,longitude:101.729}]}],guidance:{instructions:[]}}]})});
  });
  await page.route('https://nominatim.openstreetmap.org/search*',route=>{manual++;return route.abort();});
@@ -114,6 +123,37 @@ module.exports=async function({context,base,root}){
  await page.locator('#jalan-search-trigger').click();await input.fill('q bistro taman melati');await input.press('Enter');
  await widget.getByRole('button',{name:'Q Bistro Taman Melati'}).waitFor();assert.equal(manual,0,'submit shares the same provider flow when configured');
  assert.equal(await page.evaluate(()=>Object.keys(localStorage).some(key=>/google/i.test(key))),false);
+ const quick=key=>page.locator('.jalan-sheet-quick [data-shortcut="'+key+'"]');
+ const editor=page.locator('.jalan-place-editor');
+ const saved=()=>page.evaluate(()=>JSON.parse(localStorage.getItem('jalan-passenger-saved-places-v1')||'[]'));
+ await boot();
+ await quick('home').click();await input.fill('q bistro');
+ await page.locator('#results [role=option]').filter({hasText:'Cheras'}).click();
+ await editor.getByRole('button',{name:'Save',exact:true}).click();
+ assert.equal((await saved())[0].name,'Home');assert.equal(routeCalls,1,'saving does not start another journey');
+ await quick('work').click();await input.fill('q bistro taman melati');
+ await widget.getByRole('button',{name:'Q Bistro Taman Melati'}).click();
+ await editor.getByRole('button',{name:'Save',exact:true}).click();
+ assert.deepEqual((await saved()).find(p=>p.id==='work'),{id:'work',name:'Work',googleId:'SYNTHETIC_Q_BISTRO'});
+ await quick('new').click();await input.fill('KLCC');
+ await page.locator('#results [role=option]').click();
+ await editor.getByLabel('Shortcut name').fill('Family');
+ await editor.getByRole('button',{name:'Save',exact:true}).click();
+ assert.equal((await saved()).length,3);
+ await page.getByRole('button',{name:'Edit Home',exact:true}).click();
+ await input.fill('KLCC');await page.locator('#results [role=option]').click();
+ await editor.getByRole('button',{name:'Cancel',exact:true}).click();
+ for(const [id,point] of [['home',[3.16,101.7]],['work',[3.222,101.729]],['Family',[3.15785,101.71165]]]){
+  expectedEndpoint=point;await boot();
+  await page.evaluate(()=>{document.getElementById('start-choice').value='map';setStart([3.139,101.6869],'Fixture start');});
+  const target=id==='Family'?page.locator('.jalan-saved-places button').filter({hasText:/^Family/}):quick(id);
+  await target.click();await page.waitForFunction(()=>routes.length>0);
+  const position=await page.evaluate(()=>destination);
+  assert.ok(position.every((value,i)=>Math.abs(value-point[i])<1e-6));
+  assert.equal(await page.locator('#passenger-overview').isVisible(),true);
+ }
+ assert.equal(routeCalls,4);assert.equal((await saved()).length,3);
+ console.log('PASS saved Home/Work/custom places, cancellation, Google ID resolution, reload and route choices');
  assert.deepEqual(errors,[]);await page.close();
  console.log('PASS synthetic Google UI Kit fallback: multiple branches and both providers, narrowed and zero-match queries, original single input, lazy SDK, attribution host intact, exact point to TomTom routes, keyboard, stale/clear/collapse, empty/error and submit');
 };

@@ -78,11 +78,35 @@
    const prefix=choices.length>1&&index>=0?'Result '+(index+1)+' for':'Search';
    let name=typeof place.displayName==='string'?place.displayName:'';
    if(!name)name=searchText?prefix+' “'+searchText+'”':'Selected destination';
-   onSelect({lat,lon,name,display_name:name});
+   onSelect({lat,lon,name,display_name:name,source:'google',googleId:place.id});
   });
   container.replaceChildren(widget);
   visibility.observe(widget);
   request.textQuery=query;
  }
- window.JalanGooglePlaceSearch=Object.freeze({configured,mount});
+ // Save only the Google place ID. Resolve it on use with an attributed UI Kit
+ // component so saved shortcuts do not retain Google's address or coordinates.
+ async function resolve(id,container,signal){
+  await load();if(signal.aborted)throw new Error('Saved place lookup cancelled');
+  return new Promise((done,fail)=>{
+   const widget=document.createElement('gmp-place-details-compact');
+   const request=document.createElement('gmp-place-details-place-request');
+   widget.append(request,document.createElement('gmp-place-name'),document.createElement('gmp-place-address'),document.createElement('gmp-place-attribution'));
+   container.replaceChildren(widget);
+   const stop=()=>{clearTimeout(timer);signal.removeEventListener('abort',abort);widget.remove();};
+   const abort=()=>{stop();fail(new Error('Saved place lookup cancelled'));};
+   const timer=setTimeout(abort,12000);
+   signal.addEventListener('abort',abort,{once:true});
+   widget.addEventListener('gmp-error',abort,{once:true});
+   widget.addEventListener('gmp-load',()=>{
+    const loc=widget.place?.location;
+    const lat=typeof loc?.lat==='function'?loc.lat():loc?.lat;
+    const lon=typeof loc?.lng==='function'?loc.lng():loc?.lng;
+    if(!Number.isFinite(lat)||!Number.isFinite(lon)||Math.abs(lat)>90||Math.abs(lon)>180){abort();return;}
+    stop();done({lat,lon});
+   },{once:true});
+   request.place=id;
+  });
+ }
+ window.JalanGooglePlaceSearch=Object.freeze({configured,mount,resolve});
 })();

@@ -152,6 +152,7 @@ async function selectDestinationPlace(place){
  const point=[Number(place.lat),Number(place.lon)];
  if(!validCoordinates(point))return;
  destinationSearchEpoch++;
+ if(window.JalanPlaceShortcuts?.pick(place))return;
  const id=++destinationSelectionEpoch;
  clearRoute(false);
  destination=point;
@@ -162,7 +163,7 @@ async function selectDestinationPlace(place){
  const popup=document.createElement('span');popup.textContent='Destination: '+label;
  destinationMarker=L.marker(destination).addTo(pointLayer).bindPopup(popup);
  resultsEl.classList.add('hidden');
- window.dispatchEvent(new CustomEvent('jalan:destination-selected',{detail:{point:[...point],name:destinationName,label}}));
+ window.dispatchEvent(new CustomEvent('jalan:destination-selected',{detail:{point:[...point],name:destinationName,label,googleId:place.googleId,source:place.source}}));
  const current=()=>id===destinationSelectionEpoch&&destination===point;
  if($('start-choice').value==='map'){
   if(!startPoint){chooseStart=true;statusEl.textContent='Tap the map to choose your starting point.';map.setView(destination,12);return;}

@@ -65,9 +65,7 @@
  const recentPlaces=[];
  const routeSearchButton=$('passenger-search'),navigation=$('passenger-navigation');
  let routeSearch=null;
- const showNotice=message=>{
-   notice.textContent=message;notice.classList.remove('hidden');
- };
+ let shortcuts;
  const renderRecent=()=>{
    list.replaceChildren();
    if(!recentPlaces.length){
@@ -79,14 +77,14 @@
    for(const place of recentPlaces){
      const li=document.createElement('li'),btn=document.createElement('button');
      btn.type='button';btn.textContent=place.label;
-     btn.addEventListener('click',()=>{closeRouteSearch(false,false);input.blur();
-       selectDestinationPlace({lat:place.point[0],lon:place.point[1],name:place.name,display_name:place.label});});
+     btn.addEventListener('click',()=>{input.blur();
+       selectDestinationPlace({lat:place.point[0],lon:place.point[1],name:place.name,display_name:place.label,googleId:place.googleId,source:place.source});});
      li.append(btn);list.append(li);
    }
  };
  const setState=next=>{
    const state=['a','b','c'].includes(next)?next:'a';
-   if(state!=='c')window.JalanDestinationSuggestions?.cancel();
+   if(state!=='c'){shortcuts?.cancel();window.JalanDestinationSuggestions?.cancel();}
    if(routeSearch&&state!=='c'){closeRouteSearch();return;}
    if(state!=='c'&&document.activeElement===input)input.blur();
    sheet.dataset.state=state;
@@ -100,6 +98,7 @@
  // call clearRoute(), stop GPS, select a route or change the map camera.
  function closeRouteSearch(restoreInput=true,restoreFocus=true){
    if(!routeSearch)return;
+   shortcuts?.cancel();
    const saved=routeSearch;routeSearch=null;window.JalanDestinationSuggestions?.cancel();
    cancelGesture();input.blur();
    if(restoreInput)input.value=saved.inputValue;
@@ -124,6 +123,7 @@
    navigation.inert=true;
  });
  document.addEventListener('keydown',e=>{
+   if(e.key==='Escape'&&shortcuts?.cancel(true)){e.preventDefault();return;}
    if(e.key==='Escape'&&routeSearch){e.preventDefault();closeRouteSearch();}
  });
  // One gesture controller for the whole sheet, including child buttons and
@@ -207,14 +207,10 @@
  searchTrigger.addEventListener('click',()=>{setState('c');input.focus({preventScroll:true});});
  input.addEventListener('focus',()=>setState('c'));
  form.addEventListener('submit',()=>setState('c'));
- quick.addEventListener('click',e=>{
-   const shortcut=e.target.closest('button[data-shortcut]')?.dataset.shortcut;
-   if(!shortcut)return;
-   if(shortcut==='new'){setState('c');input.focus();}
-   else showNotice((shortcut==='home'?'Home':'Work')+' shortcut is a placeholder. Address setup comes later.');
- });
+ shortcuts=installSavedPlaces({sheet,quick,recent,header,input,results,expand:()=>setState('c')});
+ window.JalanPlaceShortcuts=shortcuts;
  const toggleMenu=visible=>{
-   if(visible){window.JalanDestinationSuggestions?.cancel();window.JalanPassengerRouteInfo.close();notice.classList.add('hidden');}
+   if(visible){shortcuts.cancel();window.JalanDestinationSuggestions?.cancel();window.JalanPassengerRouteInfo.close();notice.classList.add('hidden');}
    menuPanel.classList.toggle('hidden',!visible);
    menu.setAttribute('aria-expanded',String(visible));
    if(visible){$('passenger-navigation-settings').open=false;paintNavigation();menuPanel.scrollTop=0;$('jalan-home-menu-close').focus({preventScroll:true});}
@@ -233,13 +229,13 @@
    if(!Array.isArray(place?.point)||place.point.length!==2||!place.point.every(Number.isFinite))return;
    const duplicate=recentPlaces.findIndex(p=>p.point[0]===place.point[0]&&p.point[1]===place.point[1]);
    if(duplicate>=0)recentPlaces.splice(duplicate,1);
-   recentPlaces.unshift({point:[...place.point],name:String(place.name),label:String(place.label)});
+   recentPlaces.unshift({point:[...place.point],name:String(place.name),label:String(place.label),source:place.source,googleId:place.googleId});
    recentPlaces.length=Math.min(7,recentPlaces.length);
    renderRecent();closeRouteSearch(false,false);
  });
- window.addEventListener('jalan:routes-rendered',()=>{closeRouteSearch(false,false);cancelGesture();sheet.classList.add('jalan-sheet-route');input.blur();});
+ window.addEventListener('jalan:routes-rendered',()=>{shortcuts.cancel();closeRouteSearch(false,false);cancelGesture();sheet.classList.add('jalan-sheet-route');input.blur();});
  window.addEventListener('jalan:route-cleared',()=>{closeRouteSearch(false,false);cancelGesture();sheet.classList.remove('jalan-sheet-route');setState('a');});
- window.addEventListener('jalan:journey-start',()=>{closeRouteSearch(false,false);sheet.classList.add('jalan-sheet-route');toggleMenu(false);});
+ window.addEventListener('jalan:journey-start',()=>{shortcuts.cancel();closeRouteSearch(false,false);sheet.classList.add('jalan-sheet-route');toggleMenu(false);});
  window.addEventListener('jalan:journey-stop',()=>{toggleMenu(false);closeRouteSearch(false,false);sheet.classList.toggle('jalan-sheet-route',routes.length>0);});
  window.addEventListener('jalan:gps-fix',e=>{
    const d=e.detail,valid=d?.matched&&Number.isFinite(d.speedMps)&&d.speedMps>=0&&
