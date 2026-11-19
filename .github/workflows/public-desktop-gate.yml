@@ -48,6 +48,8 @@ on:
       - 'passenger-route-start.js'
       - 'tests/passenger-route-start-390.cjs'
       - 'passenger-route-sheet.css'
+      - 'passenger-route-display.js'
+      - 'tests/route-display.test.js'
       - 'passenger-vector-map.js'
       - 'passenger-route-traffic.js'
       - 'passenger-route-traffic.css'
@@ -106,6 +108,8 @@ on:
       - 'passenger-route-start.js'
       - 'tests/passenger-route-start-390.cjs'
       - 'passenger-route-sheet.css'
+      - 'passenger-route-display.js'
+      - 'tests/route-display.test.js'
       - 'passenger-vector-map.js'
       - 'passenger-route-traffic.js'
       - 'passenger-route-traffic.css'
@@ -132,7 +136,7 @@ jobs:
           npx playwright install --with-deps chromium
       - name: Run deterministic local Chromium 390px, no outbound network
         run: |
-          node --test tests/destination-match.test.js tests/passenger-navigation-view.test.js tests/passenger-journey-model.test.js tests/passenger-route-traffic.test.js tests/voice-guidance.test.js tests/passenger-gps-status.test.js
+          node --test tests/route-display.test.js tests/destination-match.test.js tests/passenger-navigation-view.test.js tests/passenger-journey-model.test.js tests/passenger-route-traffic.test.js tests/voice-guidance.test.js tests/passenger-gps-status.test.js
           node tests/google-fallback-390.cjs
           node tests/public-desktop-390.cjs
           node tests/passenger-390.cjs
@@ -144,4 +148,3 @@ jobs:
         with:
           name: passenger-vector-screenshots
           path: test-artifacts/*.png
-
