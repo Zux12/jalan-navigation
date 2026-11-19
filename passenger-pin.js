@@ -125,7 +125,7 @@
    }
    if(contacts.size!==1||e.button!==0||!surface(e))return;
    const h={id:e.pointerId,x:e.clientX,y:e.clientY,opened:false,moved:false};hold=h;
-   holdTimer=setTimeout(()=>{if(hold===h){h.opened=true;open(pointAt(h.x,h.y));}},2000);
+   holdTimer=setTimeout(()=>{if(hold===h){h.opened=true;open(pointAt(h.x,h.y));}},700);
  },true);
  window.addEventListener('pointermove',e=>{
    if(hold&&hold.id===e.pointerId&&Math.hypot(e.clientX-hold.x,e.clientY-hold.y)>9){
