@@ -47,7 +47,7 @@
   '<label for="passenger-nav-tilt">3D tilt <output id="passenger-nav-tilt-value" for="passenger-nav-tilt">100%</output></label>'+
   '<input id="passenger-nav-tilt" type="range" min="0" max="100" step="5" value="100"></div>'+
   '<label class="passenger-nearby-consent"><input id="passenger-nearby-consent" type="checkbox"> Share my location for nearby community reports during this journey</label></details>'+
-  '<button type="button" id="passenger-about" aria-haspopup="dialog" aria-controls="passenger-about-dialog">About</button>'+
+  '<button type="button" id="passenger-about" aria-haspopup="dialog" aria-controls="passenger-about-dialog">About JALAN</button>'+
   '<button type="button" id="jalan-home-menu-close">Close</button>';
  $('passenger-voice').setAttribute('aria-haspopup','dialog');
  $('passenger-voice').setAttribute('aria-controls','passenger-sound-dialog');

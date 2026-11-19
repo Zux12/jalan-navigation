@@ -395,16 +395,6 @@
          document.body.classList.add('passenger-vector-active');
          gl.resize();syncLayers();syncCamera();clearTimeout(timer);
          status.textContent='';emit();
-         // Show source credits on initial load, then collapse them completely.
-         // Full linked data credits remain in the same-page menu About dialog.
-         const credit=container.querySelector('.maplibregl-ctrl-attrib');
-         let creditTouched=false;
-         credit?.addEventListener('pointerdown',()=>{creditTouched=true;});
-         credit?.addEventListener('keydown',()=>{creditTouched=true;});
-         setTimeout(()=>{
-           if(active&&!creditTouched&&!credit?.contains(document.activeElement)&&credit)
-             credit.style.display='none';
-         },5500);
        }catch{fallback();}
      });
    }catch{fallback();}

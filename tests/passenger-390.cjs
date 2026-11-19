@@ -94,7 +94,7 @@ async function main(){
   assert.equal(await page.locator('#jalan-home-notice').isVisible(),false,'old notices do not obscure the menu');
   assert.equal(await page.locator('#passenger-options').count(),0,'old three-dot control is removed');
   const menuLabels=()=>page.locator('#jalan-home-menu-panel').evaluate(el=>[el.querySelector('#passenger-voice').textContent.split(':')[0],el.querySelector('summary').textContent,el.querySelector('#passenger-about').textContent,el.querySelector('#jalan-home-menu-close').textContent]);
-  assert.deepEqual(await menuLabels(),['Sound','Navigation','About','Close']);
+  assert.deepEqual(await menuLabels(),['Sound','Navigation','About JALAN','Close']);
   assert.equal(await page.locator('#jalan-home-menu-close').evaluate(x=>x.parentElement.lastElementChild===x),true,'Close is at the bottom');
   assert.equal(await page.locator('#passenger-journey-options').isVisible(),false,'journey controls are hidden before Go');
   assert.equal(await page.locator('#jalan-home-menu-panel #passenger-journey-options').count(),0,'journey controls are removed from the menu');
@@ -115,13 +115,39 @@ async function main(){
   await page.locator('#passenger-about').click();
   assert.match(await page.locator('#passenger-about-dialog').innerText(),/IgniteInno Ventures/);
   assert.match(await page.locator('#passenger-app-version').innerText(),/4.8.0/);
-  assert.equal(await page.locator('#passenger-about-dialog a').count(),6);
+  const about=page.locator('#passenger-about-dialog'),policy=about.getByRole('link',{name:'Privacy & terms'});
+  assert.equal(await about.getByText('Made in Malaysia').isVisible(),true);
+  assert.equal(await about.locator('a').count(),1);
+  assert.equal(await policy.getAttribute('href'),'https://igniteinnov.com/jalan/policy.html?lang=en');
+  assert.equal(await policy.getAttribute('target'),'_blank');
+  assert.equal(await page.locator('#jalan-home-menu-panel').isVisible(),false);
   assert.doesNotMatch(await page.locator('#passenger-app-version').innerText(),/test/i);
+  const bounds=await about.boundingBox();
+  assert.ok(Math.abs(bounds.y+bounds.height-page.viewportSize().height)<=1&&bounds.y>100,'sheet opens at bottom over the map');
   await page.screenshot({path:path.join(root,'test-artifacts/passenger-about-igniteinno.png')});
   await page.locator('#passenger-about-ok').click();
+  const reopenAbout=async()=>{
+    await about.waitFor({state:'hidden'});
+    await page.locator('#jalan-home-menu').click();await page.locator('#passenger-about').click();
+  };
+  await reopenAbout();
+  await page.touchscreen.tap(190,Math.floor(bounds.y/2));
+  await about.waitFor({state:'hidden'});
+  assert.equal(await page.locator('#jalan-pin-card').isVisible(),false,'backdrop tap does not select a map pin');
+  await reopenAbout();
+  {
+    const touch=await context.newCDPSession(page),grip=await about.locator('.jalan-about-grip').boundingBox();
+    const start={x:Math.round(grip.x+grip.width/2),y:Math.round(grip.y+grip.height/2)};
+    await touch.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[start]});
+    await touch.send('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:[{...start,y:start.y+88}]});
+    await touch.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});
+    await touch.detach();
+  }
+  await reopenAbout();
   await page.keyboard.press('Escape');
-  assert.equal(await page.locator('#jalan-home-menu-panel').isVisible(),false);
+  await about.waitFor({state:'hidden'});
   assert.equal(await page.locator('#jalan-home-menu').getAttribute('aria-expanded'),'false');
+  await page.waitForFunction(()=>document.activeElement.id==='jalan-home-menu');
   // The search banner must support progressive A→B (not jump to C) on
   // an actual pointer swipe, while B exposes the session-only Recent area.
   const swipeSearch=async dy=>{
@@ -479,7 +505,7 @@ async function main(){
   await page.locator('#jalan-home-menu').click();
   assert.equal(await page.locator('#passenger-voice').isVisible(),true,
     'advanced controls remain accessible when passenger requests them');
-  assert.deepEqual(await menuLabels(),['Sound','Navigation','About','Close'],'same menu after Go');
+  assert.deepEqual(await menuLabels(),['Sound','Navigation','About JALAN','Close'],'same menu after Go');
   await page.screenshot({path:path.join(root,'test-artifacts/passenger-guidance-menu.png')});
   await page.locator('#passenger-voice').click();
   assert.equal(await page.locator('#passenger-sound-dialog').isVisible(),true);

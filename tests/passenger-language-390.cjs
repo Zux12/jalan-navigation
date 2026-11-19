@@ -24,6 +24,12 @@ module.exports=async function passengerLanguage(page){
  await select('ms');
  assert.match(await placeholder(),/^Hendak ke mana/);
  assert.equal(await page.locator('[data-shortcut=home] strong').textContent(),'Rumah');
+ await menu.click();await page.getByRole('button',{name:'Perihal JALAN'}).click();
+ const about=page.getByRole('dialog',{name:'Perihal JALAN'});
+ assert.equal(await about.getByText('Buatan Malaysia').isVisible(),true);
+ assert.match(await about.locator('#passenger-app-version').innerText(),/^Versi /);
+ assert.equal(await about.getByRole('link',{name:'Privasi & terma'}).getAttribute('href'),'https://igniteinnov.com/jalan/policy.html?lang=ms');
+ await about.getByRole('button',{name:'Selesai'}).click();
  await menu.click();await page.locator('#passenger-voice').click();
  assert.equal(await page.locator('#passenger-voice-choice option:checked').textContent(),'Rakaman Bahasa Melayu');
  assert.match(await page.locator('#passenger-voice-status').textContent(),/Nama jalan dipaparkan/);

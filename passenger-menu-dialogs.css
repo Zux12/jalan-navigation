@@ -16,22 +16,34 @@
 .jalan-dialog-ok{background:#136dec;color:white;margin-top:10px}
 .jalan-menu-dialog button:focus-visible,.jalan-menu-dialog select:focus-visible{outline:3px solid #6cb8ff;outline-offset:3px}
 #passenger-voice-status{font-size:13px;line-height:1.5;color:#52677e;min-height:38px}
-.jalan-about-version{background:#edf4fc;border-radius:12px;padding:12px;color:#185692;font-weight:700}
-.jalan-menu-dialog dt{font-weight:750;margin-top:16px}
-.jalan-menu-dialog dd{margin:5px 0 0;line-height:1.6}
-.jalan-menu-dialog a{color:#0d60b5}
 #jalan-home-menu-panel #jalan-menu-sound button{width:100%}
 
-.jalan-about-developer{padding:20px;border:1px solid #bbd8f7;border-radius:16px;background:linear-gradient(135deg,#edf6ff,#f8fbff)}
-.jalan-about-developer>p{margin:0 0 8px;font-size:13px;font-weight:650;color:#52677e}
-.jalan-about-brand{display:block;font-size:25px;line-height:1.2;font-weight:850;color:#104f9f;overflow-wrap:anywhere}
-.jalan-about-developer dl{margin:18px 0 0;padding-top:14px;border-top:1px solid #cbdff4}
-.jalan-about-developer dt{margin:0;font-size:12px;color:#52677e;font-weight:600}
-.jalan-about-developer dd{font-size:16px;font-weight:750;color:#104f9f}
-.jalan-about-support-title{font-size:14px;color:#52677e;margin:22px 0 12px;font-weight:650}
-.jalan-about-support{font-size:13px;margin:0 0 16px}
-.jalan-about-support dt{font-weight:650;margin-top:12px}
-.jalan-about-support dd{color:#52677e}
+#passenger-about-dialog {
+ position:fixed; inset:auto 0 0; margin:0 auto; box-sizing:border-box;
+ width:min(100%,30rem); max-width:100%; max-height:calc(100dvh - env(safe-area-inset-top,0px) - 12px);
+ border-radius:26px 26px 0 0; padding:0 24px calc(18px + env(safe-area-inset-bottom,0px));
+ color:#14253b; background:#fff; font:400 1rem/1.5 system-ui,sans-serif;
+ box-shadow:0 -8px 40px #0d263e20; overflow-y:auto; overscroll-behavior:contain;
+}
+#passenger-about-dialog::backdrop { background:rgba(15,28,42,.40); }
+.jalan-about-grip { height:32px; display:grid; place-items:center; touch-action:none; }
+.jalan-about-grip span { width:40px; height:5px; border-radius:10px; background:#acb5bf; }
+#passenger-about-title { font-size:1.35rem; line-height:1.3; margin:8px 0 22px; letter-spacing:-.025em; }
+#passenger-about-title:focus { outline:none; }
+.jalan-about-identity { display:flex; gap:14px; align-items:center; }
+.jalan-about-identity img { border-radius:16px; flex:none; }
+.jalan-about-identity strong { font-size:2.125rem; line-height:1.1; letter-spacing:-.045em; font-weight:800; }
+#passenger-app-version { margin:2px 0 0; font-size:.9375rem; color:#546475; }
+.jalan-about-description { margin:20px 0 14px; color:#374b61; }
+.jalan-about-developer { margin:0; }
+.jalan-about-origin { display:flex; align-items:center; gap:8px; margin:8px 0 5px; font-size:.9375rem; }
+#passenger-policy { display:inline-flex; min-height:44px; align-items:center; color:#075fb4; text-underline-offset:.2em; }
+#passenger-about-ok { display:block; margin:6px 0 0; min-height:50px; }
+#passenger-policy:focus-visible { outline:3px solid #2478c3; outline-offset:2px; }
+@media(prefers-reduced-motion:no-preference) {
+ #passenger-about-dialog[open] { animation:jalan-about-rise .2s ease-out; }
+ @keyframes jalan-about-rise { from { transform:translateY(100%); } to { transform:translateY(0); } }
+}
 
 #jalan-home-menu-panel .jalan-language-setting {
  display:flex; align-items:center; justify-content:space-between; gap:8px;
