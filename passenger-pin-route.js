@@ -39,7 +39,7 @@
  function observe(state,fix,stop,at){
    if(!fix.gpsReliable||!(fix.gpsAccuracy<=35)||!(fix.gpsFixAgeMs<=10000)||!fix.gpsPosition)return;
    if(state.at&&at<=state.at)return;
-   if(!state.at||at-state.at>12000)Object.assign(state,{best:Infinity,away:0,slowSince:null,previous:null});
+   if(!state.at||at-state.at>12000)Object.assign(state,{last:Infinity,best:Infinity,away:0,slowSince:null,previous:null});
    const distance=Math.min(meters(fix.gpsPosition,stop.point),meters(fix.gpsPosition,stop.access));
    const previous=state.previous,dt=(at-state.at)/1000;
    const speed=Number.isFinite(fix.speedMps)&&fix.speedMps>=0?fix.speedMps:

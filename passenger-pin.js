@@ -14,7 +14,7 @@
  const marker=point=>L.marker(point,{icon,interactive:false,keyboard:false,zIndexOffset:450}).addTo(map);
  const pane=map.createPane('passenger-stop');pane.style.zIndex='455';pane.style.pointerEvents='none';
  let picked=null,tempPin=null,stopPin=null,purple=null,observed=null,track={},outcome='',retryAfter=0;
- let request=null,hold=null,holdTimer,deadline=0,frame=0,ignoreClickUntil=0,toastTimer;
+ let pendingDirect=null,request=null,hold=null,holdTimer,deadline=0,frame=0,ignoreClickUntil=0,toastTimer;
  const contacts=new Set();
  const same=(a,b)=>!!a&&!!b&&a[0]===b[0]&&a[1]===b[1];
  function message(value){
@@ -188,19 +188,34 @@
        if(kind==='replace')setDestinationPlace(place(point),point);
        window.dispatchEvent(new CustomEvent('jalan:route-change',{detail:{reason:'pin-'+kind,provider:candidate.provider||'osrm'}}));
        window.JalanTomTom?.refreshRouteIncidents?.(true);
-       message({add:'Stop added.',replace:'Destination updated.',arrived:'Stop reached. Continuing to your destination.',passed:'Stop passed. Continuing to your destination.'}[kind]);
+       pendingDirect=null;
+       if(kind!=='resume')message({add:'Stop added.',replace:'Destination updated.',arrived:'Stop reached. Continuing to your destination.',passed:'Stop passed. Continuing to your destination.'}[kind]);
        return;
      }
      throw Error();
    }catch{
-     if(current())message(kind==='passed'||kind==='arrived'?'Checking the onward route again shortly.':'Could not update the route. Try again.');
+     if(!current())return;
+     const latest=reliable(window.JalanGPS.getState());
+     if(kind==='passed'&&latest&&window.JalanGPS.applyPinnedRoute(stop.onward,latest,'passed-offline')){
+       // Drop the missed detour even during a provider outage. The cached
+       // onward geometry stays available until a route from this fix succeeds.
+       pendingDirect=stop.onward;retryAfter=Date.now()+6000;
+       window.dispatchEvent(new CustomEvent('jalan:route-change',{detail:{reason:'pin-passed',provider:previous.provider||'osrm'}}));
+       message('Stop passed. Continuing to your destination.');
+     }else if(kind!=='resume')message(kind==='passed'||kind==='arrived'?'Checking the onward route again shortly.':'Could not update the route. Try again.');
    }finally{clearTimeout(timer);if(request===job){request=null;document.body.classList.remove('passenger-pin-routing');}}
  }
  for(const name of ['jalan:routes-rendered','jalan:route-cleared'])window.addEventListener(name,paintRoute);
- for(const name of ['jalan:route-cleared','jalan:journey-stop'])window.addEventListener(name,()=>{abort();close();track={};outcome='';});
+ for(const name of ['jalan:route-cleared','jalan:journey-stop'])window.addEventListener(name,()=>{abort();close();track={};outcome='';pendingDirect=null;});
  window.addEventListener('jalan:gps-fix',e=>{
    const route=window.JalanGPS.getState().route,stop=route?.pinnedStop;
-   if(!stop||route!==observed||!e.detail.gpsReliable)return;
+   if(!e.detail.gpsReliable||route!==observed)return;
+   if(pendingDirect&&pendingDirect!==route)pendingDirect=null;
+   if(pendingDirect&&!request&&Date.now()>=retryAfter){
+     retryAfter=Date.now()+15000;
+     queueMicrotask(()=>{if(pendingDirect===routes[selectedRoute]&&!request)changeRoute('resume',destination);});
+   }
+   if(!stop)return;
    outcome||=model.observe(track,e.detail,stop,Math.round(Date.now()-e.detail.gpsFixAgeMs));
    if(!outcome||request||Date.now()<retryAfter)return;
    retryAfter=Date.now()+6000;

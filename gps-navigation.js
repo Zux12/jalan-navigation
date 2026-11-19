@@ -313,8 +313,10 @@
   },
   applyPinnedRoute(candidate,from,reason){
    const last=candidate?.geometry?.coordinates?.at(-1);
+   const cachedOnward=reason==='passed-offline'&&route?.pinnedStop?.onward===candidate;
+   const origin=cachedOnward?route.pinnedStop.access:from;
    if(!active||!freshRerouteFix()||!last||meters(from,rerouteFix.position)>150||
-      !usableRoute(candidate,from,[last[1],last[0]]))return false;
+      !usableRoute(candidate,origin,[last[1],last[0]]))return false;
    cancelReroute();
    return replaceGuidanceRoute([candidate],from,reason);
   },

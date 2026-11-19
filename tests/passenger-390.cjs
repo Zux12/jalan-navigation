@@ -73,7 +73,6 @@ async function main(){
   assert.equal(await page.locator('#info-panel').isVisible(),false);
   assert.equal(await page.locator('#search-form').isVisible(),true);
   assert.equal(await page.locator('#passenger-overview').isVisible(),false);
-  await require('./passenger-pin-390.cjs')(page,{routing:true});
   const sheetState=()=>page.locator('#jalan-home-sheet').getAttribute('data-state');
   assert.equal(await sheetState(),'a','Passenger preview opens with collapsed search sheet');
   assert.equal(await page.locator('#jalan-home-menu').isVisible(),true);
@@ -1286,6 +1285,23 @@ async function main(){
   assert.deepEqual(deniedErrors,[]);
   await deniedContext.close();
   await require('./destination-suggestions-390.cjs')({context,base,root});
+  const pinPage=await context.newPage();
+  try{
+   await pinPage.route('**/*',route=>{
+    const url=route.request().url();
+    if(url.startsWith(base+'/'))return route.continue();
+    if(url.includes('unpkg.com/leaflet@')&&/leaflet\.(css|js)$/.test(url)){
+     const file=url.split('/').at(-1);
+     return route.fulfill({contentType:file.endsWith('.js')?'application/javascript':'text/css',
+       body:fs.readFileSync(path.join(leaflet,file))});
+    }
+    return route.abort();
+   });
+   await pinPage.goto(base+'/index.html?mode=passenger&renderer=raster');
+   await pinPage.locator('#jalan-launch').waitFor({state:'hidden'});
+   await require('./passenger-pin-390.cjs')(pinPage,{routing:true});
+  }finally{await pinPage.close();}
+
   assert.deepEqual(errors,[],'no uncaught JS errors in either UI');
   console.log('JALAN passenger 390px offline PASS: two modes, fastest, real alternatives, +minutes, Go, 2D, exit and provider fallback.');
  }finally{if(browser)await browser.close();await new Promise(resolve=>server.close(resolve));}
