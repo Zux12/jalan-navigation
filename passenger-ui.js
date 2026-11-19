@@ -549,9 +549,14 @@
      checkedAt:Number(detail.checkedAt)||0};
    if(!turnList.classList.contains('hidden')&&activeInfoTab==='reports')renderReports();
  });
- const turnIcon=action=>/roundabout/i.test(action)?'⟳':
-   /left/i.test(action)?'↰':/right/i.test(action)?'↱':
-   /u.turn|u-turn/i.test(action)?'↶':'↑';
+ const turnIcon=(action,step)=>{
+   const direction=window.JalanManeuvers.audioKey(step,action.replace(/^\d+(?:[.,]\d+)?\s*(?:m|km):\s*/i,''));
+   if(direction==='uturn')return '↶';
+   if(direction==='roundabout')return '⟳';
+   if(direction.endsWith('left'))return '↰';
+   if(direction.endsWith('right'))return '↱';
+   return direction==='arrive'?'⚑':'↑';
+ };
  const closeDirections=()=>{
    if(turnList.classList.contains('hidden'))return false;
    turnList.classList.add('hidden');
@@ -574,8 +579,9 @@
      const li=document.createElement('li'),arrow=document.createElement('span'),
            info=document.createElement('div'),name=document.createElement('strong'),
            distance=document.createElement('small');
-     arrow.className='turn-list-arrow';arrow.textContent=step.arrival?'⚑':turnIcon(step.action||'');
-     name.textContent=String(step.action||'Continue');
+     arrow.className='turn-list-arrow';arrow.textContent=step.arrival?'⚑':turnIcon(step.action||'',step.step);
+     const english=String(step.action||'Continue');
+     window.JalanLanguage.write(name,english,window.JalanManeuvers.action(step.step,english,'ms'));
      distance.textContent='In '+fmtDist(step.distanceMeters);
      info.append(name,distance);li.append(arrow,info);maneuverList.appendChild(li);
    }
@@ -599,7 +605,9 @@
  });
   const syncGPS=(fix=null)=>{
    if(!document.body.classList.contains('passenger-guiding'))return;
-   el('passenger-instruction').textContent=el('gps-instruction').textContent||'Acquiring GPS…';
+   const message=el('gps-instruction').textContent||'Acquiring GPS…';
+   const malay=window.JalanGPS?.malayInstruction?.(message);
+   window.JalanLanguage.write(el('passenger-instruction'),message,malay);
    el('passenger-next').textContent=(el('gps-detail').textContent||'Route preview')
      .replace(/\s*·\s*GPS matched to selected route\s*$/,'');
    el('passenger-eta').textContent=el('gps-eta').textContent||'—';
@@ -621,12 +629,11 @@
    el('passenger-speed').textContent=speed;
    el('passenger-speed-floating').setAttribute('aria-label',speed==='—'?
      'Speed unavailable':speed+' kilometres per hour');
-   const message=el('passenger-instruction').textContent;
-   el('passenger-turn-arrow').textContent=turnIcon(message);
+   el('passenger-turn-arrow').textContent=turnIcon(message,window.JalanGPS?.instructionStep?.(message));
    if(!turnList.classList.contains('hidden')){
      if(activeInfoTab==='reports')renderReports();else renderDirections();
    }
-   el('passenger-turn-details').textContent=message;
+   window.JalanLanguage.write(el('passenger-turn-details'),message,malay);
  };
  // Passenger controls mirror the existing engineering GPS buttons; no
  // duplicate voice engine. Explicit Go enables off-route recovery for the trip.

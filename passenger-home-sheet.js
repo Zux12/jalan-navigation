@@ -38,6 +38,9 @@
  menuPanel.className='hidden';menuPanel.setAttribute('aria-label','User menu');
  menuPanel.innerHTML='<div class="jalan-home-menu-head"><strong>JALAN menu</strong></div>'+
   '<div id="jalan-menu-sound"></div>'+
+  '<label class="jalan-language-setting" translate="no"><span>Bahasa / Language</span>'+
+  '<select id="passenger-language"><option value="en" lang="en">English</option>'+
+  '<option value="ms" lang="ms">Bahasa Melayu</option></select></label>'+
   '<details id="passenger-navigation-settings"><summary>Navigation</summary><div class="jalan-navigation-view">'+
   '<label for="passenger-nav-zoom">Zoom <output id="passenger-nav-zoom-value" for="passenger-nav-zoom">80%</output></label>'+
   '<input id="passenger-nav-zoom" type="range" min="0" max="100" step="5" value="80">'+
@@ -52,6 +55,13 @@
  // Retain internal status/action hooks for the navigation engine, outside the menu.
  $('passenger-journey-options').classList.add('hidden');
  document.body.append(menu,speed,report,notice,menuPanel);
+ const language=$('passenger-language');
+ language.value=window.JalanLanguage.code;
+ language.addEventListener('change',()=>{
+   window.JalanLanguage.set(language.value);
+   if(window.JalanVoice.getState().recorded)window.JalanMalayAudio.unlock();
+ });
+ window.addEventListener('jalan:language-change',()=>{language.value=window.JalanLanguage.code;});
  const paintNavigation=()=>{
    const settings=window.JalanPassengerCamera.getSettings();
    for(const key of ['zoom','tilt']){$('passenger-nav-'+key).value=settings[key];$('passenger-nav-'+key+'-value').textContent=settings[key]+'%';}
@@ -80,7 +90,7 @@
        })
        .catch(()=>{
          // Keep the exact destination selectable offline. Retry on its next appearance.
-         entry.loading=false;entry.fallback.textContent=entry.place.name+' · Address unavailable';
+         entry.loading=false;entry.fallback.translate=true;entry.fallback.textContent=entry.place.name+' · Address unavailable';
        });
    }
  });
@@ -99,7 +109,7 @@
      if(google){
        row.className='jalan-recent-google';
        entry.controller=new AbortController();
-       entry.fallback=document.createElement('span');entry.fallback.textContent=place.label;
+       entry.fallback=document.createElement('span');entry.fallback.translate=false;entry.fallback.textContent=place.label;
        entry.details=document.createElement('div');entry.details.id='jalan-recent-place-'+(++recentDetailId);
        button.append(entry.fallback);button.setAttribute('aria-describedby',entry.details.id);
        row.append(button,entry.details);
@@ -108,7 +118,7 @@
    }
    entry.place={...place,point:[...place.point]};
    if(google)entry.button.setAttribute('aria-label','Route to '+place.name);
-   else entry.button.textContent=place.label;
+   else {entry.button.translate=place.name==='Pinned location';entry.button.textContent=place.label;}
    list.querySelector('.jalan-recent-empty')?.remove();
    if(list.firstElementChild!==entry.row)list.prepend(entry.row);
    if(recentRows.size>7){

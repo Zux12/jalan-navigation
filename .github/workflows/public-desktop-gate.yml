@@ -16,6 +16,13 @@ on:
       - 'app.js'
       - 'tomtom-live.js'
       - 'jalan-config.js'
+      - 'passenger-language*.js'
+      - 'passenger-maneuvers.js'
+      - 'passenger-malay-audio.js'
+      - 'audio/ms-guidance.mp3'
+      - 'tests/passenger-malay-audio.test.js'
+      - 'tests/passenger-maneuvers.test.js'
+      - 'tests/passenger-language-390.cjs'
       - 'voice-guidance.js'
       - 'tests/voice-guidance.test.js'
       - 'proactive-routing.js'
@@ -82,6 +89,13 @@ on:
       - 'app.js'
       - 'tomtom-live.js'
       - 'jalan-config.js'
+      - 'passenger-language*.js'
+      - 'passenger-maneuvers.js'
+      - 'passenger-malay-audio.js'
+      - 'audio/ms-guidance.mp3'
+      - 'tests/passenger-malay-audio.test.js'
+      - 'tests/passenger-maneuvers.test.js'
+      - 'tests/passenger-language-390.cjs'
       - 'voice-guidance.js'
       - 'tests/voice-guidance.test.js'
       - 'proactive-routing.js'
@@ -153,7 +167,7 @@ jobs:
           fi
       - name: Run deterministic local Chromium 390px, no outbound network
         run: |
-          node --test tests/passenger-pin.test.js tests/route-display.test.js tests/destination-match.test.js tests/passenger-navigation-view.test.js tests/passenger-journey-model.test.js tests/passenger-route-traffic.test.js tests/voice-guidance.test.js tests/passenger-gps-status.test.js
+          node --test tests/*.test.js
           node tests/google-fallback-390.cjs
           node tests/public-desktop-390.cjs
           node tests/passenger-390.cjs

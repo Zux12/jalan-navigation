@@ -32,3 +32,13 @@
 .jalan-about-support{font-size:13px;margin:0 0 16px}
 .jalan-about-support dt{font-weight:650;margin-top:12px}
 .jalan-about-support dd{color:#52677e}
+
+#jalan-home-menu-panel .jalan-language-setting {
+ display:flex; align-items:center; justify-content:space-between; gap:8px;
+ padding:6px 10px; color:#172b45; font:650 14px/1.3 system-ui,sans-serif;
+}
+#passenger-language {
+ min-width:0; min-height:44px; max-width:55%; padding:5px 7px;
+ border:1px solid #b8cadb; border-radius:9px; background:#fff; color:#172b45;
+ font:600 16px system-ui,sans-serif;
+}
