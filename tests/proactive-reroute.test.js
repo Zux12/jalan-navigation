@@ -168,3 +168,19 @@ test('an API key changed without firing a DOM input event also revokes an offere
  assert.equal(s.nodes['proactive-offer'].classList.contains('hidden'),true);
  assert.match(s.nodes['proactive-status'].textContent,/changed; check again/);
 });
+
+test('accepting a faster route retains road changes beyond the spoken guidance limit',async()=>{
+ const s=scene();
+ const instructions=Array.from({length:125},(_,i)=>({routeOffsetInMeters:i*10,street:'Approach'}));
+ instructions.push({routeOffsetInMeters:1250,roadNumbers:['E26']});
+ const request=s.nodes['proactive-check'].onclick();
+ s.finish({routes:[{legs:[{points:[{latitude:3.14,longitude:101.68},{latitude:3.145,longitude:101.69}]}],
+  summary:{travelTimeInSeconds:180,lengthInMeters:4000},guidance:{instructions}}]});await request;
+ let selected;
+ s.ctx.window.JalanGPS.applyTrafficRoute=route=>{selected=route;return true;};
+ s.nodes['proactive-accept'].onclick();
+ const via=require('../passenger-journey-model.js').createViaTracker(selected);
+ assert.equal(selected.legs[0].steps.length,120);
+ assert.equal(via(0),'E26');
+ assert.equal(via(4000),null);
+});

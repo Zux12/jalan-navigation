@@ -5,7 +5,7 @@
  const el=id=>document.getElementById(id),panel=el('passenger-journey-sheet'),
   handle=el('passenger-journey-handle'),content=el('passenger-journey-content'),
   line=el('passenger-journey-line'),note=el('passenger-journey-traffic-note');
- let expanded=false,gesture=null,suppressClickUntil=0,currentRoute=null,currentVia=null,progress=0,lastPaint='';
+ let expanded=false,gesture=null,suppressClickUntil=0,currentRoute=null,viaAt=null,progressMeters=0,lastPaint='';
  const active=()=>document.body.classList.contains('passenger-guiding');
  function measure(){
   if(!active())return 0;
@@ -16,25 +16,33 @@
   panel.style.setProperty('--journey-peek',peek+'px');
   panel.style.setProperty('--journey-full',full+'px');return full-peek;
  }
- function paint(){
+ function updateProgress(){
   if(!active())return;
   const state=window.JalanGPS?.getState?.(),route=state?.active?state.route:routes[selectedRoute];
   if(!route)return;
-  if(route!==currentRoute){currentRoute=route;currentVia=window.JalanJourneyModel.longestRoad(route);progress=0;lastPaint='';}
+  if(route!==currentRoute){
+   currentRoute=route;viaAt=window.JalanJourneyModel.createViaTracker(route);progressMeters=0;lastPaint='';
+  }
+  const located=state?.active&&state.route===route&&state.matched&&state.fixAgeMs>=0&&state.fixAgeMs<=10000&&
+    Number.isFinite(state.accuracy)&&state.accuracy>=0&&state.accuracy<=75;
+  if(located&&Number.isFinite(state.remainingMeters)&&state.remainingMeters>=0&&route.distance>0){
+   progressMeters=Math.max(progressMeters,route.distance-state.remainingMeters);
+  }
+  const via=viaAt(progressMeters),label=via?'Via '+via:'Via selected route';
+  const field=el('passenger-journey-via');
+  if(field.textContent!==label)field.textContent=label;
+  return {route,located};
+ }
+ function paint(){
+  const journey=updateProgress();
+  if(!journey)return;
+  const {route,located}=journey;
   el('passenger-journey-destination').textContent='Destination: '+(destinationName||'Selected destination');
-  const via=currentVia;
-  el('passenger-journey-via').textContent=via?'Via '+via:'Via selected route';
   const snapshot=window.JalanRouteTraffic?.getJourneySnapshot?.();
   const same=snapshot?.route===route;
-  const total=same?snapshot.total:0;
-  const located=state?.active&&state.route===route&&state.matched&&state.fixAgeMs<=10000&&
-    Number.isFinite(state.accuracy)&&state.accuracy<=75;
-  if(located&&Number.isFinite(state.remainingMeters)&&route.distance>0){
-   // GPS exposes distance on this route; keep progress in geometry-distance units.
-   progress=Math.max(progress,Math.max(0,Math.min(1,1-state.remainingMeters/route.distance)));
-  }
-  el('passenger-journey-origin').textContent=located?'You':progress>0?'Last route position':'Route start';
-  const segments=same?window.JalanJourneyModel.remainingSegments(snapshot,progress*total):[];
+  el('passenger-journey-origin').textContent=located?'You':progressMeters>0?'Last route position':'Route start';
+  const fraction=route.distance>0?progressMeters/route.distance:0;
+  const segments=same?window.JalanJourneyModel.remainingSegments(snapshot,fraction*snapshot.total):[];
   const signature=JSON.stringify(segments);
   if(signature!==lastPaint){
    lastPaint=signature;line.replaceChildren();
@@ -159,12 +167,12 @@
  const resize=()=>{cancel();measure();};
  window.addEventListener('resize',resize);window.visualViewport?.addEventListener('resize',resize);
  new ResizeObserver(measure).observe(panel);
- window.addEventListener('jalan:journey-start',()=>{currentRoute=null;progress=0;setExpanded(false);requestAnimationFrame(paint);});
+ window.addEventListener('jalan:journey-start',()=>{currentRoute=null;progressMeters=0;setExpanded(false);requestAnimationFrame(paint);});
  window.addEventListener('jalan:journey-stop',()=>setExpanded(false));
- window.addEventListener('jalan:route-cleared',()=>{currentRoute=null;progress=0;setExpanded(false);});
+ window.addEventListener('jalan:route-cleared',()=>{currentRoute=null;progressMeters=0;setExpanded(false);});
  window.addEventListener('jalan:route-change',paint);
  window.addEventListener('jalan:incidents-updated',()=>{if(expanded)paint();});
- window.addEventListener('jalan:gps-fix',()=>{if(expanded)requestAnimationFrame(paint);});
+ window.addEventListener('jalan:gps-fix',()=>requestAnimationFrame(()=>{if(expanded)paint();else updateProgress();}));
  // Reuse existing bounded traffic samples, including asynchronous completion,
  // expiration or key revocation. This view never makes a provider request.
  setInterval(()=>{if(expanded&&!document.hidden)paint();},1000);
