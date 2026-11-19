@@ -251,7 +251,7 @@ async function main(){
   assert.equal(await page.locator('#passenger-route-list button').count(),3);
   assert.equal(await page.locator('#passenger-settings').count(),0,'route settings are only in the shared menu');
   assert.equal(await page.locator('#passenger-route-provider').count(),0,'provider subtitle is removed');
-  assert.equal(await page.locator('#passenger-overview small').count(),3,'only route-card details remain, with no writing below Go');
+  assert.equal(await page.locator('#passenger-overview small').count(),4,'route-card details and explicit passenger safety notice remain, without a diagnostic strip');
   assert.equal(await page.locator('#jalan-route-traffic-legend').count(),0,'traffic legend no longer covers the map');
   // A shorter Safari-like visible viewport must never clip the Go button.
   // A long list should scroll inside the card instead of pushing Go below it.
