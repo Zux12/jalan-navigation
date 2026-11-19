@@ -1168,6 +1168,24 @@ async function main(){
   await page.waitForFunction(()=>document.getElementById('passenger-journey-origin').textContent==='You');
   const clipped=await page.locator('#passenger-journey-line [data-traffic="heavy"]').evaluate(x=>parseFloat(x.style.left));
   assert.ok(clipped>=46&&clipped<=53,'traffic repositions relative to remaining route');
+  const viaLabel=page.locator('#passenger-journey-via');
+  async function journeyFix(remainingMeters,matched=true,fixAgeMs=0){
+    await page.evaluate(({remainingMeters,matched,fixAgeMs})=>{
+      JalanGPS.getState=()=>({...window.__journeyGetState(),matched,fixAgeMs,accuracy:8,remainingMeters});
+      window.dispatchEvent(new CustomEvent('jalan:gps-fix',{detail:{matched}}));
+      return new Promise(done=>requestAnimationFrame(()=>done()));
+    },{remainingMeters,matched,fixAgeMs});
+  }
+  await journeyFix(201);
+  assert.equal(await viaLabel.textContent(),'Via Maju Expressway','hold Via up to its exit');
+  await journeyFix(100,false);await journeyFix(100,true,15000);
+  assert.equal(await viaLabel.textContent(),'Via Maju Expressway','unmatched and stale fixes cannot switch Via');
+  await page.locator('#passenger-journey-resume').click();
+  await journeyFix(200);
+  assert.equal(await viaLabel.textContent(),'Via Jalan Ampang','advance exactly at exit with details collapsed');
+  await journeyFix(500);
+  await page.locator('#passenger-journey-handle').click();
+  assert.equal(await viaLabel.textContent(),'Via Jalan Ampang','reopening or backward GPS jitter preserves Via');
   await page.evaluate(()=>{JalanGPS.getState=window.__journeyGetState;});
   await page.waitForFunction(()=>document.getElementById('passenger-journey-origin').textContent==='Last route position');
   // Long names on short screens keep real scrolling and the actions reachable.
