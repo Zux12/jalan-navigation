@@ -29,6 +29,7 @@ body.passenger-guiding .passenger-bottom[data-expanded="false"]{height:var(--jou
 .passenger-journey-line [data-traffic="closed"]{background:#801c2a}
 .passenger-journey-ends{display:flex;justify-content:space-between;font-size:11px;color:#586979;margin-top:4px}
 .passenger-journey-traffic-note{color:#647487;font-size:11px;margin:10px 0 20px}
+.passenger-journey-traffic-note[hidden]+.passenger-journey-actions{margin-top:16px}
 .passenger-journey-actions{display:flex;gap:12px;padding-bottom:2px}
 .passenger-journey-actions button{flex:1;min-height:50px;border:0;border-radius:14px;
  padding:12px;font:750 17px system-ui;color:#fff;cursor:pointer;touch-action:manipulation}

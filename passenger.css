@@ -47,7 +47,6 @@ body.passenger-guiding .interface-switch{display:none}
 .passenger-navigation{position:fixed;inset:0;z-index:1500;pointer-events:none;font-family:system-ui,sans-serif;color:#fff}
 .passenger-turn{position:absolute;top:0;left:0;right:0;padding:calc(20px + env(safe-area-inset-top,0px)) 18px 22px;background:#090d16;display:flex;align-items:center;gap:16px;min-height:112px}
 .passenger-turn>span{font-size:48px;font-weight:900}.passenger-turn strong{font-size:clamp(19px,4.8vw,26px);display:block}.passenger-turn small{font-size:14px;color:#61d7fc}
-.passenger-heading{position:absolute;top:calc(139px + env(safe-area-inset-top,0px));left:10px;right:10px;text-align:center;color:#273d58;background:#ffffffd9;padding:6px 9px;border-radius:12px;font-size:11px;font-weight:750}
 .jalan-vehicle-marker{border:0;background:transparent;pointer-events:none;opacity:0}
 .passenger-vehicle-screen{position:absolute;z-index:2;pointer-events:none;width:84px;height:84px;display:grid;place-items:center;transform:translate(-50%,-50%);color:#05a6d5;font:900 70px system-ui,sans-serif;text-shadow:-2px -2px 0 white,2px -2px 0 white,-2px 2px 0 white,2px 2px 0 white,0 4px 9px #122e4999}
 /* GPS-anchored vehicle triangle, counter-rotated to remain screen-up while
@@ -129,7 +128,7 @@ body.passenger-mode .passenger-go{margin-top:4px;min-height:54px}
 .passenger-map-gestures{position:absolute;z-index:1;top:calc(136px + env(safe-area-inset-top,0px));bottom:185px;left:0;right:0;pointer-events:auto;touch-action:none;cursor:grab}
 .passenger-map-gestures:active{cursor:grabbing}
 body.passenger-map-flat .passenger-map-gestures{pointer-events:auto}
-.passenger-turn,.passenger-heading,.passenger-bottom{z-index:3}
+.passenger-turn,.passenger-bottom{z-index:3}
 .passenger-gesture-hint{font-size:11px;color:#60748c;text-align:center;margin:2px 0 10px}
 @media(max-height:650px){.passenger-map-gestures{bottom:150px}}
 
@@ -152,14 +151,11 @@ body.passenger-map-flat .passenger-map-gestures{pointer-events:auto}
 .passenger-traffic-offer span{display:block;font-weight:700;margin-bottom:7px}
 
 /* Compact metrics-only post-Go HUD; controls live in the shared hamburger menu. */
-body.passenger-guiding .passenger-heading{display:none}
 body.passenger-guiding .passenger-turn{display:flex}
 body.passenger-guiding .passenger-bottom{left:12px;right:12px;bottom:0;padding:12px 14px;border-radius:20px;background:#fffffff2;box-shadow:0 9px 26px #1934524a}
 body.passenger-guiding .passenger-stats{gap:9px;justify-content:space-between}
 body.passenger-guiding .passenger-stats b{font-size:clamp(23px,5.5vw,31px);white-space:nowrap}
 body.passenger-guiding .passenger-stats span{font-size:clamp(12px,3.3vw,16px);white-space:nowrap}
-.passenger-signal-alert{position:absolute;z-index:4;top:calc(14px + env(safe-area-inset-top,0px));left:12px;right:12px;border-radius:12px;background:#fff5e6eb;color:#784b0f;padding:10px 12px;text-align:center;font:700 12px system-ui,sans-serif}
-.passenger-signal-alert.hidden{display:none!important}
 
 /* Native-style Waze-adjacent next-turn header. All text and directions are
    provided by the selected route; no invented turns or road legality. */
@@ -176,9 +172,7 @@ body.passenger-guiding .passenger-stats span{font-size:clamp(12px,3.3vw,16px);wh
 .passenger-turn-list li .turn-list-arrow{font-size:25px;min-width:34px;text-align:center}
 .passenger-turn-list li strong{font-size:15px}
 .passenger-turn-list li small{display:block;color:#bad8e5;font-size:12px;padding-top:3px}
-#passenger-directions-note{font-size:11px;color:#c7d8e5}
 body.passenger-guiding .passenger-map-gestures{top:calc(115px + env(safe-area-inset-top,0px))}
-body.passenger-guiding .passenger-signal-alert{top:calc(121px + env(safe-area-inset-top,0px))}
 
 /* Fixed guidance header, with an independently scrollable reports/turns panel. */
 body.passenger-guiding .passenger-turn{position:fixed;top:0;left:0;right:0}

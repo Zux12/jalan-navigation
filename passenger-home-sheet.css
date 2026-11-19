@@ -120,7 +120,6 @@ body.passenger-mode.passenger-route-search .jalan-home-sheet .results:not(.hidde
 body.passenger-mode:not(.passenger-guiding) .passenger-journey-options{display:none}
 body.passenger-guiding #jalan-home-menu{z-index:1601;top:calc(125px + env(safe-area-inset-top,0px));left:14px;width:48px;height:48px;font-size:27px}
 body.passenger-guiding #jalan-home-menu-panel{z-index:1602;top:calc(181px + env(safe-area-inset-top,0px));max-height:calc(100dvh - 205px - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px))}
-body.passenger-guiding .passenger-signal-alert{left:74px}
 body.passenger-guiding:has(#passenger-turn-list:not(.hidden)) #jalan-home-menu,
 body.passenger-route-search #jalan-home-menu,
 body.passenger-route-search #jalan-home-menu-panel{display:none!important}
