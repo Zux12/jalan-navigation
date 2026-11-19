@@ -255,6 +255,9 @@ async function main(){
   await page.locator('#passenger-navigation-settings>summary').click();
   assert.equal(await page.locator('#passenger-nav-zoom').inputValue(),'80');
   assert.equal(await page.locator('#passenger-nav-tilt').inputValue(),'100');
+  // Rendering several frames on a slow GPU can age out the earlier GPS fix.
+  // Navigation zoom settings recenter only with a fresh measured location.
+  await page.evaluate(fix);
   await page.locator('#passenger-nav-zoom').evaluate(el=>{el.value='50';el.dispatchEvent(new Event('input',{bubbles:true}));});
   await page.locator('#passenger-nav-tilt').evaluate(el=>{el.value='50';el.dispatchEvent(new Event('input',{bubbles:true}));});
   assert.ok(Math.abs(await page.evaluate(()=>map.getZoom())-17)<.01);
