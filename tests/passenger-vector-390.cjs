@@ -212,8 +212,7 @@ async function main(){
   await page.evaluate(fix);
   await page.waitForFunction(()=>map.getZoom()>=17);
   assert.equal(await page.evaluate(()=>JalanVectorMap.getBearing()),45);
-  // Screen HUD is deliberately batched into requestAnimationFrame; assert the
-  // rendered frame, not the synchronous midpoint of a GPS event dispatch.
+  // A fresh GPS reading becomes visible on the next native map frame.
   await page.waitForFunction(()=>{
    const p=JalanVectorMap.project([3.139,101.6869]),b=document.getElementById('passenger-vehicle-screen').getBoundingClientRect();
    return Math.abs(b.x+b.width/2-p.x)<2&&Math.abs(b.y+b.height/2-p.y)<2;
@@ -229,6 +228,29 @@ async function main(){
    assert.ok(await page.locator('#passenger-journey-sheet').evaluate(el=>Math.abs(innerHeight-el.getBoundingClientRect().bottom)<1),'native journey banner reaches phone bottom');
   };
   await assertAnchor();
+  // Hold the GPS fix still and inspect the marker on the actual WebGL render
+  // event, while zoom, center, pitch and fractional bearing change together.
+  const frameErrors=await page.evaluate(async()=>{
+   const gl=window.__widthMap,center=gl.getCenter(),zoom=gl.getZoom();
+   const base={center,bearing:gl.getBearing(),pitch:gl.getPitch(),zoom};
+   const marker=document.querySelector('#passenger-vehicle-screen'),shape=marker.querySelector('svg');
+   const fix=[101.6869,3.139];
+   const nextFrame=camera=>new Promise(resolve=>{
+     gl.once('render',()=>resolve());gl.jumpTo(camera);
+   });
+   const errors=[];
+   for(const n of [1,2,3,4,3,2,1]){
+     await nextFrame({center:[center.lng+n*.00004,center.lat-n*.00003],zoom:zoom+n*.08,
+       bearing:45+n*1.35,pitch:60-n*.65});
+     const projected=gl.project(fix),box=marker.getBoundingClientRect(),canvas=gl.getContainer().getBoundingClientRect();
+     const turn=(45-gl.getBearing()+360)%360;
+     errors.push({pixels:Math.hypot(box.x+box.width/2-canvas.x-projected.x,box.y+box.height/2-canvas.y-projected.y),
+       degrees:Math.max(Math.abs(Number(shape.dataset.heading)-turn),Math.abs(Number(shape.dataset.pitch)-gl.getPitch()))});
+   }
+   await nextFrame(base);return errors;
+  });
+  assert.ok(frameErrors.every(f=>f.pixels<.25&&f.degrees<.01),'stationary triangle follows each rendered camera frame: '+JSON.stringify(frameErrors));
+  console.log('Stationary triangle max positional error (CSS pixels):',Math.max(...frameErrors.map(f=>f.pixels)).toFixed(3));
   await page.locator('#jalan-home-menu').click();
   await page.locator('#passenger-navigation-settings>summary').click();
   assert.equal(await page.locator('#passenger-nav-zoom').inputValue(),'80');
@@ -433,6 +455,18 @@ async function main(){
   await startup.evaluate(()=>window.dispatchEvent(new CustomEvent('jalan:free-location',{detail:{
     point:[3.1394,101.6873],accuracy:8,timestamp:Date.now()+1,heading:90,speed:5}})));
   await startup.waitForFunction(()=>document.querySelector('.jalan-vector-pin .passenger-startup-pin svg')?.dataset.heading==='90');
+  const pinSelector='.jalan-vector-pin .passenger-startup-pin svg';
+  await startup.evaluate(selector=>{
+    window.__startupShape=document.querySelector(selector);
+    JalanVectorMap.setCamera({bearing:22.4,pitch:14.4,zoom:16.35});
+  },pinSelector);
+  await startup.waitForFunction(selector=>{
+    const shape=document.querySelector(selector);
+    return shape&&Math.abs(Number(shape.dataset.heading)-67.6)<.01&&Math.abs(Number(shape.dataset.pitch)-14.4)<.01;
+  },pinSelector);
+  assert.ok(await startup.evaluate(selector=>document.querySelector(selector)===window.__startupShape,pinSelector),
+    'rotating and zooming before Go keeps the visible SVG attached');
+  await startup.evaluate(()=>JalanVectorMap.setCamera({bearing:0,pitch:0,zoom:16}));
   await startup.evaluate(()=>window.dispatchEvent(new CustomEvent('jalan:free-location',{detail:{point:[4,102],accuracy:180,timestamp:Date.now()}})));
   assert.equal(await startup.evaluate(()=>window.__freeMarker.getLatLng().lat),3.1394,'poor GPS cannot move the triangle');
   await startup.screenshot({path:path.join(artifacts,'gps-badge-startup-green.png')});

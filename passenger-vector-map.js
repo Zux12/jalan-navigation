@@ -50,10 +50,13 @@
  }
  function syncCamera(){
    if(!active||syncing)return;
+   const center=gl.getCenter(),zoom=gl.getZoom()+1,latlng=L.latLng(center.lat,center.lng);
+   // A pure bearing or pitch change already belongs to the native renderer.
+   if(map.getZoom()===zoom&&map.getCenter().equals(latlng,1e-12))return;
    syncing=true;
    // reset:true avoids Leaflet's setView -> this.panBy optimization calling
    // back into the native camera and applying the movement a second time.
-   try{const p=gl.getCenter();original.setView([p.lat,p.lng],gl.getZoom()+1,{animate:false,reset:true});}
+   try{original.setView(latlng,zoom,{animate:false,reset:true});}
    finally{syncing=false;}
  }
  function fallback(){
@@ -71,6 +74,8 @@
  }
  window.JalanVectorMap={
    get active(){return active;},
+   requestFrame(){if(active)gl.triggerRepaint();},
+   getMarkerElement(layer){return pins.get(L.stamp(layer))?.marker.getElement();},
    project(position){return active?gl.project(lngLat(position)):null;},
    getBearing(){return active?gl.getBearing():0;},
    getPitch(){return active?gl.getPitch():0;},
@@ -148,6 +153,7 @@
    map.getBounds=()=>{const b=gl.getBounds();return L.latLngBounds([b.getSouth(),b.getWest()],[b.getNorth(),b.getEast()]);};
    map.invalidateSize=options=>{original.invalidateSize(options);gl.resize();return map;};
    gl.on('move',syncCamera);
+   gl.on('render',()=>{if(active)window.dispatchEvent(new Event('jalan:vector-render'));});
    // Only physical gestures suspend GPS follow; programmatic camera changes do not.
    ['dragstart','zoomstart','rotatestart','pitchstart'].forEach(event=>gl.on(event,e=>{
      if(e.originalEvent)window.dispatchEvent(new Event('jalan:vector-gesture'));
@@ -212,7 +218,10 @@
        if(o.className)element.classList.add(...o.className.split(' ').filter(Boolean));
      }
      element.style.opacity=String(o.opacity??1);
-     const marker=new maplibregl.Marker({element,anchor:'center',offset}).setLngLat(lngLat(layer.getLatLng())).addTo(gl);
+     const vehiclePin=icon?.options.className==='passenger-startup-pin'||o.className==='jalan-vehicle-accuracy';
+     const marker=new maplibregl.Marker({element,anchor:'center',offset,subpixelPositioning:vehiclePin})
+       .setLngLat(lngLat(layer.getLatLng())).addTo(gl);
+     if(vehiclePin)gl.triggerRepaint();
      if(o.interactive!==false){
        element.setAttribute('role','button');
        element.setAttribute('aria-label',o.title||'Map location');
