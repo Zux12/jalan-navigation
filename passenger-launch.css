@@ -1,7 +1,13 @@
 @font-face{font-family:"JALAN Script";src:url("fonts/DancingScript.ttf") format("truetype");font-style:normal;font-weight:400 700;font-display:swap}
 #jalan-launch{display:none}
 html.passenger-launching body{overflow:hidden}
-html.passenger-launching body>*:not(#jalan-launch){visibility:hidden!important}
+html.passenger-launching body>*:not(#jalan-launch):not(#jalan-home-credits){visibility:hidden!important}
+#jalan-home-credits{display:none;position:fixed;left:50%;transform:translateX(-50%);margin:0;
+ max-width:calc(100% - 12px);padding:1px 5px;border-radius:3px;text-align:center;
+ background:#fffffff5;color:#33465a;font:12px/1.4 system-ui}
+#jalan-home-credits a{color:inherit;text-decoration:underline}
+body:not(.passenger-vector-active) #jalan-home-credits .jalan-tiles-credit{display:none}
+html.passenger-launching #jalan-home-credits{display:block;z-index:100001;bottom:calc(49px + env(safe-area-inset-bottom,0px))}
 html.passenger-launching #jalan-launch,#jalan-launch.jalan-launch-finished{
  display:flex;position:fixed;inset:0;z-index:100000;min-height:100vh;min-height:100dvh;
  box-sizing:border-box;flex-direction:column;align-items:center;justify-content:center;

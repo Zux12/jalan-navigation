@@ -57,7 +57,16 @@ async function main(){
   await late.clock.runFor(4100);
   const hint=()=>late.locator('#jalan-home-menu').evaluate(el=>getComputedStyle(el,'::after').content);
   assert.equal(await hint(),'"ⓘ"','the existing menu briefly points to map information');
-  await late.clock.runFor(850);
+  const stage=()=>late.locator('#jalan-home-sheet').getAttribute('data-state');
+  assert.equal(await stage(),'a','the card is collapsed at reveal');
+  await late.clock.runFor(200);
+  const untilLift=await late.evaluate(async()=>Math.ceil((await JalanLaunch.mainScreenReady)+500-performance.now()));
+  assert.ok(untilLift>1 && untilLift<=500);
+  await late.clock.runFor(untilLift-1);
+  assert.equal(await stage(),'a','the card still rests at A after 499 ms on the main screen');
+  await late.clock.runFor(1);
+  assert.equal(await stage(),'b','idle startup lifts the card to B at 500 ms');
+  await late.clock.runFor(250);
   assert.equal(await hint(),'"ⓘ"','hint remains for the first second');
   await late.clock.runFor(150);
   assert.equal(await hint(),'none','the icon expires after one second');
@@ -93,7 +102,14 @@ async function main(){
   assert.equal(await page.locator('#jalan-launch').isVisible(),true,'ready map still leaves time to read the tagline');
   await page.waitForTimeout(2000);
   assert.equal(await page.locator('#jalan-launch').isVisible(),true,'launch branding remains during the four-second reading interval');
+  await page.evaluate(()=>{
+    // Exercise input inside the startup window before Playwright waits for layout stability.
+    window.JalanLaunch.mainScreenReady.then(()=>document.querySelector('#map').dispatchEvent(
+      new PointerEvent('pointerdown',{bubbles:true,pointerType:'touch',isPrimary:true})));
+  });
   await page.locator('#jalan-launch').waitFor({state:'hidden'});
+  await page.waitForTimeout(550);
+  assert.equal(await page.locator('#jalan-home-sheet').getAttribute('data-state'),'a','an early map touch cancels the opening lift');
   assert.equal(await page.locator('#map').evaluate(x=>getComputedStyle(x).visibility),'visible','reveal only after native renderer ready');
   assert.equal(await page.locator('#map').evaluate(x=>getComputedStyle(x).transform),'none');
   await require('./passenger-pin-390.cjs')(page);
@@ -587,6 +603,19 @@ async function main(){
   await live.goto(base+'/index.html?mode=passenger');
   await live.locator('#jalan-launch').waitFor({state:'hidden'});
   await live.waitForFunction(()=>JalanVectorMap?.active,null,{timeout:25000});
+  const homeCredit=live.locator('#jalan-home-credits');
+  await live.waitForFunction(()=>document.querySelector('#jalan-home-sheet').dataset.state==='b');
+  assert.equal(await homeCredit.isVisible(),false,'B covers the detailed-map home credit');
+  await live.locator('#jalan-sheet-handle').press('ArrowDown');
+  await live.waitForFunction(()=>{
+    const credit=document.querySelector('#jalan-home-credits').getBoundingClientRect();
+    const sheet=document.querySelector('#jalan-home-sheet').getBoundingClientRect();
+    return credit.height>0 && sheet.top-credit.bottom>=1 && sheet.top-credit.bottom<=5;
+  });
+  assert.equal(await homeCredit.locator('a[href*="openmaptiles.org"]').isVisible(),true);
+  assert.equal(await homeCredit.locator('a[href*="openstreetmap.org/copyright"]').isVisible(),true);
+  await live.waitForTimeout(550);
+  assert.equal(await live.locator('#jalan-home-sheet').getAttribute('data-state'),'a');
   const mapCredits=live.locator('#map .maplibregl-ctrl-attrib, #map .leaflet-control-attribution');
   const sourceLink=live.locator('#jalan-map-sources .maplibregl-ctrl-attrib a[href*="openstreetmap.org/copyright"]');
   assert.equal(await mapCredits.count(),0,'no credit strip over the initial map');
