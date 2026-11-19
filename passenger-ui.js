@@ -27,7 +27,7 @@
  const syncViewMode=()=>{
    const flat=viewSettings.tilt===0;document.body.classList.toggle('passenger-map-flat',flat);
    el('passenger-2d').setAttribute('aria-pressed',String(flat));
-   el('passenger-2d').textContent=flat?(window.JalanVectorMap?.active?'3D map':'2.5D preview'):'2D map';
+   el('passenger-2d').textContent=flat?('2.5D preview'):'2D map';
  };
  const navigationCenter=(position,zoom)=>{
    if(window.JalanVectorMap?.active)return position;
@@ -886,7 +886,7 @@
    applyCameraAngle(focusedReport||document.body.classList.contains('passenger-map-flat')?
      0:lastValidHeading===null?0:-lastValidHeading);
    el('passenger-2d').textContent=document.body.classList.contains('passenger-map-flat')?
-     (window.JalanVectorMap?.active?'3D map':'2.5D preview'):'2D map';
+     ('2.5D preview'):'2D map';
  });
  // The raster gesture surface suppresses synthetic clicks. Recognise a tap
  // here and pass a drag or pinch through to the existing map gesture handling.
