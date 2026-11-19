@@ -135,7 +135,7 @@
    contacts.delete(e.pointerId);
    if(hold?.id===e.pointerId){
      if(hold.opened)ignoreClickUntil=performance.now()+600;
-     else if(picked&&!hold.moved&&e.type==='pointerup')close();
+     else if(picked&&!hold.moved&&e.type==='pointerup'){ignoreClickUntil=performance.now()+600;close();}
      endHold();
    }
    if(!contacts.size)restartIdle();
@@ -146,6 +146,8 @@
  window.addEventListener('keydown',e=>{if(e.key==='Escape')close();else restartIdle();});
  window.addEventListener('blur',()=>{endHold();contacts.clear();restartIdle();});
  function abort(){if(request){request.abort();request=null;}document.body.classList.remove('passenger-pin-routing');}
+ for(const [id,event] of [['tt-primary','change'],['tt-key','input'],['tt-remove-key','click']])
+   $(id)?.addEventListener(event,abort);
  const reliable=s=>s?.gpsReliable&&s.gpsFixAgeMs<=10000?s.gpsPosition:null;
  function place(point){return {lat:point[0],lon:point[1],name:'Pinned location',display_name:'Pinned location · '+point.map(x=>x.toFixed(5)).join(', ')};}
  async function startChange(asStop){
