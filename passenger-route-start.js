@@ -9,7 +9,7 @@
  const selected=()=>typeof routes!=='undefined'?routes[selectedRoute]:null;
  function eligible(){
   const route=selected();
-  return !suspended&&!document.hidden&&!attempted&&!pointers.size&&!keys.size&&!touches&&
+  return !document.body.classList.contains('passenger-pin-open')&&!document.body.classList.contains('passenger-pin-routing')&&!suspended&&!document.hidden&&!attempted&&!pointers.size&&!keys.size&&!touches&&
    !go.disabled&&route&&Number.isFinite(route.duration)&&route.geometry?.coordinates?.length>=2&&
    visible('passenger-overview')&&panel.dataset.collapsed!=='true'&&
    !panel.classList.contains('passenger-route-dragging')&&

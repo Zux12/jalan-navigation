@@ -73,6 +73,7 @@ async function main(){
   assert.equal(await page.locator('#info-panel').isVisible(),false);
   assert.equal(await page.locator('#search-form').isVisible(),true);
   assert.equal(await page.locator('#passenger-overview').isVisible(),false);
+  await require('./passenger-pin-390.cjs')(page,{routing:true});
   const sheetState=()=>page.locator('#jalan-home-sheet').getAttribute('data-state');
   assert.equal(await sheetState(),'a','Passenger preview opens with collapsed search sheet');
   assert.equal(await page.locator('#jalan-home-menu').isVisible(),true);

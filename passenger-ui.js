@@ -54,6 +54,18 @@
    else travelled.setLatLngs(passed);
  };
  window.addEventListener('jalan:gps-fix',()=>requestAnimationFrame(paintTravelled));
+ const previousTrail=L.layerGroup().addTo(map);
+ window.addEventListener('jalan:archive-trail',event=>{
+   const {reason,previous}=event.detail;
+   if(reason==='arrived'&&previous?.pinnedStop&&travelled&&travelRoute===previous){
+     const path=window.JalanRouteDisplay.shape(previous),end=path.lengths[previous.pinnedStop.index];
+     if(Math.abs(end-path.total*travelFraction)<150)
+       travelled.setLatLngs(window.JalanRouteDisplay.section(path,0,end).map(([lon,lat])=>L.latLng(lat,lon)));
+   }
+   if(travelled){previousTrail.addLayer(travelled);travelled=null;}
+ });
+ for(const name of ['jalan:journey-start','jalan:journey-stop','jalan:route-cleared'])
+   window.addEventListener(name,()=>previousTrail.clearLayers());
  window.addEventListener('jalan:journey-start',clearTravelled);
  window.addEventListener('jalan:journey-stop',clearTravelled);
  window.addEventListener('jalan:route-cleared',clearTravelled);
@@ -105,7 +117,7 @@
  };
  const freeActive=()=>!destination&&!routes.length&&!document.body.classList.contains('passenger-guiding');
  const centerFree=()=>{
-   if(freeActive()&&freeLast&&Date.now()-freeLast.timestamp<=15000&&!document.hidden){
+   if(!document.body.classList.contains('passenger-pin-open')&&freeActive()&&freeLast&&Date.now()-freeLast.timestamp<=15000&&!document.hidden){
      freeExploring=false;map.panTo(freeLast.point,{animate:false});
    }
  };
@@ -906,10 +918,12 @@
    return true;
  };
  const queueAutoReturn=()=>{
-   if(returnTimer||!exploring||focusedReport||mapContacts.size||gesture||document.hidden||
+   if(document.body.classList.contains('passenger-pin-open')||returnTimer||!exploring||focusedReport||mapContacts.size||gesture||document.hidden||
       !document.body.classList.contains('passenger-guiding'))return;
    returnTimer=setTimeout(()=>{returnTimer=null;returnPending=true;recenterPassenger();},3000);
  };
+ window.addEventListener('jalan:pin-open',()=>{exploreFree();startExplore(false);});
+ window.addEventListener('jalan:pin-close',()=>{releaseFree();queueAutoReturn();});
  window.addEventListener('jalan:vector-gesture',()=>{startExplore(false);});
  window.addEventListener('jalan:vector-gesture-end',queueAutoReturn);
  map.getContainer().addEventListener('pointerdown',event=>{

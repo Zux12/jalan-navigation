@@ -1,0 +1,14 @@
+body.passenger-mode #map, #passenger-map-gestures { -webkit-touch-callout:none; }
+.jalan-map-pin { background:transparent; border:0; pointer-events:none; }
+.jalan-map-pin svg { width:100%; height:100%; display:block; filter:drop-shadow(0 2px 2px #25143755); }
+#jalan-pin-card { position:fixed; z-index:1810; box-sizing:border-box; width:min(260px,calc(100vw - 20px)); padding:14px 14px 11px; border:1px solid #ddd7e7; border-radius:15px; background:white; color:#202d3b; box-shadow:0 5px 22px #16233733; font:500 14px/1.3 system-ui,sans-serif; overflow:hidden; }
+#jalan-pin-card[hidden], #jalan-pin-toast[hidden] { display:none; }
+#jalan-pin-card strong { display:block; font-size:16px; }
+#jalan-pin-card small { display:block; color:#556373; margin:3px 0 10px; }
+.jalan-pin-actions { display:flex; gap:7px; }
+#jalan-pin-card button { flex:1; min-height:42px; padding:5px; border:0; border-radius:9px; background:#eee8fa; color:#512892; font:650 14px/1.2 system-ui,sans-serif; cursor:pointer; }
+#jalan-pin-card button:first-child { background:#6941ab; color:white; }
+#jalan-pin-time { margin:5px 1px 0; text-align:right; font-size:11px; color:#61596d; font-variant-numeric:tabular-nums; }
+#jalan-pin-bar { position:absolute; bottom:0; left:0; width:100%; height:3px; transform-origin:left; background:#8551d4; }
+#jalan-pin-card input { width:100%; box-sizing:border-box; font-size:16px; }
+#jalan-pin-toast { position:fixed; z-index:1820; left:50%; top:42%; transform:translateX(-50%); width:max-content; max-width:86vw; padding:11px 16px; border-radius:12px; background:#202c3e; color:white; pointer-events:none; font:600 14px system-ui,sans-serif; }

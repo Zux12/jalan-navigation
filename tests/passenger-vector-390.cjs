@@ -83,6 +83,7 @@ async function main(){
   await page.locator('#jalan-launch').waitFor({state:'hidden'});
   assert.equal(await page.locator('#map').evaluate(x=>getComputedStyle(x).visibility),'visible','reveal only after native renderer ready');
   assert.equal(await page.locator('#map').evaluate(x=>getComputedStyle(x).transform),'none');
+  await require('./passenger-pin-390.cjs')(page);
   await page.evaluate(()=>{window.__mapClicks=0;map.on('click',()=>{window.__mapClicks++;});});
   await page.locator('#jalan-vector-map canvas').click({position:{x:60,y:340}});
   assert.equal(await page.evaluate(()=>window.__mapClicks),1,'one native map click cannot also trigger a flat Leaflet click');
