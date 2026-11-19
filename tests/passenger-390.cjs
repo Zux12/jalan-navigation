@@ -147,7 +147,7 @@ async function main(){
   await page.keyboard.press('Escape');
   await about.waitFor({state:'hidden'});
   assert.equal(await page.locator('#jalan-home-menu').getAttribute('aria-expanded'),'false');
-  assert.equal(await page.evaluate(()=>document.activeElement.id),'jalan-home-menu');
+  await page.waitForFunction(()=>document.activeElement.id==='jalan-home-menu');
   // The search banner must support progressive A→B (not jump to C) on
   // an actual pointer swipe, while B exposes the session-only Recent area.
   const swipeSearch=async dy=>{

@@ -79,6 +79,8 @@
   window.JalanLanguage.write(el('passenger-app-version'),'Version '+version,'Versi '+version);
   setPolicyLanguage();
   window.JalanPassengerMenu.close();
+  // The About menu item is now hidden. Give the native dialog a visible return target.
+  el('jalan-home-menu').focus({preventScroll:true});
   about.showModal();
   modalState();
   about.scrollTop=0;
@@ -114,6 +116,9 @@
  },{passive:true});
  about.addEventListener('touchcancel',()=>{swipe=null;});
  sound.addEventListener('close',()=>{modalState();el('passenger-voice').focus({preventScroll:true});});
- about.addEventListener('close',()=>{swipe=null;backdropPress=false;modalState();el('jalan-home-menu').focus({preventScroll:true});});
+ about.addEventListener('close',()=>{
+  if(about.open)return;
+  swipe=null;backdropPress=false;modalState();
+ });
  paintVoices();
 })();
