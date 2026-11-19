@@ -153,6 +153,37 @@ module.exports=async function({context,base,root}){
   assert.equal(await page.locator('#passenger-overview').isVisible(),true);
  }
  assert.equal(routeCalls,4);assert.equal((await saved()).length,3);
+ await boot();
+ const beforeRemoval=await saved();
+ async function removePlace(shortcut,accept){
+  const fixed=shortcut==='Home'||shortcut==='Work';
+  const action=editor.getByRole('button',{name:fixed?'Remove address':'Remove saved place',exact:true});
+  if(!await action.isVisible())await page.getByRole('button',{name:'Edit '+shortcut,exact:true}).click();
+  const confirmDialog=page.waitForEvent('dialog').then(async dialog=>{
+   const prompt=dialog.message();
+   if(accept)await dialog.accept();else await dialog.dismiss();
+   assert.ok(prompt.includes(shortcut));
+  });
+  await Promise.all([confirmDialog,action.click()]);
+ }
+ await removePlace('Home',false);
+ assert.deepEqual(await saved(),beforeRemoval);
+ await removePlace('Home',true);
+ await boot();
+ assert.deepEqual(await saved(),beforeRemoval.filter(p=>p.id!=='home'));
+ await quick('home').click();
+ assert.equal(await editor.locator('h2').innerText(),'Set Home');
+ assert.equal(await editor.locator('[data-action=remove]').isVisible(),false);
+ await editor.getByRole('button',{name:'Cancel'}).click();
+ await removePlace('Work',true);
+ assert.deepEqual(await saved(),beforeRemoval.filter(p=>p.name==='Family'));
+ await removePlace('Family',true);
+ await boot();
+ assert.deepEqual(await saved(),[]);
+ assert.equal(await page.locator('.jalan-saved-places').isVisible(),false);
+ assert.equal(await quick('work').isVisible(),true);
+ assert.equal(routeCalls,4,'removing a saved address does not request a route');
+ console.log('PASS remove saved phone shortcuts, cancel removal, and verify retained places after reload');
  console.log('PASS saved Home/Work/custom places, cancellation, Google ID resolution, reload and route choices');
  assert.deepEqual(errors,[]);await page.close();
  console.log('PASS synthetic Google UI Kit fallback: multiple branches and both providers, narrowed and zero-match queries, original single input, lazy SDK, attribution host intact, exact point to TomTom routes, keyboard, stale/clear/collapse, empty/error and submit');
