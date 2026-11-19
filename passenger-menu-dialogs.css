@@ -37,6 +37,11 @@
 .jalan-about-description { margin:20px 0 14px; color:#374b61; }
 .jalan-about-developer { margin:0; }
 .jalan-about-origin { display:flex; align-items:center; gap:8px; margin:8px 0 5px; font-size:.9375rem; }
+.jalan-about-licences{margin:16px 0 8px;padding:10px 0 0;border-top:1px solid #d6e1ec}
+.jalan-about-licences h3{font:700 .9rem/1.4 system-ui;margin:0 0 6px}
+.jalan-about-licences p{font-size:.85rem;line-height:1.7;margin:0}
+.jalan-about-licences a{color:#075fb4;text-underline-offset:.2em;display:inline-block;min-height:32px}
+.jalan-about-licences a:focus-visible{outline:3px solid #2478c3;outline-offset:2px}
 #passenger-policy { display:inline-flex; min-height:44px; align-items:center; color:#075fb4; text-underline-offset:.2em; }
 #passenger-about-ok { display:block; margin:6px 0 0; min-height:50px; }
 #passenger-policy:focus-visible { outline:3px solid #2478c3; outline-offset:2px; }
