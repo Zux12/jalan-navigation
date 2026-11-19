@@ -46,6 +46,7 @@
    cache.set(route,{input,path});return path;
  }
  function spans(path,from=0,to=path.total){
+   if(!path.widths&&from===0&&to===path.total&&path.points.length>1)return [{width:0,coordinates:path.points}];
    const parts=[];
    for(let i=1;i<path.points.length;i++){
      const a=path.offsets[i-1],b=path.offsets[i];
@@ -63,13 +64,20 @@
  // road widths are ambiguous. Distances are in metres, widths in style pixels.
  function roadWidth(a,b,features){
    const mid=mix(a,b,.5),dir=delta(a,b),length=Math.hypot(...dir);
+   // Only a surface within 18 m can match, and a competing width within
+   // another 2 m can make it ambiguous. Discard distant edges cheaply.
+   const latPad=21/111320,lonPad=latPad/Math.max(.000001,Math.cos(mid[1]*Math.PI/180));
+   const west=mid[0]-lonPad,east=mid[0]+lonPad,south=mid[1]-latPad,north=mid[1]+latPad;
    let best=Infinity,second=Infinity,width=0;
    for(const f of features){
      const w=f.layer?.paint?.['line-width'];
      if(!(Number.isFinite(w)&&w>0))continue;
      const lines=f.geometry.type==='LineString'?[f.geometry.coordinates]:f.geometry.type==='MultiLineString'?f.geometry.coordinates:[];
      for(const line of lines)for(let i=1;i<line.length;i++){
-       const p=delta(mid,line[i-1]),q=delta(line[i-1],line[i]),n=Math.hypot(...q);
+       const start=line[i-1],end=line[i];
+       if((start[0]<west&&end[0]<west)||(start[0]>east&&end[0]>east)||
+          (start[1]<south&&end[1]<south)||(start[1]>north&&end[1]>north))continue;
+       const p=delta(mid,start),q=delta(start,end),n=Math.hypot(...q);
        if(!n||!length||Math.abs(dir[0]*q[0]+dir[1]*q[1])<.92*length*n)continue;
        const t=Math.max(0,Math.min(1,-(p[0]*q[0]+p[1]*q[1])/(n*n)));
        const d=Math.hypot(p[0]+t*q[0],p[1]+t*q[1]);

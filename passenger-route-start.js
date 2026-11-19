@@ -24,16 +24,18 @@
  }
  function restart(){
   cancel();if(!eligible())return;
-  const route=selected(),started=performance.now();
+  const route=selected(),deadline=performance.now()+7000;
   animation=fill.animate([{transform:'scaleX(1)'},{transform:'scaleX(0)'}],
    {duration:7000,easing:'linear',fill:'forwards'});
-  timer=setTimeout(()=>{
+  function startWhenDue(){
    timer=null;
    if(!eligible()||selected()!==route){cancel();return;}
-   if(performance.now()-started<6999){restart();return;}
+   const remaining=deadline-performance.now();
+   if(remaining>0){timer=setTimeout(startWhenDue,Math.ceil(remaining));return;}
    // Use the same Go handler as a tap, exactly once even if GPS cannot start.
    go.click();
-  },7000);
+  }
+  timer=setTimeout(startWhenDue,7000);
  }
  go.addEventListener('click',()=>{attempted=true;cancel();},true);
  el('passenger-route-cancel').addEventListener('click',()=>{
