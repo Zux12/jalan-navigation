@@ -11,7 +11,7 @@
    const input=route.geometry.coordinates;
    const saved=cache.get(route);
    if(saved?.input===input)return saved.path;
-   const protectedPoints=new Set(),protectedIndices=new Set();
+   const protectedPoints=new Set(),protectedIndices=new Set([route.pinnedStop?.index]);
    for(const leg of route.legs||[])for(const step of leg.steps||[]){
      protectedIndices.add(step.pointIndex);
      const at=step.location||step.maneuver?.location;
@@ -42,7 +42,7 @@
      }
    }
    add(input.at(-1),lengths.at(-1));
-   const path={points,offsets,total:lengths.at(-1)};
+   const path={points,offsets,lengths,total:lengths.at(-1)};
    cache.set(route,{input,path});return path;
  }
  function section(path,from=0,to=path.total){

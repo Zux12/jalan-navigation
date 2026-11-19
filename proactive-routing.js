@@ -53,6 +53,11 @@
   const current=()=>id===requestEpoch&&!requestController.signal.aborted&&!document.hidden&&
     (force||enabled)&&el('tt-primary')?.checked&&el('tt-key')?.value.trim()===apiKey&&sameDestination(target);
   try{
+   const available=state.route.pinnedStop
+     ?await window.JalanTomTom.requestRoutes(sourcePosition,target,{signal:requestController.signal,via:state.route.pinnedStop.point})
+     :await directCandidates();
+   if(!current()||!available)return;
+   async function directCandidates(){
    const points=[sourcePosition,target].map(p=>p.map(n=>n.toFixed(6)).join(',')).join(':');
    const url=new URL('https://api.tomtom.com/routing/1/calculateRoute/'+points+'/json');
    Object.entries({key:apiKey,traffic:'true',departAt:'now',travelMode:'car',routeType:'fastest',maxAlternatives:'2',instructionsType:'text',language:'en-GB'}).forEach(([k,v])=>url.searchParams.set(k,v));
@@ -63,7 +68,8 @@
    if(!current())return;
    if(!Array.isArray(data.routes)||!data.routes.length)throw Error('No routes found');
    // Never offer a faster route from malformed summary/geometry metadata.
-   const available=data.routes.map(routeFromTomTom);
+   return data.routes.map(routeFromTomTom);
+   }
    const best=available.reduce((a,b)=>a.duration<=b.duration?a:b);
    const now=window.JalanGPS?.getState?.();
    if(!now?.active||now.route!==state.route||!trustedGPS(now)||!closeEnough(sourcePosition,now.position)){

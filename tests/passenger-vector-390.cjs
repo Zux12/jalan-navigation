@@ -83,6 +83,7 @@ async function main(){
   await page.locator('#jalan-launch').waitFor({state:'hidden'});
   assert.equal(await page.locator('#map').evaluate(x=>getComputedStyle(x).visibility),'visible','reveal only after native renderer ready');
   assert.equal(await page.locator('#map').evaluate(x=>getComputedStyle(x).transform),'none');
+  await require('./passenger-pin-390.cjs')(page);
   await page.evaluate(()=>{window.__mapClicks=0;map.on('click',()=>{window.__mapClicks++;});});
   await page.locator('#jalan-vector-map canvas').click({position:{x:60,y:340}});
   assert.equal(await page.evaluate(()=>window.__mapClicks),1,'one native map click cannot also trigger a flat Leaflet click');
@@ -281,21 +282,21 @@ async function main(){
     coords:{latitude:3.139,longitude:101.6869,accuracy:8,speed:0,heading:45}}),1000);});
   const initialCenter=await page.evaluate(()=>[map.getCenter().lat,map.getCenter().lng]);
   await page.mouse.move(150,380);await page.mouse.down();
-  await page.mouse.move(240,430,{steps:12});await page.mouse.up();
-  await page.waitForTimeout(250);
-  assert.match(await page.locator('#passenger-gesture-hint').textContent(),/Exploring map/);
-  await page.evaluate(()=>clearInterval(window.__panFixes));
-  // MapLibre drag inertia legitimately continues after pointer-up. Allow it
-  // to settle before asserting that a subsequent GPS fix leaves explore intact.
-  await page.waitForTimeout(900);
-  const draggedCenter=await page.evaluate(()=>[map.getCenter().lat,map.getCenter().lng]);
-  assert.ok(Math.hypot(draggedCenter[0]-initialCenter[0],draggedCenter[1]-initialCenter[1])>0.00001,
-    'native mouse drag must move the actual map center');
-  await page.evaluate(fix);
-  await page.waitForTimeout(100);
-  const afterGPS=await page.evaluate(()=>[map.getCenter().lat,map.getCenter().lng]);
-  assert.ok(Math.hypot(afterGPS[0]-draggedCenter[0],afterGPS[1]-draggedCenter[1])<0.00001,
-    'GPS updates must not seize the camera during manual exploration');
+  try{
+    await page.mouse.move(240,430,{steps:12});
+    // Measure the drag while the finger is held. GPU load may otherwise
+    // let the normal three-second return expire before the runner reads it.
+    await page.waitForFunction(([lat,lon])=>Math.hypot(map.getCenter().lat-lat,map.getCenter().lng-lon)>.00001,initialCenter);
+    assert.match(await page.locator('#passenger-gesture-hint').textContent(),/Exploring map/);
+    const draggedCenter=await page.evaluate(()=>[map.getCenter().lat,map.getCenter().lng]);
+    await page.evaluate(fix);
+    const afterGPS=await page.evaluate(()=>[map.getCenter().lat,map.getCenter().lng]);
+    assert.ok(Math.hypot(afterGPS[0]-draggedCenter[0],afterGPS[1]-draggedCenter[1])<0.00001,
+      'GPS updates must not seize the camera during manual exploration');
+  }finally{
+    await page.mouse.up();
+    await page.evaluate(()=>clearInterval(window.__panFixes));
+  }
   const zoomBeforeWheel=await page.evaluate(()=>JalanVectorMap.getState().zoom);
   await page.mouse.move(210,350);await page.mouse.wheel(0,-420);
   await page.waitForTimeout(650);

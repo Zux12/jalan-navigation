@@ -60,18 +60,18 @@ const fmtDist=m=>m>=1000?(m/1000).toFixed(1)+' km':Math.round(m)+' m';
 const fmtTime=s=>{const min=Math.max(1,Math.round(s/60));return min>=60?`${Math.floor(min/60)} hr ${min%60} min`:`${min} min`};
 // Fetch replacements without discarding the route/GPS session. The caller
 // decides whether a response still belongs to the current journey.
-async function requestDrivingRoutes(from,to,{signal}={}){
+async function requestDrivingRoutes(from,to,{signal,via}={}){
  if($('tt-primary').checked){
   if(!window.JalanTomTom?.enabled())throw Error('TomTom key unavailable');
-  return window.JalanTomTom.requestRoutes(from,to,{signal});
+  return window.JalanTomTom.requestRoutes(from,to,{signal,via});
  }
- const [a,b]=[from,to].map(p=>`${p[1]},${p[0]}`);
- const url=`https://router.project-osrm.org/route/v1/driving/${a};${b}?overview=full&geometries=geojson&steps=true&alternatives=true`;
+ const path=(via?[from,via,to]:[from,to]).map(p=>`${p[1]},${p[0]}`).join(';');
+ const url=`https://router.project-osrm.org/route/v1/driving/${path}?overview=full&geometries=geojson&steps=true&alternatives=${!via}`;
  const response=await fetch(url,{signal,cache:'no-store'});
  if(!response.ok)throw Error('Routing service unavailable');
  const data=await response.json();
  if(data.code!=='Ok'||!data.routes?.length)throw Error('No driving route found between these points');
- return data.routes;
+ return via?data.routes.map(r=>window.JalanPinnedRoute.osrm(r,via,data.waypoints?.[1]?.location)):data.routes;
 }
 async function calculateRoutes(){
  if(!destination||!startPoint)return;
@@ -148,13 +148,7 @@ let lastSearchAt=0,destinationSelectionEpoch=0,destinationSearchEpoch=0;
 $('destination').addEventListener('input',()=>destinationSearchEpoch++);
 window.addEventListener('jalan:destination-search-cancel',()=>destinationSearchEpoch++);
 // Both search results and Recent use the exact selected coordinates.
-async function selectDestinationPlace(place){
- const point=[Number(place.lat),Number(place.lon)];
- if(!validCoordinates(point))return;
- destinationSearchEpoch++;
- if(window.JalanPlaceShortcuts?.pick(place))return;
- const id=++destinationSelectionEpoch;
- clearRoute(false);
+function setDestinationPlace(place,point){
  destination=point;
  destinationName=String(place.name||place.display_name||'Selected destination').split(',')[0].trim();
  const label=String(place.display_name||destinationName);
@@ -164,6 +158,15 @@ async function selectDestinationPlace(place){
  destinationMarker=L.marker(destination).addTo(pointLayer).bindPopup(popup);
  resultsEl.classList.add('hidden');
  window.dispatchEvent(new CustomEvent('jalan:destination-selected',{detail:{point:[...point],name:destinationName,label,googleId:place.googleId,source:place.source}}));
+}
+async function selectDestinationPlace(place){
+ const point=[Number(place.lat),Number(place.lon)];
+ if(!validCoordinates(point))return;
+ destinationSearchEpoch++;
+ if(window.JalanPlaceShortcuts?.pick(place))return;
+ const id=++destinationSelectionEpoch;
+ clearRoute(false);
+ setDestinationPlace(place,point);
  const current=()=>id===destinationSelectionEpoch&&destination===point;
  if($('start-choice').value==='map'){
   if(!startPoint){chooseStart=true;statusEl.textContent='Tap the map to choose your starting point.';map.setView(destination,12);return;}

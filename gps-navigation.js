@@ -240,14 +240,15 @@
   warn('Recalculating from your current location…');
   rerouteStatus('checking','Recalculating route from your current location…');
   try{
-   const candidates=await requestDrivingRoutes(from,target,{signal:controller.signal});
+   const candidates=await requestDrivingRoutes(from,target,{signal:controller.signal,via:oldRoute?.pinnedStop?.point});
    if(!currentRequest()||controller.signal.aborted)return;
    if(!freshRerouteFix()||meters(from,rerouteFix.position)>150){
     movedBeyondOrigin=!!freshRerouteFix();
     rerouteStatus('waiting','Location changed during the request. Waiting for the next route check.');return;
    }
-   const available=Array.isArray(candidates)?candidates.filter(r=>usableRoute(r,from,target)):[];
+   const available=Array.isArray(candidates)?candidates.filter(r=>usableRoute(r,from,oldRoute?.pinnedDestinationAccess||target)):[];
    if(!available.length)throw Error('No usable replacement route');
+   if(oldRoute?.pinnedDestinationAccess)for(const r of available)r.pinnedDestinationAccess=oldRoute.pinnedDestinationAccess;
    available.sort((a,b)=>a.duration-b.duration);
    // Commit only a usable, current response. Failure never clears the old
    // route, destination or GPS watcher, and late responses cannot restart it.
@@ -273,11 +274,12 @@
    }
   }
  }
- function replaceGuidanceRoute(available,from){
+ function replaceGuidanceRoute(available,from,reason){
   const previousRoutes=routes,previousSelection=selectedRoute;
   routes=available;selectedRoute=0;
   if(!build()){routes=previousRoutes;selectedRoute=previousSelection;build();return false;}
-  startPoint=from;predictor=window.JalanPredictiveGPS.create(route.geometry.coordinates);
+  if(previousRoutes[previousSelection]?.pinnedStop||route.pinnedStop)window.dispatchEvent(new CustomEvent('jalan:archive-trail',{detail:{reason,previous:previousRoutes[previousSelection]}}));
+  destinationAnnounced=false;startPoint=from;predictor=window.JalanPredictiveGPS.create(route.geometry.coordinates);
   progress=0;offCount=0;latestMatched=false;latestMode='waiting';lastReportedAccuracy=Infinity;
   // A response describes the request-time position. Preserve the latest live
   // marker and camera, including movement since the request was dispatched.
@@ -309,7 +311,17 @@
    items.push({action:'Arrive at destination',distanceMeters:Math.max(0,total-progress),arrival:true});
    return items;
   },
+  applyPinnedRoute(candidate,from,reason){
+   const last=candidate?.geometry?.coordinates?.at(-1);
+   const cachedOnward=reason==='passed-offline'&&route?.pinnedStop?.onward===candidate;
+   const origin=cachedOnward?route.pinnedStop.access:from;
+   if(!active||!freshRerouteFix()||!last||meters(from,rerouteFix.position)>150||
+      !usableRoute(candidate,origin,[last[1],last[0]]))return false;
+   cancelReroute();
+   return replaceGuidanceRoute([candidate],from,reason);
+  },
   applyTrafficRoute(newRoute){
+   if(route?.pinnedStop&&!samePoint(route.pinnedStop.point,newRoute?.pinnedStop?.point))return false;
    if(!active||!freshRerouteFix()||!usableRoute(newRoute,rerouteFix.position,destination))return false;
    cancelReroute();
    const [lng,lat]=newRoute.geometry.coordinates[0];

@@ -77,6 +77,7 @@
    requestFrame(){if(active)gl.triggerRepaint();},
    getMarkerElement(layer){return pins.get(L.stamp(layer))?.marker.getElement();},
    project(position){return active?gl.project(lngLat(position)):null;},
+   unproject(x,y){const p=active&&gl.unproject([x,y]);return p?[p.lat,p.lng]:null;},
    getBearing(){return active?gl.getBearing():0;},
    getPitch(){return active?gl.getPitch():0;},
    setCamera(options){if(active)gl.jumpTo(options);},
@@ -247,13 +248,13 @@
    }else if(pin.label){pin.label.remove();pin.label=null;}
  }
  function syncLayers(){
-   const features=[],trafficFeatures=[],travelledFeatures=[],seen=new Set(),tileIds=new Set();
+   const features=[],trafficFeatures=[],stopFeatures=[],travelledFeatures=[],seen=new Set(),tileIds=new Set();
    original.eachLayer(layer=>{
      watch(layer);const id=L.stamp(layer);
      if(layer instanceof L.Polyline&&layer.options.opacity!==0){
        const opt=layer.options,classes=opt.className?.split(' ')||[];
        const isTravelled=classes.includes('jalan-travelled-route'),isTraffic=classes.includes('jalan-selected-traffic-colour');
-       const output=isTravelled?travelledFeatures:isTraffic?trafficFeatures:features;
+       const output=isTravelled?travelledFeatures:classes.includes('jalan-stop-route')?stopFeatures:isTraffic?trafficFeatures:features;
        const feature=layer.toGeoJSON(opt.jalanRouteScale?false:6);
        feature.properties={leafletId:id,color:opt.color||'#087af5',width:opt.weight||5,
          routeScale:opt.jalanRouteScale||0,opacity:opt.opacity??1};
@@ -264,7 +265,7 @@
    if(popupLayer&&!original.hasLayer(popupLayer)){popup?.remove();popup=null;popupLayer=null;}
    const signature=JSON.stringify(features);
    if(signature!==lineSignature){lineSignature=signature;gl.getSource('jalan-routes').setData({type:'FeatureCollection',features});}
-   trafficFeatures.push(...travelledFeatures);
+   trafficFeatures.push(...stopFeatures,...travelledFeatures);
    const coloredSignature=JSON.stringify(trafficFeatures);
    if(coloredSignature!==trafficSignature){
      trafficSignature=coloredSignature;trafficFeatureCount=trafficFeatures.length;
