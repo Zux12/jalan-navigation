@@ -36,6 +36,7 @@
    button.className='destination-suggestion';button.setAttribute('role','option');button.setAttribute('aria-selected','false');
    const icon=document.createElement('span');icon.className='destination-suggestion-pin';icon.setAttribute('aria-hidden','true');icon.textContent='↗';
    const copy=document.createElement('span'),name=document.createElement('strong'),address=document.createElement('small');
+   copy.translate=false;
    name.textContent=place.name;address.textContent=place.address;copy.append(name,address);button.append(icon,copy);
    button.addEventListener('click',()=>select(index));container.append(button);
   });

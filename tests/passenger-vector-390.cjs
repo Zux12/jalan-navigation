@@ -68,7 +68,7 @@ async function main(){
   assert.equal(await page.locator('#jalan-launch').isVisible(),true,'brand covers the old map while detailed style is pending');
   assert.equal(await page.locator('#map').evaluate(x=>getComputedStyle(x).visibility),'hidden');
   await page.waitForFunction(()=>document.querySelector('#jalan-launch img').naturalWidth>0);
-  assert.equal(await page.locator('.jalan-launch-tagline').textContent(),'Menemani Anda Sehingga ke Destinasi.');
+  assert.equal(await page.locator('.jalan-launch-tagline').textContent(),'With you to your destination.');
   assert.equal(await page.evaluate(async()=>{await document.fonts.load('600 29px "JALAN Script"');return document.fonts.check('600 29px "JALAN Script"');}),true,'bundled cursive font is ready');
   assert.equal(await page.locator('.jalan-launch-tagline').evaluate(el=>getComputedStyle(el).animationName),'jalan-tagline-reveal');
   await page.screenshot({path:path.join(artifacts,'jalan-launch-screen.png'),animations:'disabled'});

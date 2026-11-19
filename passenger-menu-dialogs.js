@@ -35,11 +35,12 @@
  const choice=el('passenger-voice-choice'),status=el('passenger-voice-status');
  const paintVoices=()=>{
   const state=window.JalanVoice.getState(),pending=sound.open?choice.value:state.selected;
-  choice.replaceChildren(new Option('Automatic · device default',''));
+  choice.replaceChildren(new Option(state.recorded?'Rakaman Bahasa Melayu':'Automatic · device default',''));
   for(const voice of state.voices)choice.add(new Option(voice.name+' · '+voice.lang,voice.id));
   choice.value=Array.from(choice.options).some(x=>x.value===pending)?pending:state.selected;
-  choice.disabled=!state.supported;el('passenger-voice-preview').disabled=!state.supported;
+  choice.disabled=!state.supported||state.recorded;el('passenger-voice-preview').disabled=!state.supported;
   status.textContent=!state.supported?'Voice playback is unavailable in this browser.':
+   state.recorded?'Panduan menggunakan rakaman Bahasa Melayu. Nama jalan dipaparkan pada skrin.':
    state.unavailable?'Saved voice is unavailable on this device. Using the device default.':
    'Choose an available device voice and play a sample.';
  };
@@ -65,6 +66,7 @@
  window.addEventListener('jalan:voice-preview',event=>{
   if(sound.open)status.textContent=event.detail?.state==='error'?'Could not play a sample. Try another voice.':
    'Choose an available device voice and play a sample.';
+  if(sound.open&&event.detail?.state!=='error'&&window.JalanVoice.getState().recorded)paintVoices();
  });
  el('passenger-about').addEventListener('click',()=>{
   const config=window.JalanPublicConfig||{};

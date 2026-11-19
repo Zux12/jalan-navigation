@@ -17,7 +17,7 @@ function installSavedPlaces({sheet,quick,recent,header,input,results,expand}){
    message=editor.querySelector('[role=status]'),details=editor.querySelector('.jalan-place-details'),
    save=editor.querySelector('[data-action=save]'),list=saved.querySelector('ul');
  const remove=editor.querySelector('[data-action=remove]');
- const originalPlaceholder=input.placeholder;
+ const originalPlaceholder=window.JalanLanguage.sourceAttribute(input,'placeholder');
  let draft=null;
  function entries(){
    const stored=JSON.parse(localStorage.getItem(key)||'[]');
@@ -30,8 +30,8 @@ function installSavedPlaces({sheet,quick,recent,header,input,results,expand}){
    list.replaceChildren();saved.hidden=!places.length;
    for(const place of places){
      const row=document.createElement('li'),go=document.createElement('button'),edit=document.createElement('button');
-     go.type=edit.type='button';go.textContent=place.name;
-     if(place.address){const address=document.createElement('small');address.textContent=place.address;go.append(address);}
+     go.type=edit.type='button';go.translate=!!fixedName(place.id);go.textContent=place.name;
+     if(place.address){const address=document.createElement('small');address.translate=false;address.textContent=place.address;go.append(address);}
      go.addEventListener('click',()=>open(place.id));
      edit.className='jalan-edit-place';edit.textContent='Edit';edit.setAttribute('aria-label','Edit '+place.name);
      edit.addEventListener('click',()=>editPlace(place.id,place));
@@ -52,7 +52,7 @@ function installSavedPlaces({sheet,quick,recent,header,input,results,expand}){
    cancel();expand();
    draft={id,inputValue:input.value,trigger:document.activeElement,controller:new AbortController(),place:null};
    window.JalanDestinationSuggestions?.cancel();results.replaceChildren();results.classList.add('hidden');
-   remove.hidden=true;input.value='';editor.hidden=false;message.textContent='';details.replaceChildren();return draft;
+   title.translate=true;message.translate=true;remove.hidden=true;input.value='';editor.hidden=false;message.textContent='';details.replaceChildren();return draft;
  }
  function editPlace(id,stored){
    const current=begin(id);
@@ -63,7 +63,7 @@ function installSavedPlaces({sheet,quick,recent,header,input,results,expand}){
    title.textContent=fixedName(id)?(stored?'Edit ':'Set ')+fixedName(id):stored?'Edit saved place':'New saved place';
    label.hidden=Boolean(fixedName(id));name.value=stored?.name||'';
    input.placeholder='Search for an address or place';
-   message.textContent=stored?(stored.address||'Choose a new address to replace the saved location.'):'Choose an address from the search results.';
+   message.translate=!stored?.address;message.textContent=stored?(stored.address||'Choose a new address to replace the saved location.'):'Choose an address from the search results.';
    save.hidden=false;save.disabled=!current.place||(!fixedName(id)&&!name.value.trim());
    input.focus({preventScroll:true});
  }
@@ -71,10 +71,10 @@ function installSavedPlaces({sheet,quick,recent,header,input,results,expand}){
    if(!draft||sheet.dataset.placeMode!=='edit')return false;
    const address=String(place.display_name||place.name||'Selected place');
    if(place.source==='google'&&!place.googleId){
-     message.textContent='This result has no place ID. Choose another result.';return true;
+     message.translate=true;message.textContent='This result has no place ID. Choose another result.';return true;
    }
    draft.place=place.googleId?{googleId:place.googleId}:{point:[Number(place.lat),Number(place.lon)],address};
-   input.value=address;results.classList.add('hidden');message.textContent='Selected · '+address;
+   message.translate=true;input.value=address;results.classList.add('hidden');message.textContent='Selected · '+address;
    if(!fixedName(draft.id)&&!name.value.trim())name.focus({preventScroll:true});
    save.disabled=!fixedName(draft.id)&&!name.value.trim();
    return true;
@@ -89,20 +89,20 @@ function installSavedPlaces({sheet,quick,recent,header,input,results,expand}){
      return;
    }
    const current=begin(id);sheet.dataset.placeMode='resolve';
-   title.textContent=place.name;label.hidden=true;save.hidden=true;message.textContent='Finding saved place…';
+   title.translate=!!fixedName(id);title.textContent=place.name;label.hidden=true;save.hidden=true;message.textContent='Finding saved place…';
    try{
      const point=await window.JalanGooglePlaceSearch.resolve(place.googleId,details,current.controller.signal);
      if(draft!==current)return;
      cancel();selectDestinationPlace({...point,name:place.name,display_name:place.name,source:'google',googleId:place.googleId});
    }catch{
      if(draft!==current)return;
-     editPlace(id,place);message.textContent='Could not open the saved location. Cancel to keep it, or choose a new address.';
+     editPlace(id,place);message.translate=true;message.textContent='Could not open the saved location. Cancel to keep it, or choose a new address.';
    }
  }
  name.addEventListener('input',()=>{save.disabled=!draft?.place||!name.value.trim();});
  input.addEventListener('input',()=>{
    if(!draft||sheet.dataset.placeMode!=='edit')return;
-   draft.place=null;save.disabled=true;message.textContent='Choose an address from the search results.';
+   draft.place=null;save.disabled=true;message.translate=true;message.textContent='Choose an address from the search results.';
  });
  save.addEventListener('click',()=>{
    if(!draft?.place)return;
@@ -111,7 +111,7 @@ function installSavedPlaces({sheet,quick,recent,header,input,results,expand}){
      const places=entries(),entry={...draft.place,id,name:shortName},i=places.findIndex(p=>p.id===id);
      if(i<0)places.push(entry);else places[i]=entry;
      localStorage.setItem(key,JSON.stringify(places));
-   }catch{message.textContent='Could not save on this device. Check browser storage and try again.';return;}
+   }catch{message.translate=true;message.textContent='Could not save on this device. Check browser storage and try again.';return;}
    cancel(true);render();
  });
  remove.addEventListener('click',()=>{
@@ -121,12 +121,12 @@ function installSavedPlaces({sheet,quick,recent,header,input,results,expand}){
      const places=entries(),place=places.find(entry=>entry.id===id);
      if(place){
        const question=fixed?'Remove the saved address for '+fixed+'?':'Remove “'+place.name+'” from your saved places?';
-       if(!window.confirm(question))return;
+       if(!window.confirm(window.JalanLanguage?.translate(question)??question))return;
        const remaining=entries().filter(entry=>entry.id!==id);
        if(remaining.length)localStorage.setItem(key,JSON.stringify(remaining));
        else localStorage.removeItem(key);
      }
-   }catch{message.textContent='Could not remove this place. Check browser storage and try again.';return;}
+   }catch{message.translate=true;message.textContent='Could not remove this place. Check browser storage and try again.';return;}
    cancel();render();
    quick.querySelector('[data-shortcut="'+(fixed?id:'new')+'"]')?.focus({preventScroll:true});
  });

@@ -6,7 +6,7 @@ const fs=require('node:fs'),path=require('node:path'),http=require('node:http');
 const {chromium}=require('playwright');
 const root=path.resolve(__dirname,'..');
 const contentTypes={'.html':'text/html; charset=utf-8','.js':'application/javascript',
- '.css':'text/css; charset=utf-8'};
+ '.css':'text/css; charset=utf-8','.mp3':'audio/mpeg'};
 const serve=(req,res)=>{
  let url;try{url=new URL(req.url,'http://localhost')}catch{res.writeHead(400);return res.end()}
  const name=path.resolve(root,'.'+decodeURIComponent(url.pathname));
@@ -1300,6 +1300,7 @@ async function main(){
    await pinPage.goto(base+'/index.html?mode=passenger&renderer=raster');
    await pinPage.locator('#jalan-launch').waitFor({state:'hidden'});
    await require('./passenger-pin-390.cjs')(pinPage,{routing:true});
+   await require('./passenger-language-390.cjs')(pinPage);
   }finally{await pinPage.close();}
 
   assert.deepEqual(errors,[],'no uncaught JS errors in either UI');

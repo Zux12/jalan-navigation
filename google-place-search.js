@@ -24,7 +24,7 @@
    const url=new URL('https://maps.googleapis.com/maps/api/js');
    url.searchParams.set('key',config().googleMapsBrowserKey);
    url.searchParams.set('loading','async');url.searchParams.set('callback',callback);
-   url.searchParams.set('v','weekly');url.searchParams.set('language','en');url.searchParams.set('region','MY');
+   url.searchParams.set('v','weekly');url.searchParams.set('language',window.JalanLanguage?.code||'en');url.searchParams.set('region','MY');
    script.src=url.href;script.async=true;script.referrerPolicy='strict-origin-when-cross-origin';script.onerror=fail;
    document.head.append(script);
   });
@@ -33,7 +33,7 @@
  async function mount({query,container,signal,onSelect,onEmpty,onError,onReady}){
   await load();if(signal.aborted)return;
   const widget=document.createElement('gmp-place-search');
-  widget.setAttribute('selectable','');widget.setAttribute('attribution-position','top');
+  widget.lang=window.JalanLanguage?.code||'en';widget.setAttribute('selectable','');widget.setAttribute('attribution-position','top');
   widget.className='destination-google-results';
   const content=document.createElement('template');
   content.slot='details-item';
@@ -84,7 +84,7 @@
   await load();if(signal.aborted)throw Error('Place lookup cancelled');
   return new Promise((done,fail)=>{
    const widget=document.createElement('gmp-place-details-compact');
-   widget.setAttribute('orientation','horizontal');
+   widget.lang=window.JalanLanguage?.code||'en';widget.setAttribute('orientation','horizontal');
    const request=document.createElement('gmp-place-details-place-request');
    widget.append(request,document.createElement('gmp-place-name'),document.createElement('gmp-place-address'),document.createElement('gmp-place-attribution'));
    function finish(){
@@ -110,5 +110,8 @@
   if(!Number.isFinite(lat)||!Number.isFinite(lon)||Math.abs(lat)>90||Math.abs(lon)>180)throw Error('Saved place location unavailable');
   return {lat,lon};
  }
+ window.addEventListener('jalan:language-change',()=>{
+  document.querySelectorAll('gmp-place-search,gmp-place-details-compact').forEach(widget=>{widget.lang=window.JalanLanguage.code;});
+ });
  window.JalanGooglePlaceSearch=Object.freeze({configured,mount,resolve,showDetails});
 })();

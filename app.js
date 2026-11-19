@@ -183,11 +183,11 @@ $('search-form').addEventListener('submit',async e=>{
  statusEl.textContent='Searching destinations…';resultsEl.classList.add('hidden');
  try{
   const wait=Math.max(0,1100-(Date.now()-lastSearchAt));if(wait)await new Promise(r=>setTimeout(r,wait));if(!current())return;lastSearchAt=Date.now();
-  const response=await fetch('https://nominatim.openstreetmap.org/search?format=json&limit=5&countrycodes=my&q='+encodeURIComponent(q));
+  const response=await fetch('https://nominatim.openstreetmap.org/search?format=json&limit=5&countrycodes=my&accept-language='+(window.JalanLanguage?.code||'en')+'&q='+encodeURIComponent(q));
   if(!response.ok)throw Error('Search service unavailable');
   const places=await response.json();if(!current())return;resultsEl.replaceChildren();
   if(!places.length){statusEl.textContent='No locations found. Try another search.';return;}
-  for(const place of places){const btn=document.createElement('button');btn.textContent=place.display_name;
+  for(const place of places){const btn=document.createElement('button');btn.translate=false;btn.textContent=place.display_name;
    btn.onclick=()=>selectDestinationPlace(place);resultsEl.appendChild(btn);}
   resultsEl.classList.remove('hidden');statusEl.textContent='Choose a destination from the results.';
  }catch(err){if(current())statusEl.textContent='Search unavailable. Try again later.';}
