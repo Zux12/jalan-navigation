@@ -10,11 +10,11 @@
  // Count foreground time on the main map only. Sheet changes never restart this interval.
  function showMapCredits(){
   const credits=document.getElementById('jalan-home-credits');
-  credits.classList.add('show-osm');
+  credits.classList.add('show-map-credits');
   credits.hidden=false;
   let remaining=5000,startedAt=null,timer;
   function expire(){
-   credits.classList.remove('show-osm');
+   credits.classList.remove('show-map-credits');
    document.removeEventListener('visibilitychange',sync);
   }
   function sync(){
