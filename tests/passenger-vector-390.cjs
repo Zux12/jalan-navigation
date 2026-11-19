@@ -611,8 +611,8 @@ async function main(){
   assert.equal(await live.evaluate(()=>JalanVectorMap.active),true);
   assert.equal(await live.locator('.maplibregl-ctrl-attrib-button').isVisible(),false,
     'no persistent black information button remains on the native map');
-  assert.equal(await live.locator('.maplibregl-ctrl-attrib').isVisible(),false,
-    'startup map credits collapse completely after their initial display');
+  assert.equal(await live.locator('.maplibregl-ctrl-attrib').isVisible(),true,
+    'data credits remain on the map after startup');
   assert.equal(await live.locator('#passenger-traffic-summary').count(),0);
   assert.equal(await live.evaluate(()=>getComputedStyle(document.getElementById('passenger-distance')).fontSize===
     getComputedStyle(document.getElementById('passenger-eta')).fontSize),true);
@@ -620,11 +620,11 @@ async function main(){
   assert.doesNotMatch(await live.locator('#passenger-next').textContent(),/GPS matched to selected route/);
   await live.locator('#jalan-home-menu').click();
   await live.locator('#passenger-about').click();
-  assert.equal(await live.locator('#passenger-about-dialog a[href*="openstreetmap.org/copyright"]').isVisible(),true,
-    'data and licence credit remains accessible through About');
-  assert.equal(await live.locator('#passenger-about-dialog a[href="https://openmaptiles.org/"]').isVisible(),true);
+  assert.equal(await live.locator('#passenger-policy').isVisible(),true);
+  assert.equal(await live.evaluate(()=>JalanGPS.getState().active),true,'guidance stays active under About');
   await live.locator('#passenger-about-ok').click();
-  await live.locator('#jalan-home-menu-close').click();
+  assert.equal(await live.locator('#jalan-home-menu-panel').isVisible(),false);
+  assert.equal(await live.locator('.maplibregl-ctrl-attrib a[href*="openstreetmap.org/copyright"]').isVisible(),true);
   await live.screenshot({path:path.join(artifacts,'vector-live-kl-mobile.png')});
   await live.evaluate(()=>{window.__journeyVectorBefore={route:JalanGPS.getState().route,bearing:JalanVectorMap.getBearing()};});
   await live.locator('#passenger-journey-handle').click();

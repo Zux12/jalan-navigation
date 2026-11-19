@@ -216,7 +216,9 @@ body.passenger-vector-active .passenger-map-gestures{display:none!important}
 #jalan-map-status:enabled{z-index:1602;top:calc(175px + env(safe-area-inset-top,0px));bottom:auto;left:12px;right:12px;min-height:44px;padding:10px 14px;border:1px solid #d39a44;border-radius:12px;background:#fff5e6;color:#70470e;font:700 13px system-ui;cursor:pointer;pointer-events:auto;box-shadow:0 3px 12px #263b4b30}
 #jalan-map-status:focus-visible{outline:3px solid #087af5;outline-offset:2px}
 #jalan-map-status:empty{display:none}
-body.passenger-vector-active .maplibregl-ctrl-bottom-right{z-index:4;bottom:env(safe-area-inset-bottom,0px)}
+/* Keep linked map data attribution in the map when About is closed. */
+body.passenger-vector-active .maplibregl-ctrl-bottom-right{z-index:4;bottom:auto;top:calc(70px + env(safe-area-inset-top,0px));right:4px}
+body.passenger-vector-active.passenger-guiding .maplibregl-ctrl-bottom-right{top:auto;right:0;left:0;display:flex;justify-content:center;bottom:calc(102px + var(--passenger-map-footer-offset,0px) + env(safe-area-inset-bottom,0px))}
 body.passenger-vector-active .maplibregl-ctrl-attrib{margin:0!important;padding:0 4px;font-size:10px;line-height:14px;min-height:0;background:#fffffff0;color:#425364}
 
 /* The pre-route GPS halo surrounds the same vehicle used during guidance. */
