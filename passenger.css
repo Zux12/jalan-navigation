@@ -216,20 +216,6 @@ body.passenger-vector-active .passenger-map-gestures{display:none!important}
 #jalan-map-status:enabled{z-index:1602;top:calc(175px + env(safe-area-inset-top,0px));bottom:auto;left:12px;right:12px;min-height:44px;padding:10px 14px;border:1px solid #d39a44;border-radius:12px;background:#fff5e6;color:#70470e;font:700 13px system-ui;cursor:pointer;pointer-events:auto;box-shadow:0 3px 12px #263b4b30}
 #jalan-map-status:focus-visible{outline:3px solid #087af5;outline-offset:2px}
 #jalan-map-status:empty{display:none}
-/* Keep credits in the map menu. The active renderer owns their content. */
-#jalan-map-sources > .leaflet-control-attribution,
-#jalan-map-sources > .maplibregl-ctrl-attrib{float:none;position:static;margin:0;padding:4px 0;
- background:transparent;color:#425364;font:12px/1.5 system-ui}
-#jalan-map-sources a{color:inherit;text-decoration:underline}
-#jalan-map-sources .maplibregl-ctrl-attrib-button,
-body.passenger-vector-active #jalan-map-sources .leaflet-control-attribution,
-body:not(.passenger-vector-active) #jalan-map-sources .maplibregl-ctrl-attrib{display:none}
-html.jalan-map-info-hint body:not(.passenger-guiding):not(:has(.jalan-sheet-route)) #jalan-home-menu[aria-expanded="false"]::after{
- content:"ⓘ";position:absolute;right:-3px;bottom:-3px;width:18px;height:18px;
- display:grid;place-items:center;border-radius:50%;background:#fff;color:#254361;
- font:600 15px/1 system-ui;pointer-events:none
-}
-
 /* The pre-route GPS halo surrounds the same vehicle used during guidance. */
 .leaflet-marker-icon.passenger-startup-pin{display:grid;place-items:center;pointer-events:none;
  border:3px solid #fff;border-radius:50%;box-sizing:border-box;

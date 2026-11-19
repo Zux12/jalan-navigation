@@ -1,9 +1,9 @@
 /* Jalan V2: browser-only prototype. Public OSM Nominatim + OSRM demo services are for light testing only. */
-const KL=[3.139,101.6869], map=L.map('map',{zoomControl:false}).setView(KL,12);
+const passengerMode=new URLSearchParams(location.search).get('mode')==='passenger';
+const KL=[3.139,101.6869], map=L.map('map',{zoomControl:false,attributionControl:!passengerMode}).setView(KL,12);
 // Optional perspective preview: a visual tilt of the existing Leaflet map,
 // not real 3-D terrain or an authority for driving. Disable map pointer input
 // while tilted because Leaflet's 2-D hit testing does not match CSS perspective.
-const passengerMode=new URLSearchParams(location.search).get('mode')==='passenger';
 const perspectiveButton=document.getElementById('perspective-toggle');
 const perspectiveNote=document.getElementById('perspective-note');
 let perspectiveActive=false,manual2D=false,passengerLastRoutes=null;
