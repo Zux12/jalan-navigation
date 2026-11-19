@@ -27,6 +27,17 @@ L.control.zoom({position:'bottomright'}).addTo(map);
 const $=id=>document.getElementById(id), statusEl=$('status'), resultsEl=$('results'), routeEl=$('route-summary');
 const reportLayer=L.layerGroup().addTo(map),routeLayer=L.layerGroup().addTo(map),pointLayer=L.layerGroup().addTo(map);
 const reportTypes={accident:'🚗',flood:'🌊',hazard:'⚠️',rain:'🌧️'},storageKey='jalan-demo-reports-v1';
+// Leaflet strokes are pixel widths. Refresh visible route layers when zoom settles.
+if(passengerMode){
+ const sizeRoute=layer=>{
+   const scale=layer.options?.jalanRouteScale;
+   if(scale)layer.setStyle({weight:scale*window.JalanRouteDisplay.widthAtZoom(map.getZoom())});
+ };
+ const sizeBasicRoutes=()=>{if(!window.JalanVectorMap?.active)map.eachLayer(sizeRoute);};
+ map.on('layeradd',({layer})=>{if(!window.JalanVectorMap?.active)sizeRoute(layer);});
+ map.on('zoomend',sizeBasicRoutes);
+ window.addEventListener('jalan:map-renderer',sizeBasicRoutes);
+}
 let reportMode=null,chooseStart=false, userLocation=null,locationMarker=null,startPoint=null,startMarker=null,destination=null,destinationName='',destinationMarker=null,routes=[],selectedRoute=0,watchId=null;
 // A response from an old OSRM request must never supersede a TomTom route,
 // a different destination, or an explicit Clear/Reset action.
@@ -101,7 +112,7 @@ function renderRoutes({preserveGPS=false}={}){
   routes.sort((a,b)=>(Number.isFinite(a.duration)?a.duration:Infinity)-(Number.isFinite(b.duration)?b.duration:Infinity));
   selectedRoute=0;passengerLastRoutes=routes;
  }
- if(!preserveGPS){window.JalanNavigation?.stop();window.JalanGPS?.stop();}routeLayer.clearLayers();routes.forEach((r,i)=>{const path=passengerMode?window.JalanRouteDisplay.shape(r).points:r.geometry.coordinates;const points=path.map(p=>[p[1],p[0]]);L.polyline(points,{jalanRoute:r,smoothFactor:passengerMode?0:1,color:i===selectedRoute?'#087af5':'#94a3b8',weight:i===selectedRoute?9:5,opacity:preserveGPS?(i===selectedRoute?1:0):(i===selectedRoute?0.95:0.65)}).addTo(routeLayer).on('click',()=>selectRoute(i))});
+ if(!preserveGPS){window.JalanNavigation?.stop();window.JalanGPS?.stop();}routeLayer.clearLayers();routes.forEach((r,i)=>{const path=passengerMode?window.JalanRouteDisplay.shape(r).points:r.geometry.coordinates;const points=path.map(p=>[p[1],p[0]]);L.polyline(points,{jalanRouteScale:passengerMode?(i===selectedRoute?1:0.6):0,smoothFactor:passengerMode?0:1,color:i===selectedRoute?'#087af5':'#94a3b8',weight:i===selectedRoute?9:5,opacity:preserveGPS?(i===selectedRoute?1:0):(i===selectedRoute?0.95:0.65)}).addTo(routeLayer).on('click',()=>selectRoute(i))});
  const chosen=routes[selectedRoute];
  const bounds=L.latLngBounds(chosen.geometry.coordinates.map(p=>[p[1],p[0]]));
  // Update the panel first; fitBounds runs after the layout has settled.
