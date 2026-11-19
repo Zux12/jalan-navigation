@@ -104,8 +104,11 @@ async function main(){
   assert.equal(await page.locator('#jalan-launch').isVisible(),true,'launch branding remains during the four-second reading interval');
   await page.evaluate(()=>{
     // Exercise input inside the startup window before Playwright waits for layout stability.
-    window.JalanLaunch.mainScreenReady.then(()=>document.querySelector('#map').dispatchEvent(
-      new PointerEvent('pointerdown',{bubbles:true,pointerType:'touch',isPrimary:true})));
+    window.JalanLaunch.mainScreenReady.then(()=>{
+      for(const type of ['pointerdown','pointerup']){
+        document.querySelector('#map').dispatchEvent(new PointerEvent(type,{bubbles:true,pointerType:'touch',pointerId:8,isPrimary:true}));
+      }
+    });
   });
   await page.locator('#jalan-launch').waitFor({state:'hidden'});
   await page.waitForTimeout(550);

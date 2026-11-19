@@ -22,9 +22,9 @@ module.exports=async(browser,base,root)=>{
    r=>r.fulfill({contentType:ext==='js'?'application/javascript':'text/css',
     body:fs.readFileSync(path.join(root,'node_modules/leaflet/dist/leaflet.'+ext))}));
   await page.goto(base+'/index.html?mode=passenger');
-  // This fixture pauses browser time; let the deliberate reading hold finish
+  // Advance past the splash, its fade and the home sheet's opening move
   // before measuring Go's separate seven-second idle countdown.
-  await page.clock.runFor(5000);
+  await page.clock.runFor(6000);
   await page.locator('#jalan-launch').waitFor({state:'hidden'});
   const fixture=()=>page.evaluate(()=>{
    JalanPassengerJourney.stop();document.getElementById('tt-primary').checked=false;
