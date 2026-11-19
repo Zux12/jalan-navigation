@@ -48,7 +48,10 @@
   '<input id="passenger-nav-tilt" type="range" min="0" max="100" step="5" value="100"></div>'+
   '<label class="passenger-nearby-consent"><input id="passenger-nearby-consent" type="checkbox"> Share my location for nearby community reports during this journey</label></details>'+
   '<button type="button" id="passenger-about" aria-haspopup="dialog" aria-controls="passenger-about-dialog">About JALAN</button>'+
+  '<div id="jalan-map-sources" translate="no"></div>'+
   '<button type="button" id="jalan-home-menu-close">Close</button>';
+ // Keep the renderer's own links live whenever the map menu is opened.
+ menuPanel.querySelector('#jalan-map-sources').append(map.attributionControl.getContainer());
  $('passenger-voice').setAttribute('aria-haspopup','dialog');
  $('passenger-voice').setAttribute('aria-controls','passenger-sound-dialog');
  menuPanel.querySelector('#jalan-menu-sound').append($('passenger-voice'));
