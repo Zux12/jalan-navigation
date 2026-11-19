@@ -374,7 +374,7 @@
      gl=new maplibregl.Map({container,style:'https://tiles.openfreemap.org/styles/positron',
        center:[center.lng,center.lat],zoom:map.getZoom()-1,minZoom:2,maxZoom:19,maxPitch:60,
        maxTileCacheSize:96,pixelRatio:Math.min(window.devicePixelRatio||1,2),
-       attributionControl:{compact:false},canvasContextAttributes:{antialias:true}});
+       attributionControl:false,canvasContextAttributes:{antialias:true}});
      gl.on('error',event=>{
        if(event.sourceId&&rasters.has(event.sourceId))rasters.get(event.sourceId).layer.fire('tileerror');
        else if(active){

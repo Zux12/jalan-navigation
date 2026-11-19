@@ -216,21 +216,6 @@ body.passenger-vector-active .passenger-map-gestures{display:none!important}
 #jalan-map-status:enabled{z-index:1602;top:calc(175px + env(safe-area-inset-top,0px));bottom:auto;left:12px;right:12px;min-height:44px;padding:10px 14px;border:1px solid #d39a44;border-radius:12px;background:#fff5e6;color:#70470e;font:700 13px system-ui;cursor:pointer;pointer-events:auto;box-shadow:0 3px 12px #263b4b30}
 #jalan-map-status:focus-visible{outline:3px solid #087af5;outline-offset:2px}
 #jalan-map-status:empty{display:none}
-/* Show source links briefly after the launch screen clears. Route changes reuse this control. */
-body.passenger-vector-active .maplibregl-ctrl-bottom-right{z-index:4;bottom:auto;top:calc(70px + env(safe-area-inset-top,0px));right:4px}
-body.passenger-vector-active.passenger-guiding .maplibregl-ctrl-bottom-right{top:auto;right:0;left:0;display:flex;justify-content:center;bottom:calc(102px + var(--passenger-map-footer-offset,0px) + env(safe-area-inset-bottom,0px))}
-body.passenger-vector-active .maplibregl-ctrl-attrib{margin:0!important;padding:0 4px;font-size:10px;line-height:14px;min-height:0;background:#fffffff0;color:#425364}
-
-html:not(.passenger-launching) body.passenger-vector-active .maplibregl-ctrl-attrib {
- animation:jalan-end-startup-credit 0s 5.5s forwards;
-}
-@keyframes jalan-end-startup-credit { to { clip-path:inset(50%); } }
-body.passenger-vector-active:has(#jalan-home-sheet.jalan-sheet-route) .maplibregl-ctrl-attrib:not(:focus-within) {
- clip-path:inset(50%);
-}
-/* Clipping removes the hit area. Keyboard users can still focus and follow the links. */
-body.passenger-vector-active .maplibregl-ctrl-attrib:focus-within { clip-path:none!important; }
-
 /* The pre-route GPS halo surrounds the same vehicle used during guidance. */
 .leaflet-marker-icon.passenger-startup-pin{display:grid;place-items:center;pointer-events:none;
  border:3px solid #fff;border-radius:50%;box-sizing:border-box;
@@ -267,8 +252,3 @@ body.passenger-route-search .interface-switch{display:none!important}
 #passenger-gps-status-detail[hidden]{display:none}
 body.passenger-guiding .passenger-turn{padding-right:76px}
 body.passenger-guiding .passenger-turn-chevron{position:absolute;right:28px;bottom:13px;font-size:26px}
-/* OpenFreeMap's own branding is optional. Retain the required data credits. */
-.maplibregl-ctrl-attrib-inner a[href="https://openfreemap.org"],
-.maplibregl-ctrl-attrib-inner a[href="https://openfreemap.org/"]{display:none}
-body.passenger-vector-active .maplibregl-ctrl-attrib.maplibregl-compact{min-height:26px;line-height:26px;padding-right:26px}
-body.passenger-vector-active .maplibregl-ctrl-attrib-button{width:26px;height:26px}
