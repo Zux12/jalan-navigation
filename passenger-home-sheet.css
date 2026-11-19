@@ -44,17 +44,25 @@ body.passenger-mode .jalan-home-sheet .results{position:static!important;inset:a
 .jalan-sheet-quick strong{font-size:16px}
 .jalan-sheet-recent{min-height:0;overflow:auto;flex:1 1 auto;overscroll-behavior:contain}
 .jalan-sheet-recent h2{font:600 14px system-ui;color:#6a7380;margin:3px 0 10px}
-.jalan-sheet-recent ol{list-style:none;margin:0;padding:0}
+.jalan-sheet-recent ol{list-style:none;margin:0;padding:0;
+ --recent-font:600 15px/1.3 system-ui,sans-serif;--recent-ink:#223141;--recent-inset:10px}
 .jalan-sheet-recent li{border-bottom:1px solid #eceff2}
-.jalan-sheet-recent li button{display:block;text-align:left;width:100%;border:0;
- background:#fff;padding:18px 10px;color:#223141;font:600 15px system-ui;cursor:pointer}
-.jalan-recent-google{display:flex;align-items:center;gap:6px;padding:8px 4px 8px 10px}
-.jalan-recent-google>div{flex:1;min-width:0;overflow-wrap:anywhere;font:600 15px/1.4 system-ui}
+.jalan-sheet-recent li>button{display:block;text-align:start;width:100%;border:0;
+ background:#fff;padding:18px var(--recent-inset);color:var(--recent-ink);font:var(--recent-font);cursor:pointer}
+.jalan-recent-google{position:relative;overflow-wrap:anywhere}
+.jalan-recent-google.has-place-details{padding-block:8px}
 .jalan-recent-google gmp-place-details-compact{display:block;width:100%;border:0;border-radius:0;
  box-shadow:none;margin:0;color-scheme:light;--gmp-card-border-radius:0px;
- --gmp-mat-font-family:system-ui,sans-serif;--gmp-mat-font-title-medium:600 15px/1.4 system-ui;
- --gmp-mat-color-surface:#fff;--gmp-mat-color-on-surface:#223141}
-.jalan-sheet-recent .jalan-recent-google>button{width:auto;min-height:44px;padding:8px;color:#1764ad}
+ --gmp-mat-font-family:system-ui,sans-serif;--gmp-mat-font-title-small:var(--recent-font);
+ --gmp-mat-font-body-small:var(--recent-font);--gmp-mat-color-surface:#fff;
+ --gmp-mat-color-on-surface:var(--recent-ink);--gmp-mat-color-on-surface-variant:var(--recent-ink);
+ --gmp-mat-spacing-medium:var(--recent-inset);--gmp-mat-spacing-large:var(--recent-inset)}
+/* The compact widget puts Open in Maps at the end and attribution below the
+   address. Keep those native controls outside the destination tap target. */
+.jalan-sheet-recent .jalan-recent-google.has-place-details>button{
+ position:absolute;z-index:1;inset-block:0 calc(8px + 2em);inset-inline:0 3.5em;
+ width:auto;padding:0;border-radius:0;background:transparent}
+.jalan-recent-google>button:focus-visible{outline:2px solid #1764ad;outline-offset:-2px}
 .jalan-recent-empty{font:13px system-ui;line-height:1.5;color:#657488;padding:13px 5px}
 body.passenger-mode .jalan-home-sheet[data-state="a"] .jalan-sheet-quick,
 body.passenger-mode .jalan-home-sheet[data-state="a"] .jalan-sheet-recent{display:none}
