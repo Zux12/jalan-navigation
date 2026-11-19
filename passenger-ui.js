@@ -86,7 +86,7 @@
    [[4,3,0,1],[5,4,1,2],[3,5,2,0]], // side walls
    [[3,6,5]], [[3,4,6]], [[4,5,6]] // left, right and tail facets
  ];
- function drawVehicleShape(svg,heading,pitch){
+ function drawVehicleShape(svg,heading,pitch,centerInHalo=false){
    const degrees=Math.PI/180;
    const turn=(heading%360+360)%360;
    const tilt=pitch;
@@ -95,6 +95,13 @@
    const c=Math.cos(turn*degrees),s=Math.sin(turn*degrees);
    const cp=Math.cos(tilt*degrees),sp=Math.sin(tilt*degrees);
    const points=vehicleVertices.map(([x,y,z])=>[x*c-y*s,(x*s+y*c)*cp-z*sp]);
+   // The startup halo is centered on GPS. Center the visible 3D silhouette
+   // inside it as its projected bounds change with heading and camera pitch.
+   if(centerInHalo){
+     const xs=points.map(point=>point[0]),ys=points.map(point=>point[1]);
+     const cx=(Math.min(...xs)+Math.max(...xs))/2,cy=(Math.min(...ys)+Math.max(...ys))/2;
+     svg.setAttribute('viewBox',`${cx-42} ${cy-42} 84 84`);
+   }
    function visiblePath(indices){
      const [a,b,c]=indices.map(i=>points[i]);
      if((b[0]-a[0])*(c[1]-a[1])-(b[1]-a[1])*(c[0]-a[0])<=0.01)return '';
@@ -113,7 +120,7 @@
  const drawFreeVehicle=svg=>{
    const vector=window.JalanVectorMap;
    if(svg)drawVehicleShape(svg,(freeHeading||0)-(vector?.active?vector.getBearing():0),
-     vector?.active?vector.getPitch():0);
+     vector?.active?vector.getPitch():0,true);
  };
  const freeActive=()=>!destination&&!routes.length&&!document.body.classList.contains('passenger-guiding');
  const centerFree=()=>{
