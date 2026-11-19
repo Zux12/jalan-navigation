@@ -287,7 +287,13 @@
        lo=Math.max(lo,Math.min(t1,t2));hi=Math.min(hi,Math.max(t1,t2));
      }
      const append=(t,w)=>{points.push(t===1?b:display.mix(a,b,t));offsets.push(start+t*length);widths.push(w);};
-     if(hi<=lo){append(1,0);yield;continue;}
+     if(hi<=lo){
+       append(1,0);
+       // Distant segments need no map queries. Traverse them in groups so a
+       // long journey can finish a viewport profile between GPS updates.
+       if(i%128===0)yield;
+       continue;
+     }
      if(lo>0)append(lo,0);
      const count=Math.max(1,Math.ceil(length*(hi-lo)/spacing));
      for(let j=1;j<=count;j++){
