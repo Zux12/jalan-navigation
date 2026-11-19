@@ -76,8 +76,8 @@
  ];
  function drawVehicleShape(svg,heading,pitch){
    const degrees=Math.PI/180;
-   const turn=(Math.round(heading)%360+360)%360;
-   const tilt=Math.round(pitch);
+   const turn=(heading%360+360)%360;
+   const tilt=pitch;
    if(svg.dataset.heading===String(turn)&&svg.dataset.pitch===String(tilt))return false;
    svg.dataset.heading=turn;svg.dataset.pitch=tilt;
    const c=Math.cos(turn*degrees),s=Math.sin(turn*degrees);
@@ -98,11 +98,9 @@
  let startupMarker=null,locationPending=true;
  let startupTimestamp=-Infinity;
  let freeLast=null,freeHeading=null,freeExploring=false,freeReturn=null;
- const freeIcon=()=>L.divIcon({className:'passenger-startup-pin',html:freeShape.outerHTML,
-   iconSize:[84,84],iconAnchor:[42,42]});
- const drawFreeVehicle=()=>{
+ const drawFreeVehicle=svg=>{
    const vector=window.JalanVectorMap;
-   return drawVehicleShape(freeShape,(freeHeading||0)-(vector?.active?vector.getBearing():0),
+   if(svg)drawVehicleShape(svg,(freeHeading||0)-(vector?.active?vector.getBearing():0),
      vector?.active?vector.getPitch():0);
  };
  const freeActive=()=>!destination&&!routes.length&&!document.body.classList.contains('passenger-guiding');
@@ -138,8 +136,10 @@
    if(!startupPosition.ready){
      return;
    }
-   drawFreeVehicle();
-   startupMarker=L.marker(detail.point,{icon:freeIcon(),interactive:false,keyboard:false,
+   drawFreeVehicle(freeShape);
+   const icon=L.divIcon({className:'passenger-startup-pin',html:freeShape.outerHTML,
+     iconSize:[84,84],iconAnchor:[42,42]});
+   startupMarker=L.marker(detail.point,{icon,interactive:false,keyboard:false,
      title:'GPS location measured; direction not yet verified'}).addTo(map);
  });
  window.addEventListener('jalan:initial-location-error',()=>{
@@ -168,7 +168,7 @@
    if(!startupMarker){
      window.dispatchEvent(new CustomEvent('jalan:initial-location',{detail}));
    }else startupMarker.setLatLng(detail.point);
-   if(startupMarker&&drawFreeVehicle())startupMarker.setIcon(freeIcon());
+   scheduleScreenVehicle();
    if(!freeExploring)centerFree();
    // Keep the original blue location circle from duplicating the triangle.
    if(locationMarker){pointLayer.removeLayer(locationMarker);locationMarker=null;}
@@ -202,11 +202,13 @@
  const gestureSurface=el('passenger-map-gestures'),hint=el('passenger-gesture-hint');
  let pendingOverlay=false;
  const syncScreenVehicle=()=>{
-   pendingOverlay=false;
    const vector=window.JalanVectorMap;
    const anchor=vehicle?.getElement();
    if(!vehicle||!document.body.classList.contains('passenger-guiding')){
-     if(startupMarker&&drawFreeVehicle())startupMarker.setIcon(freeIcon());
+     if(startupMarker){
+       const pin=vector?.active?vector.getMarkerElement(startupMarker):startupMarker.getElement();
+       drawFreeVehicle(pin?.querySelector('.jalan-vehicle-shape'));
+     }
      screenVehicle.classList.add('hidden');syncMapAction();return;
    }
    const bounds=(vector?.active?map.getContainer():anchor)?.getBoundingClientRect();
@@ -224,16 +226,24 @@
      // Keep the triangle visible at its normal follow position for that frame.
      x=maxX/2;y=viewAnchor().y;
    }
-   screenVehicle.style.left=x+'px';
-   screenVehicle.style.top=y+'px';
+   screenVehicle.style.transform='translate3d('+x+'px,'+y+'px,0) translate(-50%,-50%)';
    screenVehicle.classList.remove('hidden');syncMapAction();
  };
  const scheduleScreenVehicle=()=>{
+   if(window.JalanVectorMap?.active){window.JalanVectorMap.requestFrame();return;}
    if(pendingOverlay)return;
    pendingOverlay=true;
-   requestAnimationFrame(syncScreenVehicle);
+   requestAnimationFrame(()=>{
+     pendingOverlay=false;
+     if(!window.JalanVectorMap?.active)syncScreenVehicle();
+   });
  };
- map.on('move zoom zoomend moveend resize',scheduleScreenVehicle);
+ // The native camera advances within its own animation frame. Paint the
+ // overlay before that frame is presented, including during pinch inertia.
+ window.addEventListener('jalan:vector-render',syncScreenVehicle);
+ map.on('move zoom zoomend moveend resize',()=>{
+   if(!window.JalanVectorMap?.active)scheduleScreenVehicle();
+ });
  const currentCameraAngle=()=>window.JalanVectorMap?.active?-window.JalanVectorMap.getBearing():Number.parseFloat(map.getContainer().style.getPropertyValue('--jalan-camera-turn'))||0;
  const applyCameraAngle=degrees=>{
    const angle=((degrees+180)%360+360)%360-180;
@@ -303,7 +313,7 @@
      keyboard:false,zIndexOffset:950}).addTo(map);
    else vehicle.setLatLng(position);
    if(!accuracyHalo)accuracyHalo=L.circle(position,{radius:Math.max(5,detail.gpsAccuracy),
-     color:'#13a8d1',fillColor:'#13a8d1',fillOpacity:0.08,weight:1,
+     className:'jalan-vehicle-accuracy',color:'#13a8d1',fillColor:'#13a8d1',fillOpacity:0.08,weight:1,
      interactive:false}).addTo(map);
    else accuracyHalo.setLatLng(position).setRadius(Math.max(5,detail.gpsAccuracy))
      .setStyle({color:'#13a8d1',fillColor:'#13a8d1'});

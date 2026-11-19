@@ -48,7 +48,7 @@ body.passenger-guiding .interface-switch{display:none}
 .passenger-turn{position:absolute;top:0;left:0;right:0;padding:calc(20px + env(safe-area-inset-top,0px)) 18px 22px;background:#090d16;display:flex;align-items:center;gap:16px;min-height:112px}
 .passenger-turn>span{font-size:48px;font-weight:900}.passenger-turn strong{font-size:clamp(19px,4.8vw,26px);display:block}.passenger-turn small{font-size:14px;color:#61d7fc}
 .jalan-vehicle-marker{border:0;background:transparent;pointer-events:none;opacity:0}
-.passenger-vehicle-screen{position:absolute;z-index:2;pointer-events:none;width:84px;height:84px;display:grid;place-items:center;transform:translate(-50%,-50%)}
+.passenger-vehicle-screen{position:absolute;left:0;top:0;z-index:2;pointer-events:none;width:84px;height:84px;display:grid;place-items:center;transform:translate(-50%,-50%)}
 .jalan-vehicle-shape{display:block;width:100%;height:100%;pointer-events:none;
  filter:drop-shadow(0 3px 3px #102e4780);stroke-linejoin:round}
 .jalan-vehicle-shape .vehicle-outline{fill:white;stroke:white;stroke-width:3.6}
