@@ -22,7 +22,7 @@ perspectiveButton.addEventListener('click',()=>{
 });
 window.addEventListener('jalan:journey-start',()=>setPerspective(false));
 
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'&copy; OpenStreetMap contributors'}).addTo(map);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap contributors</a>'}).addTo(map);
 L.control.zoom({position:'bottomright'}).addTo(map);
 const $=id=>document.getElementById(id), statusEl=$('status'), resultsEl=$('results'), routeEl=$('route-summary');
 const reportLayer=L.layerGroup().addTo(map),routeLayer=L.layerGroup().addTo(map),pointLayer=L.layerGroup().addTo(map);

@@ -12,6 +12,9 @@
   setTimeout(()=>requestAnimationFrame(()=>requestAnimationFrame(()=>{
    const splash=document.getElementById('jalan-launch');
    root.classList.remove('passenger-launching');
+   // A single hint on the existing menu button. Route and renderer changes never restart it.
+   root.classList.add('jalan-map-info-hint');
+   setTimeout(()=>root.classList.remove('jalan-map-info-hint'),1000);
    if(splash){splash.setAttribute('aria-hidden','true');splash.classList.add('jalan-launch-finished');setTimeout(()=>splash.remove(),200);}
   })),4000);
  }
