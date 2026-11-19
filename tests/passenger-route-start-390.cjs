@@ -44,6 +44,11 @@ module.exports=async(browser,base,root)=>{
   await page.evaluate(()=>{document.getElementById('passenger-go-fill').getAnimations()[0].currentTime=3500;});
   await page.screenshot({path:path.join(root,'test-artifacts/passenger-go-drain.png')});
   await page.clock.runFor(5800);assert.equal(await starts(),0);
+  // An early wake-up must wait only for the remainder of the visible countdown.
+  await page.evaluate(()=>{
+   const original=window.setTimeout;
+   window.setTimeout=(callback,delay,...args)=>original(callback,delay===7000?delay-80:delay,...args);
+  });
   await page.locator('#passenger-route-list button').nth(1).click();
   await page.clock.runFor(6000);assert.equal(await starts(),0,'changing route restarts the full wait');
   await page.clock.runFor(1100);assert.equal(await starts(),1,'idle automatically starts once after seven seconds');
