@@ -245,6 +245,9 @@ async function main(){
   assert.equal(await page.evaluate(()=>selectedRoute),0,'shortest actual ETA selected');
   assert.equal(await page.evaluate(()=>routes[0].duration),600,'provider routes sorted by ETA');
   assert.equal(await page.locator('#passenger-overview').isVisible(),true);
+  assert.equal(await page.locator('#passenger-safety-note').isVisible(),true,'passenger-only notice is visible before Go');
+  assert.match(await page.locator('#passenger-safety-note').innerText(),/Passenger-only.*2\.5D.*driver must not operate/i,
+    'route card identifies the experimental perspective and prohibits driver interaction');
   assert.equal(await page.locator('#passenger-route-list button').count(),3);
   assert.equal(await page.locator('#passenger-settings').count(),0,'route settings are only in the shared menu');
   assert.equal(await page.locator('#passenger-route-provider').count(),0,'provider subtitle is removed');
@@ -853,6 +856,8 @@ async function main(){
   assert.notDeepEqual(restored,exploreCenter,
     'Recenter returns the map to the GPS-follow target instead of keeping the dragged view');
   await menuClick('#passenger-2d');
+  assert.equal(await page.locator('#passenger-2d').innerText(),'2.5D preview',
+    'return control never advertises nonexistent real 3D terrain or buildings');
   assert.equal(await page.evaluate(()=>document.getElementById('map').style.getPropertyValue('--jalan-camera-turn')),
     '0deg','2D mode stays north-up');
   assert.equal(await page.evaluate(()=>getComputedStyle(document.getElementById('map')).pointerEvents),
