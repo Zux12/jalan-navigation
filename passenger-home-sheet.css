@@ -159,6 +159,7 @@ body.passenger-guiding:has(#passenger-turn-list:not(.hidden)) #jalan-home-report
 .jalan-place-editor p{margin:6px 0;font-size:14px;overflow-wrap:anywhere}
 .jalan-place-editor button,.jalan-saved-places .jalan-edit-place{min-height:40px;border:none;border-radius:10px;background:#edf3f8;color:#195879;padding:6px 12px;font-weight:650;cursor:pointer}
 .jalan-place-editor [data-action=save]{background:#126ed5;color:white}
+.jalan-place-editor [data-action=remove]{min-height:44px;margin-left:6px;background:#fcf0ef;color:#9e2820}
 .jalan-place-editor [data-action=save]:disabled{opacity:.45}
 .jalan-place-editor[hidden],.jalan-place-editor [hidden],.jalan-saved-places[hidden]{display:none}
 .jalan-home-sheet[data-place-mode] .jalan-sheet-quick,.jalan-home-sheet[data-place-mode] .jalan-sheet-recent{display:none}

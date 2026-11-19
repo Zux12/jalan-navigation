@@ -8,13 +8,15 @@ function installSavedPlaces({sheet,quick,recent,header,input,results,expand}){
  editor.innerHTML='<div class="jalan-place-heading"><h2></h2><button type="button" data-action="cancel">Cancel</button></div>'+
    '<label>Shortcut name<input maxlength="64" autocomplete="off" placeholder="e.g. Parents’ house"></label>'+
    '<div class="jalan-place-details"></div><p role="status" aria-live="polite"></p>'+
-   '<button type="button" data-action="save">Save</button>';
+   '<button type="button" data-action="save">Save</button> '+
+   '<button type="button" data-action="remove" hidden></button>';
  sheet.insertBefore(editor,header);
  const saved=document.createElement('section');saved.className='jalan-saved-places';
  saved.innerHTML='<h3>Saved places</h3><ul></ul>';recent.prepend(saved);
  const title=editor.querySelector('h2'),label=editor.querySelector('label'),name=label.querySelector('input'),
    message=editor.querySelector('[role=status]'),details=editor.querySelector('.jalan-place-details'),
    save=editor.querySelector('[data-action=save]'),list=saved.querySelector('ul');
+ const remove=editor.querySelector('[data-action=remove]');
  const originalPlaceholder=input.placeholder;
  let draft=null;
  function entries(){
@@ -50,12 +52,14 @@ function installSavedPlaces({sheet,quick,recent,header,input,results,expand}){
    cancel();expand();
    draft={id,inputValue:input.value,trigger:document.activeElement,controller:new AbortController(),place:null};
    window.JalanDestinationSuggestions?.cancel();results.replaceChildren();results.classList.add('hidden');
-   input.value='';editor.hidden=false;message.textContent='';details.replaceChildren();return draft;
+   remove.hidden=true;input.value='';editor.hidden=false;message.textContent='';details.replaceChildren();return draft;
  }
  function editPlace(id,stored){
    const current=begin(id);
    sheet.dataset.placeMode='edit';
    current.place=stored||null;
+   remove.hidden=!stored;
+   if(stored)remove.textContent=fixedName(id)?'Remove address':'Remove saved place';
    title.textContent=fixedName(id)?(stored?'Edit ':'Set ')+fixedName(id):stored?'Edit saved place':'New saved place';
    label.hidden=Boolean(fixedName(id));name.value=stored?.name||'';
    input.placeholder='Search for an address or place';
@@ -109,6 +113,22 @@ function installSavedPlaces({sheet,quick,recent,header,input,results,expand}){
      localStorage.setItem(key,JSON.stringify(places));
    }catch{message.textContent='Could not save on this device. Check browser storage and try again.';return;}
    cancel(true);render();
+ });
+ remove.addEventListener('click',()=>{
+   if(!draft||remove.hidden)return;
+   const id=draft.id,fixed=fixedName(id);
+   try{
+     const places=entries(),place=places.find(entry=>entry.id===id);
+     if(place){
+       const question=fixed?'Remove the saved address for '+fixed+'?':'Remove “'+place.name+'” from your saved places?';
+       if(!window.confirm(question))return;
+       const remaining=entries().filter(entry=>entry.id!==id);
+       if(remaining.length)localStorage.setItem(key,JSON.stringify(remaining));
+       else localStorage.removeItem(key);
+     }
+   }catch{message.textContent='Could not remove this place. Check browser storage and try again.';return;}
+   cancel();render();
+   quick.querySelector('[data-shortcut="'+(fixed?id:'new')+'"]')?.focus({preventScroll:true});
  });
  editor.querySelector('[data-action=cancel]').addEventListener('click',()=>cancel(true));
  quick.addEventListener('click',event=>{
