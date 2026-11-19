@@ -28,6 +28,11 @@ on:
       - 'style.css'
       - 'passenger.css'
       - 'passenger-ui.js'
+      - 'passenger-pin.js'
+      - 'passenger-pin.css'
+      - 'passenger-pin-route.js'
+      - 'tests/passenger-pin.test.js'
+      - 'tests/passenger-pin-390.cjs'
       - 'passenger-navigation-view.js'
       - 'tests/passenger-navigation-view.test.js'
       - 'passenger-gps-status.js'
@@ -89,6 +94,11 @@ on:
       - 'style.css'
       - 'passenger.css'
       - 'passenger-ui.js'
+      - 'passenger-pin.js'
+      - 'passenger-pin.css'
+      - 'passenger-pin-route.js'
+      - 'tests/passenger-pin.test.js'
+      - 'tests/passenger-pin-390.cjs'
       - 'passenger-navigation-view.js'
       - 'tests/passenger-navigation-view.test.js'
       - 'passenger-gps-status.js'
@@ -126,7 +136,7 @@ permissions:
 jobs:
   chromium-public-390:
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -135,10 +145,15 @@ jobs:
       - name: Install pinned browser and Leaflet dependencies in disposable runner
         run: |
           npm install --no-save --ignore-scripts --no-audit --no-fund playwright@1.58.2 leaflet@1.9.4 axe-core@4.10.3 maplibre-gl@5.15.0
-          npx playwright install --with-deps chromium
+          npx playwright install chromium
+          # GitHub desktop runners usually have Chromium's shared libraries.
+          # Only fetch OS packages if the installed browser cannot start.
+          if ! node -e "require('playwright').chromium.launch().then(browser => browser.close()).catch(() => process.exit(1))"; then
+            npx playwright install-deps chromium
+          fi
       - name: Run deterministic local Chromium 390px, no outbound network
         run: |
-          node --test tests/route-display.test.js tests/destination-match.test.js tests/passenger-navigation-view.test.js tests/passenger-journey-model.test.js tests/passenger-route-traffic.test.js tests/voice-guidance.test.js tests/passenger-gps-status.test.js
+          node --test tests/passenger-pin.test.js tests/route-display.test.js tests/destination-match.test.js tests/passenger-navigation-view.test.js tests/passenger-journey-model.test.js tests/passenger-route-traffic.test.js tests/voice-guidance.test.js tests/passenger-gps-status.test.js
           node tests/google-fallback-390.cjs
           node tests/public-desktop-390.cjs
           node tests/passenger-390.cjs
