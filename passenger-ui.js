@@ -46,12 +46,12 @@
       !Number.isFinite(state.remainingMeters)||!(route?.distance>0))return;
    travelFraction=Math.max(travelFraction,Math.min(1,Math.max(0,1-state.remainingMeters/route.distance)));
    const path=window.JalanRouteDisplay.shape(route),end=travelFraction*path.total;
-   const coordinates=window.JalanRouteDisplay.spans(path,0,end)[0]?.coordinates||[];
+   const coordinates=window.JalanRouteDisplay.section(path,0,end);
    const passed=coordinates.map(p=>L.latLng(p[1],p[0]));
    if(passed.length<2)return;
-   if(!travelled)travelled=L.polyline(passed,{jalanRoute:route,jalanTo:end,smoothFactor:0,color:'#8293aa',weight:9,opacity:1,interactive:false,
+   if(!travelled)travelled=L.polyline(passed,{jalanRouteScale:1,smoothFactor:0,color:'#8293aa',weight:9,opacity:1,interactive:false,
      pane:'passenger-travelled',className:'jalan-travelled-route'}).addTo(map);
-   else {travelled.options.jalanTo=end;travelled.setLatLngs(passed);}
+   else travelled.setLatLngs(passed);
  };
  window.addEventListener('jalan:gps-fix',()=>requestAnimationFrame(paintTravelled));
  window.addEventListener('jalan:journey-start',clearTravelled);
@@ -746,7 +746,7 @@
    // are hidden during Go. Route overview regains them after preview exits.
    routeLayer.getLayers().forEach((line,i)=>{
      if(typeof line.setStyle==='function')line.setStyle(i===selectedRoute?
-       {color:'#087af5',weight:9,opacity:1}:{opacity:0});
+       {color:'#087af5',opacity:1}:{opacity:0});
    });
    routeLabels.clearLayers();
    overview.classList.add('hidden');
@@ -777,8 +777,8 @@
    restorePlannerMarkers();
    routeLayer.getLayers().forEach((line,i)=>{
      if(typeof line.setStyle==='function')line.setStyle(i===selectedRoute?
-       {color:'#2563eb',weight:7,opacity:0.95}:
-       {color:'#94a3b8',weight:5,opacity:0.65});
+       {color:'#2563eb',opacity:0.95}:
+       {color:'#94a3b8',opacity:0.65});
    });
    navigation.classList.add('hidden');
  });

@@ -58,7 +58,6 @@
  }
  function fallback(){
    if(stopped)return;stopped=true;clearTimeout(timer);active=false;
-   clearTimeout(widthTimer);widthJobs.clear();nearbyWidths.clear();
    document.body.classList.remove('passenger-vector-active');
    // Restore the exact logical layers, including a currently enabled traffic map.
    methods.forEach(name=>{map[name]=original[name];});
@@ -238,104 +237,20 @@
      pin.label.setLngLat(lngLat(layer.getLatLng()));
    }else if(pin.label){pin.label.remove();pin.label=null;}
  }
- // Query the basemap's evaluated road-surface paint (including our widening).
- // Cache profiles between camera/tile changes; GPS and overlay paints reuse them.
- let roadLayers=[],roadSources=new Set(),widthsDirty=true,widthRevision=0,widthTimer=null;
- const profiles=new WeakMap(),nearbyWidths=new Map(),widthJobs=new Map();
- // Always paint the route first. Road queries and geometry matching share the
- // browser thread with taps, GPS and the Go deadline, so yield between batches.
- function queueWidths(){
-   if(widthTimer===null&&widthJobs.size&&!widthsDirty)
-     widthTimer=setTimeout(refineWidths,16);
- }
- function refineWidths(){
-   widthTimer=null;
-   if(!active||widthsDirty||!widthJobs.size)return;
-   const [path,work]=widthJobs.entries().next().value;
-   const deadline=performance.now()+4;
-   for(let i=0;i<64;i++){
-     const step=work.next();
-     if(step.done){
-       profiles.set(path,{revision:widthRevision,zoom:gl.getZoom(),value:step.value});
-       widthJobs.delete(path);schedule();break;
-     }
-     if(performance.now()>=deadline)break;
-   }
-   queueWidths();
- }
- function widthProfile(path,used){
-   used.add(path);
-   const saved=profiles.get(path);
-   if(!widthsDirty&&roadLayers.length&&saved?.revision!==widthRevision&&!widthJobs.has(path)){
-     widthJobs.set(path,measureWidths(path));queueWidths();
-   }
-   return saved&&Math.abs(saved.zoom-gl.getZoom())<0.1?saved.value:path;
- }
- function* measureWidths(path){
-   const display=window.JalanRouteDisplay;
-   const bounds=gl.getBounds(),west=bounds.getWest(),east=bounds.getEast(),south=bounds.getSouth(),north=bounds.getNorth();
-   const spacing=Math.max(28,35*78271.52*Math.cos(gl.getCenter().lat*Math.PI/180)/2**gl.getZoom());
-   const points=[path.points[0]],offsets=[0],widths=[];
-   for(let i=1;i<path.points.length;i++){
-     const a=path.points[i-1],b=path.points[i],start=path.offsets[i-1],length=path.offsets[i]-start;
-     // Clip sampling to the viewport, even if a long straight crosses both edges.
-     let lo=0,hi=1;
-     for(const [k,min,max] of [[0,west,east],[1,south,north]]){
-       const d=b[k]-a[k];
-       if(!d){if(a[k]<min||a[k]>max)hi=-1;continue;}
-       const t1=(min-a[k])/d,t2=(max-a[k])/d;
-       lo=Math.max(lo,Math.min(t1,t2));hi=Math.min(hi,Math.max(t1,t2));
-     }
-     const append=(t,w)=>{points.push(t===1?b:display.mix(a,b,t));offsets.push(start+t*length);widths.push(w);};
-     if(hi<=lo){
-       append(1,0);
-       // Distant segments need no map queries. Traverse them in groups so a
-       // long journey can finish a viewport profile between GPS updates.
-       if(i%128===0)yield;
-       continue;
-     }
-     if(lo>0)append(lo,0);
-     const count=Math.max(1,Math.ceil(length*(hi-lo)/spacing));
-     for(let j=1;j<=count;j++){
-       const t=lo+(hi-lo)*j/count,first=points.at(-1),last=display.mix(a,b,t);
-       const m=gl.project(display.mix(first,last,.5));
-       // Allow for slight offsets between provider centre lines and the basemap.
-       const x=Math.floor(m.x/24)*24,y=Math.floor(m.y/24)*24,key=x+','+y;
-       let hits=nearbyWidths.get(key);
-       if(!hits){
-         hits=gl.queryRenderedFeatures([[x-20,y-20],[x+44,y+44]],{layers:roadLayers});
-         nearbyWidths.set(key,hits);
-       }
-       append(t,display.roadWidth(first,last,hits));
-       yield;
-     }
-     if(hi<1)append(1,0);
-   }
-   return {points,offsets,widths,total:path.total};
- }
  function syncLayers(){
-   const features=[],trafficFeatures=[],travelledFeatures=[],seen=new Set(),tileIds=new Set(),usedPaths=new Set();
+   const features=[],trafficFeatures=[],travelledFeatures=[],seen=new Set(),tileIds=new Set();
    original.eachLayer(layer=>{
      watch(layer);const id=L.stamp(layer);
      if(layer instanceof L.Polyline&&layer.options.opacity!==0){
        const opt=layer.options,classes=opt.className?.split(' ')||[];
        const isTravelled=classes.includes('jalan-travelled-route'),isTraffic=classes.includes('jalan-selected-traffic-colour');
        const output=isTravelled?travelledFeatures:isTraffic?trafficFeatures:features;
-       const props={leafletId:id,color:opt.color||'#087af5',width:opt.weight||5,opacity:opt.opacity??1};
-       if(opt.jalanRoute&&window.JalanRouteDisplay){
-         const path=window.JalanRouteDisplay.shape(opt.jalanRoute);
-         const alternative=typeof routes!=='undefined'&&routes.includes(opt.jalanRoute)&&opt.jalanRoute!==routes[selectedRoute];
-         const profile=alternative?path:widthProfile(path,usedPaths);
-         for(const span of window.JalanRouteDisplay.spans(profile,opt.jalanFrom,opt.jalanTo)){
-           output.push({type:'Feature',geometry:{type:'LineString',coordinates:span.coordinates},
-             properties:{...props,width:span.width||props.width,casing:span.width?0:props.width+2}});
-         }
-       }else{
-         const feature=layer.toGeoJSON();feature.properties={...props,casing:props.width+2};output.push(feature);
-       }
+       const feature=layer.toGeoJSON(opt.jalanRouteScale?false:6);
+       feature.properties={leafletId:id,color:opt.color||'#087af5',width:opt.weight||5,
+         routeScale:opt.jalanRouteScale||0,opacity:opt.opacity??1};
+       output.push(feature);
      }else if(layer instanceof L.Marker||layer instanceof L.CircleMarker){seen.add(id);pinFor(layer,id);}
    });
-   for(const path of widthJobs.keys())if(!usedPaths.has(path))widthJobs.delete(path);
    pins.forEach((pin,id)=>{if(!seen.has(id)){pin.marker.remove();pin.label?.remove();pins.delete(id);}});
    if(popupLayer&&!original.hasLayer(popupLayer)){popup?.remove();popup=null;popupLayer=null;}
    const signature=JSON.stringify(features);
@@ -373,6 +288,15 @@
    if(value?.stops)return {...value,stops:value.stops.map(([zoom,width])=>[zoom,scale(width)])};
    return value;
  }
+ // Zoom is evaluated by the renderer during pinch/fly animations, without
+ // rebuilding route geometry. Non-route overlays keep their own pixel widths.
+ function lineWidth(outline=0){
+   const stops=window.JalanRouteDisplay.widthStops.flatMap(([zoom,pixels])=>[
+     zoom-1,['+',outline,['case',['>', ['get','routeScale'],0],
+       ['*',pixels,['get','routeScale']],['get','width']]]
+   ]);
+   return ['interpolate',['linear'],['zoom'],...stops];
+ }
  function styleMap(){
    // A light, quiet road map. Provider attribution remains in the source metadata.
    const layers=gl.getStyle().layers;
@@ -395,11 +319,6 @@
      }
      if(layer.type==='fill'&&layer['source-layer']==='building')gl.setPaintProperty(layer.id,'fill-color','#e1dfda');
    });
-   const surfaces=layers.filter(l=>l.type==='line'&&
-     (l['source-layer']==='transportation'||l.id==='roads')&&
-     /^(highway_(minor|major|motorway)|tunnel_motorway|roads$)/.test(l.id)&&
-     !/casing|outline|dash/.test(l.id));
-   roadLayers=surfaces.map(l=>l.id);roadSources=new Set(surfaces.map(l=>l.source));
    const building=layers.find(layer=>layer['source-layer']==='building');
    const labels=layers.find(layer=>layer.type==='symbol');
    if(building)gl.addLayer({id:'jalan-buildings',type:'fill-extrusion',source:building.source,
@@ -409,20 +328,20 @@
        'fill-extrusion-base':['coalesce',['get','render_min_height'],0]}},labels?.id);
    gl.addSource('jalan-routes',{type:'geojson',maxzoom:20,tolerance:0,data:{type:'FeatureCollection',features:[]}});
    gl.addLayer({id:'jalan-route-casing',type:'line',source:'jalan-routes',layout:{'line-cap':'round','line-join':'round'},
-     paint:{'line-color':'#ffffff','line-width':['get','casing'],'line-opacity':['get','opacity']}});
+     paint:{'line-color':'#ffffff','line-width':lineWidth(2),'line-opacity':['get','opacity']}});
    gl.addLayer({id:'jalan-route-lines',type:'line',source:'jalan-routes',
      layout:{'line-cap':'round','line-join':'round','line-sort-key':['get','opacity']},
-     paint:{'line-color':['get','color'],'line-width':['get','width'],'line-opacity':['get','opacity']}});
+     paint:{'line-color':['get','color'],'line-width':lineWidth(),'line-opacity':['get','opacity']}});
    // Dedicated TOP layers guarantee coloured segments replace the blue line
    // on identical road geometry. Never let base line-sort-key bury them.
    gl.addSource('jalan-selected-traffic',{type:'geojson',maxzoom:20,tolerance:0,
      data:{type:'FeatureCollection',features:[]}});
    gl.addLayer({id:'jalan-selected-traffic-casing',type:'line',source:'jalan-selected-traffic',
      layout:{'line-cap':'round','line-join':'round'},
-     paint:{'line-color':'#ffffff','line-width':['get','casing'],'line-opacity':['get','opacity']}});
+     paint:{'line-color':'#ffffff','line-width':lineWidth(2),'line-opacity':['get','opacity']}});
    gl.addLayer({id:'jalan-selected-traffic-lines',type:'line',source:'jalan-selected-traffic',
      layout:{'line-cap':'round','line-join':'round'},
-     paint:{'line-color':['get','color'],'line-width':['get','width'],
+     paint:{'line-color':['get','color'],'line-width':lineWidth(),
        'line-opacity':['get','opacity']}});
  }
  function dependency(tag,url,integrity){return new Promise((resolve,reject)=>{
@@ -462,12 +381,6 @@
          const latest=map.getCenter();gl.jumpTo({center:[latest.lng,latest.lat],zoom:map.getZoom()-1});
          active=true;map.options.zoomSnap=0;
          installCamera();installTiles();
-         gl.on('moveend',()=>{widthsDirty=true;});
-         gl.on('sourcedata',event=>{if(roadSources.has(event.sourceId))widthsDirty=true;});
-         gl.on('idle',()=>{
-           if(!widthsDirty||!active)return;
-           widthsDirty=false;widthRevision++;widthJobs.clear();nearbyWidths.clear();schedule();
-         });
          map.on('layeradd layerremove',schedule);
          document.body.classList.add('passenger-vector-active');
          gl.resize();syncLayers();syncCamera();clearTimeout(timer);

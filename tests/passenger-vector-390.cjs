@@ -95,33 +95,30 @@ async function main(){
      route(720,[[101.6869,3.139],[101.690,3.145],[101.6953,3.1478]])];
    selectedRoute=0;renderRoutes();
   };
-  // Keep the real renderer and sample its actual styled road widths.
+  // Read evaluated paint at two positions along one line. The map has a
+  // wide street on the west and a narrow street on the east of this point.
   await page.evaluate(()=>{
-   const query=maplibregl.Map.prototype.queryRenderedFeatures;
-   maplibregl.Map.prototype.queryRenderedFeatures=function(...args){
-     window.__widthMap=this;return query.apply(this,args);
+   const proto=maplibregl.Map.prototype,original=proto.getSource;
+   proto.getSource=function(...args){
+     window.__widthMap=this;proto.getSource=original;return original.apply(this,args);
    };
-   const display=window.JalanRouteDisplay,measure=display.roadWidth;
-   window.__widthMatches=0;
-   display.roadWidth=(...args)=>{
-     if(++window.__widthMatches===1)setTimeout(()=>{window.__firstInput=window.__widthMatches;},0);
-     return measure(...args);
-   };
-   const coords=Array.from({length:1201},(_,i)=>[101.680+.01*i/1200,3.139]);
-   const fixture={geometry:{type:'LineString',coordinates:coords},legs:[]};
-   window.__widthLine=L.polyline(coords.map(([lng,lat])=>[lat,lng]),{jalanRoute:fixture,color:'#087af5',weight:9}).addTo(map);
-   map.setView([3.139,101.685],16,{animate:false});
+   const path=Array.from({length:1201},(_,i)=>[3.139,101.680+.01*i/1200]);
+   window.__widthLine=L.polyline(path,{jalanRouteScale:1,color:'#087af5'}).addTo(map);
   });
-  await page.waitForFunction(()=>{
-   const fc=window.__widthMap?.getSource('jalan-routes')?.serialize().data;
-   const widths=fc?.features?.map(f=>f.properties.width)||[];
-   return widths.includes(28)&&widths.includes(7);
-  });
-  const slices=await page.evaluate(()=>({first:window.__firstInput,total:window.__widthMatches}));
-  assert.ok(slices.first>0&&slices.first<=64&&slices.total>slices.first,
-    'a separate input task runs before the dense route finishes width matching');
+  for(const [zoom,width] of [[16,8],[18,11],[16,8]]){
+   await page.evaluate(zoom=>map.setView([3.139,101.685],zoom,{animate:false}),zoom);
+   await page.waitForFunction(({zoom,width})=>{
+     const gl=window.__widthMap;
+     if(!gl||gl.getZoom()!==zoom-1)return false;
+     return [[101.68465,28],[101.68535,7]].every(([lng,roadWidth])=>{
+       const hits=gl.queryRenderedFeatures(gl.project([lng,3.139]),{layers:['roads','jalan-route-lines']});
+       const painted=id=>hits.find(f=>f.layer.id===id)?.layer.paint['line-width'];
+       return painted('roads')===roadWidth&&painted('jalan-route-lines')===width;
+     });
+   },{zoom,width});
+  }
   await page.evaluate(()=>map.removeLayer(window.__widthLine));
-  console.log('PASS route takes 28px and 7px widths from successive rendered road surfaces');
+  console.log('PASS blue route keeps the same width across 28px and 7px streets and scales with zoom in both directions');
   await page.evaluate(routeFixture);
   await page.locator('#passenger-route-list button').nth(1).tap();
   assert.equal(await page.locator('#passenger-route-list button').nth(1).getAttribute('aria-pressed'),'true');
@@ -376,6 +373,11 @@ async function main(){
   assert.equal(await page.locator('#jalan-vector-map').count(),0);
   assert.equal(await page.evaluate(()=>routeLayer.getLayers().length),2);
   assert.match(await page.locator('#jalan-map-status').textContent(),/Basic map/);
+  for(const [zoom,width] of [[16,8],[18,11],[16,8]]){
+   await page.evaluate(zoom=>map.setZoom(zoom,{animate:false}),zoom);
+   assert.equal(await page.evaluate(()=>Number(routeLayer.getLayers()[selectedRoute].getElement().getAttribute('stroke-width'))),width);
+  }
+  console.log('PASS basic map uses the same blue stroke widths after vector fallback');
   assert.deepEqual(errors,[]);
   await page.evaluate(()=>{JalanPassengerCamera.setSetting('zoom',55);JalanPassengerCamera.setSetting('tilt',35);});
   await page.reload();
