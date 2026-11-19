@@ -19,17 +19,18 @@
  }
  function begin(point,target,kind,id){
   if(panel.classList.contains('hidden')||document.body.classList.contains('passenger-guiding'))return;
+  suppressClickUntil=0;
+  if(target.closest('.passenger-route-actions'))return;
   const peek=parseFloat(getComputedStyle(panel).getPropertyValue('--route-sheet-peek'))||72;
   const limit=Math.max(0,panel.getBoundingClientRect().height-peek);
   gesture={x:point.clientX,y:point.clientY,kind,id,claimed:false,collapsed,limit,
    start:collapsed?limit:0,onList:list.contains(target),atTop:list.scrollTop<=1};
-  suppressClickUntil=0;
  }
  function move(point,event){
   if(!gesture)return;
   const dx=point.clientX-gesture.x,dy=point.clientY-gesture.y;
   if(!gesture.claimed){
-   if(Math.max(Math.abs(dx),Math.abs(dy))<6)return;
+   if(Math.max(Math.abs(dx),Math.abs(dy))<(gesture.onList?12:6))return;
    // Expanded alternatives retain native scrolling. Only a downward drag
    // starting at the list's top can tuck the panel away.
    if(Math.abs(dy)<Math.abs(dx)*1.2||

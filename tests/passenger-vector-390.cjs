@@ -101,7 +101,13 @@ async function main(){
    maplibregl.Map.prototype.queryRenderedFeatures=function(...args){
      window.__widthMap=this;return query.apply(this,args);
    };
-   const coords=[[101.680,3.139],[101.685,3.139],[101.690,3.139]];
+   const display=window.JalanRouteDisplay,measure=display.roadWidth;
+   window.__widthMatches=0;
+   display.roadWidth=(...args)=>{
+     if(++window.__widthMatches===1)setTimeout(()=>{window.__firstInput=window.__widthMatches;},0);
+     return measure(...args);
+   };
+   const coords=Array.from({length:1201},(_,i)=>[101.680+.01*i/1200,3.139]);
    const fixture={geometry:{type:'LineString',coordinates:coords},legs:[]};
    window.__widthLine=L.polyline(coords.map(([lng,lat])=>[lat,lng]),{jalanRoute:fixture,color:'#087af5',weight:9}).addTo(map);
    map.setView([3.139,101.685],16,{animate:false});
@@ -111,8 +117,17 @@ async function main(){
    const widths=fc?.features?.map(f=>f.properties.width)||[];
    return widths.includes(28)&&widths.includes(7);
   });
+  const slices=await page.evaluate(()=>({first:window.__firstInput,total:window.__widthMatches}));
+  assert.ok(slices.first>0&&slices.first<=64&&slices.total>slices.first,
+    'a separate input task runs before the dense route finishes width matching');
   await page.evaluate(()=>map.removeLayer(window.__widthLine));
   console.log('PASS route takes 28px and 7px widths from successive rendered road surfaces');
+  await page.evaluate(routeFixture);
+  await page.locator('#passenger-route-list button').nth(1).tap();
+  assert.equal(await page.locator('#passenger-route-list button').nth(1).getAttribute('aria-pressed'),'true');
+  await page.locator('#passenger-go').tap();
+  assert.equal(await page.evaluate(()=>JalanGPS.getState().active&&JalanGPS.getState().route===routes[1]),true);
+  await page.evaluate(()=>JalanPassengerJourney.stop());
   await page.evaluate(routeFixture);
   // Coloured traffic is drawn only on TomTom-selected route pieces, from the
   // same route points mirrored into native MapLibre. No live traffic key used.

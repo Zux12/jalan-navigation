@@ -58,6 +58,7 @@
  }
  function fallback(){
    if(stopped)return;stopped=true;clearTimeout(timer);active=false;
+   clearTimeout(widthTimer);widthJobs.clear();nearbyWidths.clear();
    document.body.classList.remove('passenger-vector-active');
    // Restore the exact logical layers, including a currently enabled traffic map.
    methods.forEach(name=>{map[name]=original[name];});
@@ -239,11 +240,39 @@
  }
  // Query the basemap's evaluated road-surface paint (including our widening).
  // Cache profiles between camera/tile changes; GPS and overlay paints reuse them.
- let roadLayers=[],roadSources=new Set(),profiles=new WeakMap(),nearbyWidths=new Map(),widthsDirty=true;
- function widthProfile(route){
-   const display=window.JalanRouteDisplay,path=display.shape(route);
-   if(!roadLayers.length)return path;
-   if(profiles.has(path))return profiles.get(path);
+ let roadLayers=[],roadSources=new Set(),widthsDirty=true,widthRevision=0,widthTimer=null;
+ const profiles=new WeakMap(),nearbyWidths=new Map(),widthJobs=new Map();
+ // Always paint the route first. Road queries and geometry matching share the
+ // browser thread with taps, GPS and the Go deadline, so yield between batches.
+ function queueWidths(){
+   if(widthTimer===null&&widthJobs.size&&!widthsDirty)
+     widthTimer=setTimeout(refineWidths,16);
+ }
+ function refineWidths(){
+   widthTimer=null;
+   if(!active||widthsDirty||!widthJobs.size)return;
+   const [path,work]=widthJobs.entries().next().value;
+   const deadline=performance.now()+4;
+   for(let i=0;i<64;i++){
+     const step=work.next();
+     if(step.done){
+       profiles.set(path,{revision:widthRevision,zoom:gl.getZoom(),value:step.value});
+       widthJobs.delete(path);schedule();break;
+     }
+     if(performance.now()>=deadline)break;
+   }
+   queueWidths();
+ }
+ function widthProfile(path,used){
+   used.add(path);
+   const saved=profiles.get(path);
+   if(!widthsDirty&&roadLayers.length&&saved?.revision!==widthRevision&&!widthJobs.has(path)){
+     widthJobs.set(path,measureWidths(path));queueWidths();
+   }
+   return saved&&Math.abs(saved.zoom-gl.getZoom())<0.1?saved.value:path;
+ }
+ function* measureWidths(path){
+   const display=window.JalanRouteDisplay;
    const bounds=gl.getBounds(),west=bounds.getWest(),east=bounds.getEast(),south=bounds.getSouth(),north=bounds.getNorth();
    const spacing=Math.max(28,35*78271.52*Math.cos(gl.getCenter().lat*Math.PI/180)/2**gl.getZoom());
    const points=[path.points[0]],offsets=[0],widths=[];
@@ -258,7 +287,7 @@
        lo=Math.max(lo,Math.min(t1,t2));hi=Math.min(hi,Math.max(t1,t2));
      }
      const append=(t,w)=>{points.push(t===1?b:display.mix(a,b,t));offsets.push(start+t*length);widths.push(w);};
-     if(hi<=lo){append(1,0);continue;}
+     if(hi<=lo){append(1,0);yield;continue;}
      if(lo>0)append(lo,0);
      const count=Math.max(1,Math.ceil(length*(hi-lo)/spacing));
      for(let j=1;j<=count;j++){
@@ -272,13 +301,14 @@
          nearbyWidths.set(key,hits);
        }
        append(t,display.roadWidth(first,last,hits));
+       yield;
      }
      if(hi<1)append(1,0);
    }
-   const profile={points,offsets,widths,total:path.total};profiles.set(path,profile);return profile;
+   return {points,offsets,widths,total:path.total};
  }
  function syncLayers(){
-   const features=[],trafficFeatures=[],travelledFeatures=[],seen=new Set(),tileIds=new Set();
+   const features=[],trafficFeatures=[],travelledFeatures=[],seen=new Set(),tileIds=new Set(),usedPaths=new Set();
    original.eachLayer(layer=>{
      watch(layer);const id=L.stamp(layer);
      if(layer instanceof L.Polyline&&layer.options.opacity!==0){
@@ -286,8 +316,11 @@
        const isTravelled=classes.includes('jalan-travelled-route'),isTraffic=classes.includes('jalan-selected-traffic-colour');
        const output=isTravelled?travelledFeatures:isTraffic?trafficFeatures:features;
        const props={leafletId:id,color:opt.color||'#087af5',width:opt.weight||5,opacity:opt.opacity??1};
-       if(opt.jalanRoute){
-         for(const span of window.JalanRouteDisplay.spans(widthProfile(opt.jalanRoute),opt.jalanFrom,opt.jalanTo)){
+       if(opt.jalanRoute&&window.JalanRouteDisplay){
+         const path=window.JalanRouteDisplay.shape(opt.jalanRoute);
+         const alternative=typeof routes!=='undefined'&&routes.includes(opt.jalanRoute)&&opt.jalanRoute!==routes[selectedRoute];
+         const profile=alternative?path:widthProfile(path,usedPaths);
+         for(const span of window.JalanRouteDisplay.spans(profile,opt.jalanFrom,opt.jalanTo)){
            output.push({type:'Feature',geometry:{type:'LineString',coordinates:span.coordinates},
              properties:{...props,width:span.width||props.width,casing:span.width?0:props.width+2}});
          }
@@ -296,6 +329,7 @@
        }
      }else if(layer instanceof L.Marker||layer instanceof L.CircleMarker){seen.add(id);pinFor(layer,id);}
    });
+   for(const path of widthJobs.keys())if(!usedPaths.has(path))widthJobs.delete(path);
    pins.forEach((pin,id)=>{if(!seen.has(id)){pin.marker.remove();pin.label?.remove();pins.delete(id);}});
    if(popupLayer&&!original.hasLayer(popupLayer)){popup?.remove();popup=null;popupLayer=null;}
    const signature=JSON.stringify(features);
@@ -426,7 +460,7 @@
          gl.on('sourcedata',event=>{if(roadSources.has(event.sourceId))widthsDirty=true;});
          gl.on('idle',()=>{
            if(!widthsDirty||!active)return;
-           widthsDirty=false;profiles=new WeakMap();nearbyWidths.clear();schedule();
+           widthsDirty=false;widthRevision++;widthJobs.clear();nearbyWidths.clear();schedule();
          });
          map.on('layeradd layerremove',schedule);
          document.body.classList.add('passenger-vector-active');

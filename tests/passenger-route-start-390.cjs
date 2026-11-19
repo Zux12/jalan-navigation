@@ -80,12 +80,32 @@ module.exports=async(browser,base,root)=>{
   await page.evaluate(()=>{window.__hidden=false;document.dispatchEvent(new Event('visibilitychange'));});
   await page.clock.runFor(6900);assert.equal(await starts(),2);
   await page.clock.runFor(200);assert.equal(await starts(),3,'returning starts a fresh full countdown');
+  await fixture();await page.clock.runFor(200);
+  // Small finger movement within a control is a tap. A real vertical swipe
+  // from the alternatives list is exercised separately by passenger-390.
+  const touch=await context.newCDPSession(page);
+  async function tapWithDrift(locator){
+   const rect=await locator.boundingBox();
+   const point={x:rect.x+rect.width/2,y:rect.y+rect.height/2};
+   await touch.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[point]});
+   await touch.send('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:[{x:point.x,y:point.y+7}]});
+   await touch.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});
+  }
+  const alternate=page.locator('#passenger-route-list button').nth(1);
+  await tapWithDrift(alternate);
+  assert.equal(await alternate.getAttribute('aria-pressed'),'true');
+  await tapWithDrift(page.locator('#passenger-go'));
+  assert.equal(await starts(),4,'Go starts immediately with a slightly moving finger');
+  assert.equal(await page.evaluate(()=>JalanGPS.getState().route.duration),720);
+  await fixture();await page.clock.runFor(200);
+  await tapWithDrift(page.locator('#passenger-route-cancel'));
+  assert.equal(await page.evaluate(()=>routes.length),0,'Cancel accepts a slightly moving finger');
   await fixture();
   await page.evaluate(()=>{Object.defineProperty(navigator,'geolocation',{configurable:true,value:null});});
   const clicks=await page.evaluate(()=>window.__goClicks);
   await page.clock.runFor(7200);
   assert.equal(await page.evaluate(()=>window.__goClicks),clicks+1);
-  assert.equal(await starts(),3);
+  assert.equal(await starts(),4);
   await page.clock.runFor(20000);
   assert.equal(await page.evaluate(()=>window.__goClicks),clicks+1,'failed GPS start does not repeatedly auto-click');
   assert.deepEqual(errors,[]);
