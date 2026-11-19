@@ -6,10 +6,12 @@ const {chromium}=require('playwright');
 const root=path.resolve(__dirname,'..'),artifacts=path.join(root,'test-artifacts');
 fs.mkdirSync(artifacts,{recursive:true});
 const style={version:8,sources:{streets:{type:'geojson',data:{type:'FeatureCollection',features:[
+ {type:'Feature',properties:{width:28},geometry:{type:'LineString',coordinates:[[101.680,3.139],[101.685,3.139]]}},
+ {type:'Feature',properties:{width:7},geometry:{type:'LineString',coordinates:[[101.685,3.139],[101.690,3.139]]}},
  {type:'Feature',properties:{},geometry:{type:'LineString',coordinates:[[101.680,3.132],[101.70,3.154]]}},
  {type:'Feature',properties:{},geometry:{type:'LineString',coordinates:[[101.679,3.148],[101.70,3.13]]}}
  ]}}},layers:[{id:'background',type:'background',paint:{'background-color':'#f5f3ee'}},
- {id:'roads',type:'line',source:'streets',paint:{'line-color':'#fff','line-width':20}}]};
+ {id:'roads',type:'line',source:'streets',paint:{'line-color':'#fff','line-width':['coalesce',['get','width'],20]}}]};
 const server=http.createServer((req,res)=>{
  const name=path.resolve(root,'.'+new URL(req.url,'http://localhost').pathname);
  if(!name.startsWith(root+path.sep)||!fs.existsSync(name)||!fs.statSync(name).isFile()){res.writeHead(404);return res.end();}
@@ -93,6 +95,24 @@ async function main(){
      route(720,[[101.6869,3.139],[101.690,3.145],[101.6953,3.1478]])];
    selectedRoute=0;renderRoutes();
   };
+  // Keep the real renderer and sample its actual styled road widths.
+  await page.evaluate(()=>{
+   const query=maplibregl.Map.prototype.queryRenderedFeatures;
+   maplibregl.Map.prototype.queryRenderedFeatures=function(...args){
+     window.__widthMap=this;return query.apply(this,args);
+   };
+   const coords=[[101.680,3.139],[101.685,3.139],[101.690,3.139]];
+   const fixture={geometry:{type:'LineString',coordinates:coords},legs:[]};
+   window.__widthLine=L.polyline(coords.map(([lng,lat])=>[lat,lng]),{jalanRoute:fixture,color:'#087af5',weight:9}).addTo(map);
+   map.setView([3.139,101.685],16,{animate:false});
+  });
+  await page.waitForFunction(()=>{
+   const fc=window.__widthMap?.getSource('jalan-routes')?.serialize().data;
+   const widths=fc?.features?.map(f=>f.properties.width)||[];
+   return widths.includes(28)&&widths.includes(7);
+  });
+  await page.evaluate(()=>map.removeLayer(window.__widthLine));
+  console.log('PASS route takes 28px and 7px widths from successive rendered road surfaces');
   await page.evaluate(routeFixture);
   // Coloured traffic is drawn only on TomTom-selected route pieces, from the
   // same route points mirrored into native MapLibre. No live traffic key used.

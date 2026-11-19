@@ -237,20 +237,63 @@
      pin.label.setLngLat(lngLat(layer.getLatLng()));
    }else if(pin.label){pin.label.remove();pin.label=null;}
  }
+ // Query the basemap's evaluated road-surface paint (including our widening).
+ // Cache profiles between camera/tile changes; GPS and overlay paints reuse them.
+ let roadLayers=[],roadSources=new Set(),profiles=new WeakMap(),nearbyWidths=new Map(),widthsDirty=true;
+ function widthProfile(route){
+   const display=window.JalanRouteDisplay,path=display.shape(route);
+   if(!roadLayers.length)return path;
+   if(profiles.has(path))return profiles.get(path);
+   const bounds=gl.getBounds(),west=bounds.getWest(),east=bounds.getEast(),south=bounds.getSouth(),north=bounds.getNorth();
+   const spacing=Math.max(28,35*78271.52*Math.cos(gl.getCenter().lat*Math.PI/180)/2**gl.getZoom());
+   const points=[path.points[0]],offsets=[0],widths=[];
+   for(let i=1;i<path.points.length;i++){
+     const a=path.points[i-1],b=path.points[i],start=path.offsets[i-1],length=path.offsets[i]-start;
+     // Clip sampling to the viewport, even if a long straight crosses both edges.
+     let lo=0,hi=1;
+     for(const [k,min,max] of [[0,west,east],[1,south,north]]){
+       const d=b[k]-a[k];
+       if(!d){if(a[k]<min||a[k]>max)hi=-1;continue;}
+       const t1=(min-a[k])/d,t2=(max-a[k])/d;
+       lo=Math.max(lo,Math.min(t1,t2));hi=Math.min(hi,Math.max(t1,t2));
+     }
+     const append=(t,w)=>{points.push(t===1?b:display.mix(a,b,t));offsets.push(start+t*length);widths.push(w);};
+     if(hi<=lo){append(1,0);continue;}
+     if(lo>0)append(lo,0);
+     const count=Math.max(1,Math.ceil(length*(hi-lo)/spacing));
+     for(let j=1;j<=count;j++){
+       const t=lo+(hi-lo)*j/count,first=points.at(-1),last=display.mix(a,b,t);
+       const m=gl.project(display.mix(first,last,.5));
+       // Allow for slight offsets between provider centre lines and the basemap.
+       const x=Math.floor(m.x/24)*24,y=Math.floor(m.y/24)*24,key=x+','+y;
+       let hits=nearbyWidths.get(key);
+       if(!hits){
+         hits=gl.queryRenderedFeatures([[x-20,y-20],[x+44,y+44]],{layers:roadLayers});
+         nearbyWidths.set(key,hits);
+       }
+       append(t,display.roadWidth(first,last,hits));
+     }
+     if(hi<1)append(1,0);
+   }
+   const profile={points,offsets,widths,total:path.total};profiles.set(path,profile);return profile;
+ }
  function syncLayers(){
    const features=[],trafficFeatures=[],travelledFeatures=[],seen=new Set(),tileIds=new Set();
    original.eachLayer(layer=>{
      watch(layer);const id=L.stamp(layer);
      if(layer instanceof L.Polyline&&layer.options.opacity!==0){
-       const feature=layer.toGeoJSON();feature.properties={leafletId:id,color:layer.options.color||'#087af5',
-         width:layer.options.weight||5,opacity:layer.options.opacity??1};
-       // Traffic must be above the blue route, never competing with it in
-       // the base layer's line-sort-key by opacity. Both originate from the
-       // same selected TomTom route geometry and share its map projection.
-       if(layer.options.className?.split(' ').includes('jalan-travelled-route'))travelledFeatures.push(feature);
-       else if(layer.options.className?.split(' ').includes('jalan-selected-traffic-colour'))
-         trafficFeatures.push(feature);
-       else features.push(feature);
+       const opt=layer.options,classes=opt.className?.split(' ')||[];
+       const isTravelled=classes.includes('jalan-travelled-route'),isTraffic=classes.includes('jalan-selected-traffic-colour');
+       const output=isTravelled?travelledFeatures:isTraffic?trafficFeatures:features;
+       const props={leafletId:id,color:opt.color||'#087af5',width:opt.weight||5,opacity:opt.opacity??1};
+       if(opt.jalanRoute){
+         for(const span of window.JalanRouteDisplay.spans(widthProfile(opt.jalanRoute),opt.jalanFrom,opt.jalanTo)){
+           output.push({type:'Feature',geometry:{type:'LineString',coordinates:span.coordinates},
+             properties:{...props,width:span.width||props.width,casing:span.width?0:props.width+2}});
+         }
+       }else{
+         const feature=layer.toGeoJSON();feature.properties={...props,casing:props.width+2};output.push(feature);
+       }
      }else if(layer instanceof L.Marker||layer instanceof L.CircleMarker){seen.add(id);pinFor(layer,id);}
    });
    pins.forEach((pin,id)=>{if(!seen.has(id)){pin.marker.remove();pin.label?.remove();pins.delete(id);}});
@@ -312,6 +355,11 @@
      }
      if(layer.type==='fill'&&layer['source-layer']==='building')gl.setPaintProperty(layer.id,'fill-color','#e1dfda');
    });
+   const surfaces=layers.filter(l=>l.type==='line'&&
+     (l['source-layer']==='transportation'||l.id==='roads')&&
+     /^(highway_(minor|major|motorway)|tunnel_motorway|roads$)/.test(l.id)&&
+     !/casing|outline|dash/.test(l.id));
+   roadLayers=surfaces.map(l=>l.id);roadSources=new Set(surfaces.map(l=>l.source));
    const building=layers.find(layer=>layer['source-layer']==='building');
    const labels=layers.find(layer=>layer.type==='symbol');
    if(building)gl.addLayer({id:'jalan-buildings',type:'fill-extrusion',source:building.source,
@@ -319,22 +367,22 @@
      paint:{'fill-extrusion-color':'#dedcd6','fill-extrusion-opacity':.6,
        'fill-extrusion-height':['coalesce',['get','render_height'],0],
        'fill-extrusion-base':['coalesce',['get','render_min_height'],0]}},labels?.id);
-   gl.addSource('jalan-routes',{type:'geojson',data:{type:'FeatureCollection',features:[]}});
+   gl.addSource('jalan-routes',{type:'geojson',maxzoom:20,tolerance:0,data:{type:'FeatureCollection',features:[]}});
    gl.addLayer({id:'jalan-route-casing',type:'line',source:'jalan-routes',layout:{'line-cap':'round','line-join':'round'},
-     paint:{'line-color':'#ffffff','line-width':['+',['get','width'],4],'line-opacity':['get','opacity']}});
+     paint:{'line-color':'#ffffff','line-width':['get','casing'],'line-opacity':['get','opacity']}});
    gl.addLayer({id:'jalan-route-lines',type:'line',source:'jalan-routes',
      layout:{'line-cap':'round','line-join':'round','line-sort-key':['get','opacity']},
      paint:{'line-color':['get','color'],'line-width':['get','width'],'line-opacity':['get','opacity']}});
    // Dedicated TOP layers guarantee coloured segments replace the blue line
    // on identical road geometry. Never let base line-sort-key bury them.
-   gl.addSource('jalan-selected-traffic',{type:'geojson',
+   gl.addSource('jalan-selected-traffic',{type:'geojson',maxzoom:20,tolerance:0,
      data:{type:'FeatureCollection',features:[]}});
    gl.addLayer({id:'jalan-selected-traffic-casing',type:'line',source:'jalan-selected-traffic',
      layout:{'line-cap':'round','line-join':'round'},
-     paint:{'line-color':'#ffffff','line-width':15,'line-opacity':['get','opacity']}});
+     paint:{'line-color':'#ffffff','line-width':['get','casing'],'line-opacity':['get','opacity']}});
    gl.addLayer({id:'jalan-selected-traffic-lines',type:'line',source:'jalan-selected-traffic',
      layout:{'line-cap':'round','line-join':'round'},
-     paint:{'line-color':['get','color'],'line-width':10,
+     paint:{'line-color':['get','color'],'line-width':['get','width'],
        'line-opacity':['get','opacity']}});
  }
  function dependency(tag,url,integrity){return new Promise((resolve,reject)=>{
@@ -374,6 +422,12 @@
          const latest=map.getCenter();gl.jumpTo({center:[latest.lng,latest.lat],zoom:map.getZoom()-1});
          active=true;map.options.zoomSnap=0;
          installCamera();installTiles();
+         gl.on('moveend',()=>{widthsDirty=true;});
+         gl.on('sourcedata',event=>{if(roadSources.has(event.sourceId))widthsDirty=true;});
+         gl.on('idle',()=>{
+           if(!widthsDirty||!active)return;
+           widthsDirty=false;profiles=new WeakMap();nearbyWidths.clear();schedule();
+         });
          map.on('layeradd layerremove',schedule);
          document.body.classList.add('passenger-vector-active');
          gl.resize();syncLayers();syncCamera();clearTimeout(timer);

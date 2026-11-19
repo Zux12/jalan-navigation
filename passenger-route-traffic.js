@@ -143,8 +143,9 @@
    const pieces=classify(route,flowMatches);
    cacheJourney(pieces);
    for(const segment of pieces){
-     L.polyline(segment.coordinates.map(point=>[point[1],point[0]]),{
-       color:palette[segment.type],weight:10,opacity:.94,
+     const coordinates=window.JalanRouteDisplay?.spans(window.JalanRouteDisplay.shape(route),segment.start,segment.end)[0]?.coordinates||segment.coordinates;
+     L.polyline(coordinates.map(point=>[point[1],point[0]]),{
+       jalanRoute:route,jalanFrom:segment.start,jalanTo:segment.end,smoothFactor:0,color:palette[segment.type],weight:9,opacity:.94,
        interactive:false,lineCap:'round',lineJoin:'round',
        className:'jalan-selected-traffic-colour'
      }).addTo(overlay);
