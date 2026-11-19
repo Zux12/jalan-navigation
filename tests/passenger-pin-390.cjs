@@ -10,6 +10,25 @@ module.exports=async function pinCard(page,{routing=false}={}){
  await page.evaluate(()=>Object.defineProperty(navigator,'clipboard',{configurable:true,value:{
    writeText:async text=>{window.__copiedPin=text;}
  }}));
+ if(routing){
+   const gestures=await page.evaluate(async()=>{
+     const mapNode=document.getElementById('map'),card=document.getElementById('jalan-pin-card');
+     const pointer=(type,id,x=150)=>mapNode.dispatchEvent(new PointerEvent(type,{
+       bubbles:true,pointerType:'touch',pointerId:id,button:0,clientX:x,clientY:320
+     }));
+     const after=(ms,read)=>new Promise(resolve=>setTimeout(()=>resolve(read()),ms));
+     pointer('pointerdown',1);
+     const hold=await Promise.all([after(650,()=>!card.hidden),after(760,()=>!card.hidden)]);
+     pointer('pointerup',1);
+     window.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape'}));
+     pointer('pointerdown',1);pointer('pointermove',1,180);
+     const drag=await after(760,()=>!card.hidden);pointer('pointerup',1,180);
+     pointer('pointerdown',1);pointer('pointerdown',2,210);pointer('pointerup',2,210);
+     const pinch=await after(760,()=>!card.hidden);pointer('pointerup',1);
+     return {hold,drag,pinch};
+   });
+   assert.deepEqual(gestures,{hold:[false,true],drag:false,pinch:false});
+ }
  await press();
  const coordinates=await card.locator('small').textContent();
  await card.getByRole('button',{name:'Share location'}).click();
