@@ -33,8 +33,14 @@ function sdkFixture(){
     widget.place={id,location:{lat:()=>3.222,lng:()=>101.729}};
     const branch=id.startsWith('FIXTURE_AYER_')?id.slice('FIXTURE_AYER_'.length):'';
     if(branch){
-     if(widget.querySelector('gmp-place-name'))widget.shadowRoot.append('Ayer 8 '+branch);
-     if(widget.querySelector('gmp-place-address')){const address=document.createElement('span');address.textContent='Fixture '+branch+' Street, Putrajaya';widget.shadowRoot.append(address);}
+     const root=widget.shadowRoot;
+     root.innerHTML='<style>:host{box-sizing:border-box}section{position:relative;padding:10px 56px 6px 10px}strong,span{display:block}strong{font:var(--gmp-mat-font-title-small)}span{font:var(--gmp-mat-font-body-small)}a{position:absolute;right:10px;top:10px}footer{padding:0 10px 10px}</style><section></section><footer>Google Maps <button type="button" aria-label="About Google Maps">ⓘ</button></footer>';
+     const section=root.querySelector('section');
+     if(widget.querySelector('gmp-place-name')){const name=document.createElement('strong');name.textContent='Ayer 8 '+branch;section.append(name);}
+     if(widget.querySelector('gmp-place-address')){const address=document.createElement('span');address.textContent='Fixture '+branch+' Street, Putrajaya';section.append(address);}
+     const maps=document.createElement('a');maps.href='#maps-fixture';maps.textContent='↗';maps.setAttribute('aria-label','Open in Maps');section.append(maps);
+     maps.onclick=e=>{e.preventDefault();window.__mapsLinkOpened=true;};
+     root.querySelector('footer button').onclick=()=>{window.__mapsInfoOpened=true;};
     }
     widget.dispatchEvent(new Event((branch&&!window.__rejectRecentDetails)||id==='SYNTHETIC_Q_BISTRO'?'gmp-load':'gmp-error'));
    },20);
@@ -206,8 +212,19 @@ module.exports=async function({context,base,root}){
  await south.getByText(/Fixture South Street, Putrajaya/).waitFor();
  assert.equal(await south.locator('gmp-place-attribution').count(),1);
  assert.equal(await south.locator('gmp-place-google-maps-button').count(),0);
- const googleStyle=await south.locator('gmp-place-details-compact').evaluate(node=>getComputedStyle(node).borderTopWidth);
- assert.equal(googleStyle,'0px');
+ const routeTarget=south.getByRole('button',{name:/Route to/});
+ assert.equal(await routeTarget.innerText(),'','no separate visible Route label');
+ const googleStyle=await south.locator('gmp-place-details-compact').evaluate(el=>{
+  const widget=getComputedStyle(el),row=getComputedStyle(el.closest('li').querySelector('button'));
+  return [widget.borderTopWidth,widget.getPropertyValue('--gmp-mat-font-title-small').trim(),widget.getPropertyValue('--gmp-mat-font-body-small').trim(),row.getPropertyValue('--recent-font').trim()];
+ });
+ assert.deepEqual(googleStyle,['0px',googleStyle[3],googleStyle[3],googleStyle[3]]);
+ const beforeControls=routeCalls;
+ await south.getByRole('button',{name:'About Google Maps'}).click();
+ await south.getByRole('link',{name:'Open in Maps'}).click();
+ assert.deepEqual(await page.evaluate(()=>[window.__mapsInfoOpened,window.__mapsLinkOpened]),[true,true]);
+ assert.equal(routeCalls,beforeControls);
+ assert.equal(await page.locator('#jalan-home-sheet').getAttribute('data-state'),'c');
  await page.evaluate(()=>window.__rejectRecentDetails=true);
  await chooseAyer('North');
  const north=recent.locator('li[data-recent-key="google:FIXTURE_AYER_North"]');
@@ -219,7 +236,9 @@ module.exports=async function({context,base,root}){
  await north.getByText(/Fixture North Street, Putrajaya/).waitFor();
  await page.evaluate(()=>{setStart([3.139,101.6869],'Fixture start');});
  expectedEndpoint=[3.222,101.729];const beforeRecentRoute=routeCalls;
- await south.getByRole('button',{name:/Route/}).click();
+ const address=await south.getByText('Fixture South Street, Putrajaya').boundingBox();
+ // Press the visible address as a passenger would; the native row button handles the tap.
+ await page.mouse.click(address.x+5,address.y+address.height/2);
  await page.waitForFunction(()=>routes.length>0);
  assert.equal(routeCalls,beforeRecentRoute+1,'Recent routes directly to the selected point');
  assert.equal(await recent.locator('li').first().getAttribute('data-recent-key'),'google:FIXTURE_AYER_South');

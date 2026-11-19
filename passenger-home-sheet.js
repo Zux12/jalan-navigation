@@ -73,7 +73,11 @@
      if(!entry||!isIntersecting||entry.loading)continue;
      entry.loading=true;
      window.JalanGooglePlaceSearch.showDetails(entry.place.googleId,entry.details,entry.controller.signal)
-       .then(()=>{entry.fallback.hidden=true;recentVisibility.unobserve(target);})
+       .then(()=>{
+         entry.row.classList.add('has-place-details');
+         entry.fallback.hidden=true;
+         recentVisibility.unobserve(target);
+       })
        .catch(()=>{
          // Keep the exact destination selectable offline. Retry on its next appearance.
          entry.loading=false;entry.fallback.textContent=entry.place.name+' · Address unavailable';
@@ -95,14 +99,12 @@
      if(google){
        row.className='jalan-recent-google';
        entry.controller=new AbortController();
-       const copy=document.createElement('div');
        entry.fallback=document.createElement('span');entry.fallback.textContent=place.label;
        entry.details=document.createElement('div');entry.details.id='jalan-recent-place-'+(++recentDetailId);
-       copy.append(entry.fallback,entry.details);row.append(copy);
-       button.textContent='Route';button.setAttribute('aria-describedby',entry.details.id);
+       button.append(entry.fallback);button.setAttribute('aria-describedby',entry.details.id);
+       row.append(button,entry.details);
        recentVisibility.observe(row);
-     }
-     row.append(button);
+     }else row.append(button);
    }
    entry.place={...place,point:[...place.point]};
    if(google)entry.button.setAttribute('aria-label','Route to '+place.name);
