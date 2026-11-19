@@ -329,11 +329,13 @@ async function main(){
     await page.mouse.up();
     await page.evaluate(()=>clearInterval(window.__panFixes));
   }
+  // Observe the camera as the wheel gesture renders, before auto-follow can restore it.
   const zoomBeforeWheel=await page.evaluate(()=>JalanVectorMap.getState().zoom);
-  await page.mouse.move(210,350);await page.mouse.wheel(0,-420);
-  await page.waitForTimeout(650);
-  assert.ok(await page.evaluate(()=>JalanVectorMap.getState().zoom)>zoomBeforeWheel+0.1,
-    'native wheel zoom must change map zoom');
+  await page.mouse.move(210,350);
+  await Promise.all([
+    page.waitForFunction(before=>JalanVectorMap.getState().zoom>before+.1,zoomBeforeWheel,{timeout:5000}),
+    page.mouse.wheel(0,-420)
+  ]);
   const bearingBeforeRotate=await page.evaluate(()=>JalanVectorMap.getBearing());
   await page.mouse.move(200,340);await page.mouse.down({button:'right'});
   await page.mouse.move(280,380,{steps:12});await page.mouse.up({button:'right'});
