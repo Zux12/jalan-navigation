@@ -220,7 +220,7 @@ body.passenger-vector-active .maplibregl-ctrl-bottom-right{z-index:4;bottom:env(
 body.passenger-vector-active .maplibregl-ctrl-attrib{margin:0!important;padding:0 4px;font-size:10px;line-height:14px;min-height:0;background:#fffffff0;color:#425364}
 
 /* The pre-route GPS halo surrounds the same vehicle used during guidance. */
-.passenger-startup-pin{display:grid;place-items:center;pointer-events:none;
+.leaflet-marker-icon.passenger-startup-pin{display:grid;place-items:center;pointer-events:none;
  border:3px solid #fff;border-radius:50%;box-sizing:border-box;
  background:rgba(125,211,252,.25);box-shadow:0 3px 12px #102d5580}
 .passenger-startup-pin .jalan-vehicle-shape{width:64px;height:64px}

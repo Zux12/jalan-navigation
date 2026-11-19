@@ -437,6 +437,23 @@ async function main(){
     layerIcons:Object.values(map._layers).filter(layer=>layer instanceof L.Marker).map(layer=>layer.options.icon?.options.className)
   }))));
   await startup.locator('.jalan-vector-pin .passenger-startup-pin .vehicle-left[d^="M"]').waitFor({timeout:8000});
+  async function assertTriangleCentered(selector){
+    const offsets=await startup.locator(selector).evaluate(ring=>{
+      const center=element=>{
+        const box=element.getBoundingClientRect();
+        return [box.left+box.width/2,box.top+box.height/2];
+      };
+      const [cx,cy]=center(ring);
+      return ['svg','.vehicle-outline'].map(part=>{
+        const [x,y]=center(ring.querySelector(part));
+        return [x-cx,y-cy];
+      });
+    });
+    assert.ok(offsets.flat().every(delta=>Math.abs(delta)<0.5),
+      'The SVG and the visible triangle must both be centered inside the GPS ring: '+JSON.stringify(offsets));
+  }
+  const vectorHalo='.jalan-vector-pin .passenger-startup-pin';
+  await assertTriangleCentered(vectorHalo);
   assert.equal(await startup.evaluate(()=>Math.round(map.getZoom())),17,
     'accurate permission-granted startup position zooms to street scale');
   assert.ok(await startup.evaluate(()=>Math.abs(map.getCenter().lat-3.139)<.00001&&
@@ -459,7 +476,8 @@ async function main(){
   await startup.evaluate(()=>window.dispatchEvent(new CustomEvent('jalan:free-location',{detail:{
     point:[3.1394,101.6873],accuracy:8,timestamp:Date.now()+1,heading:90,speed:5}})));
   await startup.waitForFunction(()=>document.querySelector('.jalan-vector-pin .passenger-startup-pin svg')?.dataset.heading==='90');
-  const pinSelector='.jalan-vector-pin .passenger-startup-pin svg';
+  await assertTriangleCentered(vectorHalo);
+  const pinSelector=vectorHalo+' svg';
   await startup.evaluate(selector=>{
     window.__startupShape=document.querySelector(selector);
     JalanVectorMap.setCamera({bearing:22.4,pitch:14.4,zoom:16.35});
@@ -470,6 +488,7 @@ async function main(){
   },pinSelector);
   assert.ok(await startup.evaluate(selector=>document.querySelector(selector)===window.__startupShape,pinSelector),
     'rotating and zooming before Go keeps the visible SVG attached');
+  await assertTriangleCentered(vectorHalo);
   await startup.evaluate(()=>JalanVectorMap.setCamera({bearing:0,pitch:0,zoom:16}));
   await startup.evaluate(()=>window.dispatchEvent(new CustomEvent('jalan:free-location',{detail:{point:[4,102],accuracy:180,timestamp:Date.now()}})));
   assert.equal(await startup.evaluate(()=>window.__freeMarker.getLatLng().lat),3.1394,'poor GPS cannot move the triangle');
@@ -480,6 +499,10 @@ async function main(){
   await startup.waitForFunction(()=>document.getElementById('passenger-gps-status').dataset.quality==='red');
   assert.ok(await startup.evaluate(()=>Math.abs(map.getCenter().lat-3.1394)<.00001),
     'quality tracking changes only the indicator, without moving the map');
+  await startup.evaluate(()=>JalanVectorMap.useBasicMap());
+  const basicHalo='#map .leaflet-marker-pane .passenger-startup-pin';
+  await startup.locator(basicHalo).waitFor({state:'visible'});
+  await assertTriangleCentered(basicHalo);
   await startup.close();await startupContext.close();
   // Inaccurate geolocation must not display a false current-position arrow or
   // auto-zoom, and browser permission denial must remain usable.
