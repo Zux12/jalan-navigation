@@ -70,43 +70,45 @@
    const lat=typeof location?.lat==='function'?location.lat():location?.lat;
    const lon=typeof location?.lng==='function'?location.lng():location?.lng;
    if(!Number.isFinite(lat)||!Number.isFinite(lon)||Math.abs(lat)>90||Math.abs(lon)>180){onError();return;}
-   // Do not call ordinary Places fetchFields: this integration uses UI Kit.
-   // When Google returns just an ID and point, identify the passenger's search.
-   const searchText=query.replace(/[^\p{L}\p{M}\p{N} .’'-]+/gu,' ').trim();
-   const choices=widget.places||[];
-   const index=choices.findIndex(choice=>choice===place||(place.id&&choice.id===place.id));
-   const prefix=choices.length>1&&index>=0?'Result '+(index+1)+' for':'Search';
-   let name=typeof place.displayName==='string'?place.displayName:'';
-   if(!name)name=searchText?prefix+' “'+searchText+'”':'Selected destination';
+   // The selection event can contain just an ID and a point. Recent displays
+   // the provider's name and address by that ID, even for an ambiguous search.
+   const name=place.displayName||query.trim()||'Selected destination';
    onSelect({lat,lon,name,display_name:name,source:'google',googleId:place.id});
   });
   container.replaceChildren(widget);
   visibility.observe(widget);
   request.textQuery=query;
  }
- // Save only the Google place ID. Resolve it on use with an attributed UI Kit
- // component so saved shortcuts do not retain Google's address or coordinates.
- async function resolve(id,container,signal){
-  await load();if(signal.aborted)throw new Error('Saved place lookup cancelled');
+ // Mount an attributed place by its exact ID, without repeating the search.
+ async function showDetails(id,container,signal){
+  await load();if(signal.aborted)throw Error('Place lookup cancelled');
   return new Promise((done,fail)=>{
    const widget=document.createElement('gmp-place-details-compact');
+   widget.setAttribute('orientation','horizontal');
    const request=document.createElement('gmp-place-details-place-request');
    widget.append(request,document.createElement('gmp-place-name'),document.createElement('gmp-place-address'),document.createElement('gmp-place-attribution'));
+   function finish(){
+    clearTimeout(timer);signal.removeEventListener('abort',failed);
+    widget.removeEventListener('gmp-error',failed);widget.removeEventListener('gmp-load',ready);
+   }
+   function failed(){finish();widget.remove();fail(new Error('Place details unavailable'));}
+   function ready(){finish();done(widget);}
+   const timer=setTimeout(failed,12000);
+   signal.addEventListener('abort',failed,{once:true});
+   widget.addEventListener('gmp-error',failed);
+   widget.addEventListener('gmp-load',ready);
    container.replaceChildren(widget);
-   const stop=()=>{clearTimeout(timer);signal.removeEventListener('abort',abort);widget.remove();};
-   const abort=()=>{stop();fail(new Error('Saved place lookup cancelled'));};
-   const timer=setTimeout(abort,12000);
-   signal.addEventListener('abort',abort,{once:true});
-   widget.addEventListener('gmp-error',abort,{once:true});
-   widget.addEventListener('gmp-load',()=>{
-    const loc=widget.place?.location;
-    const lat=typeof loc?.lat==='function'?loc.lat():loc?.lat;
-    const lon=typeof loc?.lng==='function'?loc.lng():loc?.lng;
-    if(!Number.isFinite(lat)||!Number.isFinite(lon)||Math.abs(lat)>90||Math.abs(lon)>180){abort();return;}
-    stop();done({lat,lon});
-   },{once:true});
    request.place=id;
   });
  }
- window.JalanGooglePlaceSearch=Object.freeze({configured,mount,resolve});
+ async function resolve(id,container,signal){
+  const widget=await showDetails(id,container,signal);
+  const loc=widget.place?.location;
+  widget.remove();
+  const lat=typeof loc?.lat==='function'?loc.lat():loc?.lat;
+  const lon=typeof loc?.lng==='function'?loc.lng():loc?.lng;
+  if(!Number.isFinite(lat)||!Number.isFinite(lon)||Math.abs(lat)>90||Math.abs(lon)>180)throw Error('Saved place location unavailable');
+  return {lat,lon};
+ }
+ window.JalanGooglePlaceSearch=Object.freeze({configured,mount,resolve,showDetails});
 })();

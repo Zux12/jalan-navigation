@@ -21,7 +21,7 @@
   '<button type="button" data-shortcut="work">💼 <strong>Work</strong></button>'+
   '<button type="button" data-shortcut="new">＋ <strong>New</strong></button>';
  const recent=document.createElement('section');recent.className='jalan-sheet-recent';
- recent.innerHTML='<h2>Recent</h2><ol id="jalan-recent-list"></ol>';
+ recent.innerHTML='<h2>Recent</h2><ol id="jalan-recent-list"><li class="jalan-recent-empty">Your recently selected destinations will appear here during this session.</li></ol>';
  sheet.append(handle,searchTrigger,header,results,quick,recent);document.body.append(sheet);
  const menu=document.createElement('button');menu.id='jalan-home-menu';menu.type='button';
  menu.setAttribute('aria-label','Open JALAN menu');menu.setAttribute('aria-controls','jalan-home-menu-panel');
@@ -62,26 +62,59 @@
  window.addEventListener('jalan:journey-stop',()=>requestAnimationFrame(paintNavigation));
  paintNavigation();
  const input=$('destination'),form=$('search-form'),list=$('jalan-recent-list');
- const recentPlaces=[];
+ const recentRows=new Map();
+ let recentDetailId=0;
  const routeSearchButton=$('passenger-search'),navigation=$('passenger-navigation');
  let routeSearch=null;
  let shortcuts;
- const renderRecent=()=>{
-   list.replaceChildren();
-   if(!recentPlaces.length){
-     const empty=document.createElement('li');
-     empty.className='jalan-recent-empty';
-     empty.textContent='Your recently selected destinations will appear here during this session.';
-     list.append(empty);return;
+ const recentVisibility=new IntersectionObserver(entries=>{
+   for(const {target,isIntersecting} of entries){
+     const entry=recentRows.get(target.dataset.recentKey);
+     if(!entry||!isIntersecting||entry.loading)continue;
+     entry.loading=true;
+     window.JalanGooglePlaceSearch.showDetails(entry.place.googleId,entry.details,entry.controller.signal)
+       .then(()=>{entry.fallback.hidden=true;recentVisibility.unobserve(target);})
+       .catch(()=>{
+         // Keep the exact destination selectable offline. Retry on its next appearance.
+         entry.loading=false;entry.fallback.textContent=entry.place.name+' · Address unavailable';
+       });
    }
-   for(const place of recentPlaces){
-     const li=document.createElement('li'),btn=document.createElement('button');
-     btn.type='button';btn.textContent=place.label;
-     btn.addEventListener('click',()=>{input.blur();
-       selectDestinationPlace({lat:place.point[0],lon:place.point[1],name:place.name,display_name:place.label,googleId:place.googleId,source:place.source});});
-     li.append(btn);list.append(li);
+ });
+ function rememberRecent(place){
+   const google=place.source==='google'&&Boolean(place.googleId);
+   const key=google?'google:'+place.googleId:'point:'+place.point.join(',');
+   let entry=recentRows.get(key);
+   if(!entry){
+     const row=document.createElement('li'),button=document.createElement('button');
+     row.dataset.recentKey=key;button.type='button';
+     entry={row,button,place};recentRows.set(key,entry);
+     button.addEventListener('click',()=>{
+       const p=entry.place;input.blur();
+       selectDestinationPlace({lat:p.point[0],lon:p.point[1],name:p.name,display_name:p.label,googleId:p.googleId,source:p.source});
+     });
+     if(google){
+       row.className='jalan-recent-google';
+       entry.controller=new AbortController();
+       const copy=document.createElement('div');
+       entry.fallback=document.createElement('span');entry.fallback.textContent=place.label;
+       entry.details=document.createElement('div');entry.details.id='jalan-recent-place-'+(++recentDetailId);
+       copy.append(entry.fallback,entry.details);row.append(copy);
+       button.textContent='Route';button.setAttribute('aria-describedby',entry.details.id);
+       recentVisibility.observe(row);
+     }
+     row.append(button);
    }
- };
+   entry.place={...place,point:[...place.point]};
+   if(google)entry.button.setAttribute('aria-label','Route to '+place.name);
+   else entry.button.textContent=place.label;
+   list.querySelector('.jalan-recent-empty')?.remove();
+   if(list.firstElementChild!==entry.row)list.prepend(entry.row);
+   if(recentRows.size>7){
+     const last=list.lastElementChild,old=recentRows.get(last.dataset.recentKey);
+     recentVisibility.unobserve(last);old.controller?.abort();
+     recentRows.delete(last.dataset.recentKey);last.remove();
+   }
+ }
  const setState=next=>{
    const state=['a','b','c'].includes(next)?next:'a';
    if(state!=='c'){shortcuts?.cancel();window.JalanDestinationSuggestions?.cancel();}
@@ -227,11 +260,7 @@
  window.addEventListener('jalan:destination-selected',event=>{
    const place=event.detail;
    if(!Array.isArray(place?.point)||place.point.length!==2||!place.point.every(Number.isFinite))return;
-   const duplicate=recentPlaces.findIndex(p=>p.point[0]===place.point[0]&&p.point[1]===place.point[1]);
-   if(duplicate>=0)recentPlaces.splice(duplicate,1);
-   recentPlaces.unshift({point:[...place.point],name:String(place.name),label:String(place.label),source:place.source,googleId:place.googleId});
-   recentPlaces.length=Math.min(7,recentPlaces.length);
-   renderRecent();closeRouteSearch(false,false);
+   rememberRecent(place);closeRouteSearch(false,false);
  });
  window.addEventListener('jalan:routes-rendered',()=>{shortcuts.cancel();closeRouteSearch(false,false);cancelGesture();sheet.classList.add('jalan-sheet-route');input.blur();});
  window.addEventListener('jalan:route-cleared',()=>{closeRouteSearch(false,false);cancelGesture();sheet.classList.remove('jalan-sheet-route');setState('a');});
@@ -244,5 +273,5 @@
    $('jalan-home-speed-value').textContent=v;
    speed.setAttribute('aria-label',valid?'Speed '+v+' kilometres per hour':'Speed unavailable until reliable GPS');
  });
- renderRecent();setState('a');
+ setState('a');
 })();
