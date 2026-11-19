@@ -251,11 +251,18 @@ async function main(){
   await page.screenshot({path:path.join(artifacts,'vector-fixture-navigation.png')});
   // Native gestures must actually change the camera. A former vector-gesture
   // handler called gl.stop() on dragstart, cancelling the map movement.
+  // Taking a WebGL screenshot on a slow runner can outlast a single fix.
+  // This is a pan with live GPS. Keep delivering the stationary fixture
+  // during the gesture so the stale-GPS message is a separate scenario.
+  await page.evaluate(fix);
+  await page.evaluate(()=>{window.__panFixes=setInterval(()=>window.__fix({timestamp:Date.now(),
+    coords:{latitude:3.139,longitude:101.6869,accuracy:8,speed:0,heading:45}}),1000);});
   const initialCenter=await page.evaluate(()=>[map.getCenter().lat,map.getCenter().lng]);
   await page.mouse.move(150,380);await page.mouse.down();
   await page.mouse.move(240,430,{steps:12});await page.mouse.up();
   await page.waitForTimeout(250);
   assert.match(await page.locator('#passenger-gesture-hint').textContent(),/Exploring map/);
+  await page.evaluate(()=>clearInterval(window.__panFixes));
   // MapLibre drag inertia legitimately continues after pointer-up. Allow it
   // to settle before asserting that a subsequent GPS fix leaves explore intact.
   await page.waitForTimeout(900);
