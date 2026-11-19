@@ -48,6 +48,13 @@ body.passenger-mode .jalan-home-sheet .results{position:static!important;inset:a
 .jalan-sheet-recent li{border-bottom:1px solid #eceff2}
 .jalan-sheet-recent li button{display:block;text-align:left;width:100%;border:0;
  background:#fff;padding:18px 10px;color:#223141;font:600 15px system-ui;cursor:pointer}
+.jalan-recent-google{display:flex;align-items:center;gap:6px;padding:8px 4px 8px 10px}
+.jalan-recent-google>div{flex:1;min-width:0;overflow-wrap:anywhere;font:600 15px/1.4 system-ui}
+.jalan-recent-google gmp-place-details-compact{display:block;width:100%;border:0;border-radius:0;
+ box-shadow:none;margin:0;color-scheme:light;--gmp-card-border-radius:0px;
+ --gmp-mat-font-family:system-ui,sans-serif;--gmp-mat-font-title-medium:600 15px/1.4 system-ui;
+ --gmp-mat-color-surface:#fff;--gmp-mat-color-on-surface:#223141}
+.jalan-sheet-recent .jalan-recent-google>button{width:auto;min-height:44px;padding:8px;color:#1764ad}
 .jalan-recent-empty{font:13px system-ui;line-height:1.5;color:#657488;padding:13px 5px}
 body.passenger-mode .jalan-home-sheet[data-state="a"] .jalan-sheet-quick,
 body.passenger-mode .jalan-home-sheet[data-state="a"] .jalan-sheet-recent{display:none}

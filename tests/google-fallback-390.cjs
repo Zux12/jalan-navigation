@@ -11,12 +11,13 @@ function sdkFixture(){
    setTimeout(()=>{
     if(value==='Google error'){widget.dispatchEvent(new Event('gmp-error'));return;}
     const place={id:'SYNTHETIC_Q_BISTRO',displayName:'Q Bistro Taman Melati',location:{lat:()=>3.222,lng:()=>101.729}};
-    widget.places=['Nothing here','KLCC'].includes(value)?[]:[place];
+    const ayer=['North','South'].map(branch=>({id:'FIXTURE_AYER_'+branch,displayName:'Ayer 8 '+branch,location:place.location}));
+    widget.places=value==='ayer 8'?ayer:['Nothing here','KLCC'].includes(value)?[]:[place];
     const shadow=widget.shadowRoot;shadow.replaceChildren();
     const attribution=document.createElement('p');attribution.textContent='Google Maps · simulated provider';shadow.append(attribution);
     for(const selected of widget.places){
      const button=document.createElement('button');button.textContent=selected.displayName;
-     button.onclick=()=>{const event=new Event('gmp-select');event.place=value==='q bistro taman melati'?{id:selected.id,location:selected.location}:selected;widget.dispatchEvent(event);};shadow.append(button);
+     button.onclick=()=>{const event=new Event('gmp-select');event.place=(value==='q bistro taman melati'||value==='ayer 8')?{id:selected.id,location:selected.location}:selected;widget.dispatchEvent(event);};shadow.append(button);
     }
     widget.dispatchEvent(new Event('gmp-load'));
    },value==='Slow Google'?1000:30);
@@ -24,12 +25,18 @@ function sdkFixture(){
  }
  customElements.define('gmp-place-search',class extends HTMLElement{constructor(){super();this.attachShadow({mode:'open'});}});
  customElements.define('gmp-place-text-search-request',Request);
+ customElements.define('gmp-place-details-compact',class extends HTMLElement{constructor(){super();this.attachShadow({mode:'open'});}});
  customElements.define('gmp-place-details-place-request',class extends HTMLElement{
   set place(id){
    const widget=this.parentElement;
    setTimeout(()=>{
     widget.place={id,location:{lat:()=>3.222,lng:()=>101.729}};
-    widget.dispatchEvent(new Event(id==='SYNTHETIC_Q_BISTRO'?'gmp-load':'gmp-error'));
+    const branch=id.startsWith('FIXTURE_AYER_')?id.slice('FIXTURE_AYER_'.length):'';
+    if(branch){
+     if(widget.querySelector('gmp-place-name'))widget.shadowRoot.append('Ayer 8 '+branch);
+     if(widget.querySelector('gmp-place-address')){const address=document.createElement('span');address.textContent='Fixture '+branch+' Street, Putrajaya';widget.shadowRoot.append(address);}
+    }
+    widget.dispatchEvent(new Event((branch&&!window.__rejectRecentDetails)||id==='SYNTHETIC_Q_BISTRO'?'gmp-load':'gmp-error'));
    },20);
   }
  });
@@ -104,7 +111,7 @@ module.exports=async function({context,base,root}){
  await widget.getByRole('button',{name:'Q Bistro Taman Melati'}).focus();await page.waitForTimeout(250);
  assert.equal(await widget.isVisible(),true,'keyboard focus inside Google results survives input blur');
  await widget.getByRole('button',{name:'Q Bistro Taman Melati'}).press('Enter');await page.waitForFunction(()=>routes.length===1);
- assert.equal(await input.inputValue(),'Search “q bistro taman melati”','a Google point without a display name keeps the passenger’s query');
+ assert.equal(await input.inputValue(),'q bistro taman melati','an ID-only event uses the query as its temporary label');
  assert.deepEqual(await page.evaluate(()=>destination),[3.222,101.729]);assert.equal(routeCalls,1);assert.equal(manual,0);
  await boot();await input.fill('Slow Google');await widget.waitFor({state:'attached'});
  await input.fill('KLCC');await page.locator('#results [role=option]').waitFor();await page.waitForTimeout(1100);
@@ -185,6 +192,39 @@ module.exports=async function({context,base,root}){
  assert.equal(routeCalls,4,'removing a saved address does not request a route');
  console.log('PASS remove saved phone shortcuts, cancel removal, and verify retained places after reload');
  console.log('PASS saved Home/Work/custom places, cancellation, Google ID resolution, reload and route choices');
+ // Two Google branches share the same coordinates. Only the selected ID
+ // can identify the right name and street in Recent.
+ await page.evaluate(()=>{document.getElementById('start-choice').value='map';startPoint=null;});
+ async function chooseAyer(branch){
+  await input.fill('ayer 8');
+  await widget.getByRole('button',{name:'Ayer 8 '+branch}).click();
+  await page.locator('#jalan-search-trigger').click();
+ }
+ const recent=page.locator('#jalan-recent-list');
+ await chooseAyer('South');
+ const south=recent.locator('li[data-recent-key="google:FIXTURE_AYER_South"]');
+ await south.getByText(/Fixture South Street, Putrajaya/).waitFor();
+ assert.equal(await south.locator('gmp-place-attribution').count(),1);
+ assert.equal(await south.locator('gmp-place-google-maps-button').count(),0);
+ const googleStyle=await south.locator('gmp-place-details-compact').evaluate(node=>getComputedStyle(node).borderTopWidth);
+ assert.equal(googleStyle,'0px');
+ await page.evaluate(()=>window.__rejectRecentDetails=true);
+ await chooseAyer('North');
+ const north=recent.locator('li[data-recent-key="google:FIXTURE_AYER_North"]');
+ await north.getByText(/Address unavailable/).waitFor();
+ assert.equal(await south.count(),1,'a different Google place at the same entrance retains its row');
+ await page.evaluate(()=>window.__rejectRecentDetails=false);
+ await page.evaluate(async()=>{clearRoute(true);await new Promise(done=>requestAnimationFrame(()=>requestAnimationFrame(done)));});
+ await page.locator('#jalan-search-trigger').click();
+ await north.getByText(/Fixture North Street, Putrajaya/).waitFor();
+ await page.evaluate(()=>{setStart([3.139,101.6869],'Fixture start');});
+ expectedEndpoint=[3.222,101.729];const beforeRecentRoute=routeCalls;
+ await south.getByRole('button',{name:/Route/}).click();
+ await page.waitForFunction(()=>routes.length>0);
+ assert.equal(routeCalls,beforeRecentRoute+1,'Recent routes directly to the selected point');
+ assert.equal(await recent.locator('li').first().getAttribute('data-recent-key'),'google:FIXTURE_AYER_South');
+ assert.equal(await recent.locator('li').count(),2,'reselection reorders the existing branch');
+ console.log('PASS exact Google branch names and addresses in Recent, shared entrance, provider failure and reuse');
  assert.deepEqual(errors,[]);await page.close();
  console.log('PASS synthetic Google UI Kit fallback: multiple branches and both providers, narrowed and zero-match queries, original single input, lazy SDK, attribution host intact, exact point to TomTom routes, keyboard, stale/clear/collapse, empty/error and submit');
 };
