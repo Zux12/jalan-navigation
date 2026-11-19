@@ -574,7 +574,21 @@ async function main(){
   await live.goto(base+'/index.html?mode=passenger');
   await live.locator('#jalan-launch').waitFor({state:'hidden'});
   await live.waitForFunction(()=>JalanVectorMap?.active,null,{timeout:25000});
+  const credit=live.locator('.maplibregl-ctrl-attrib');
+  const sourceLink=credit.locator('a[href*="openstreetmap.org/copyright"]');
+  const creditIsClipped=()=>credit.evaluate(el=>getComputedStyle(el).clipPath==='inset(50%)');
+  assert.equal(await sourceLink.isVisible(),true,'linked attribution is present on launch');
+  assert.equal(await creditIsClipped(),false,'startup credits are visible when the map appears');
+  await live.waitForFunction(()=>getComputedStyle(document.querySelector('.maplibregl-ctrl-attrib')).clipPath==='inset(50%)',null,{timeout:9000});
+  assert.equal(await credit.evaluate(el=>{
+    const box=el.getBoundingClientRect();
+    return el.contains(document.elementFromPoint(box.right-3,box.top+box.height/2));
+  }),false,'the launch credit leaves no touch target on the initial map');
   await live.evaluate(routeFixture);
+  await live.locator('#passenger-route-list button').nth(1).tap();
+  assert.equal(await creditIsClipped(),true,'choosing an alternative keeps the credit hidden');
+  // Restore the route used by the GPS and trail fixture.
+  await live.locator('#passenger-route-list button').first().tap();
   await live.locator('#passenger-go').click();
   await live.evaluate(fix);
   await live.waitForFunction(()=>map.getZoom()>=17);
@@ -611,8 +625,7 @@ async function main(){
   assert.equal(await live.evaluate(()=>JalanVectorMap.active),true);
   assert.equal(await live.locator('.maplibregl-ctrl-attrib-button').isVisible(),false,
     'no persistent black information button remains on the native map');
-  assert.equal(await live.locator('.maplibregl-ctrl-attrib').isVisible(),true,
-    'data credits remain on the map after startup');
+  assert.equal(await creditIsClipped(),true,'credits stay hidden during active guidance');
   assert.equal(await live.locator('#passenger-traffic-summary').count(),0);
   assert.equal(await live.evaluate(()=>getComputedStyle(document.getElementById('passenger-distance')).fontSize===
     getComputedStyle(document.getElementById('passenger-eta')).fontSize),true);
@@ -624,7 +637,11 @@ async function main(){
   assert.equal(await live.evaluate(()=>JalanGPS.getState().active),true,'guidance stays active under About');
   await live.locator('#passenger-about-ok').click();
   assert.equal(await live.locator('#jalan-home-menu-panel').isVisible(),false);
-  assert.equal(await live.locator('.maplibregl-ctrl-attrib a[href*="openstreetmap.org/copyright"]').isVisible(),true);
+  assert.equal(await creditIsClipped(),true,'closing About does not restart the startup credit');
+  await sourceLink.focus();
+  assert.equal(await creditIsClipped(),false,'keyboard focus reveals the existing source link');
+  await live.locator('#jalan-home-menu').focus();
+  assert.equal(await creditIsClipped(),true);
   await live.screenshot({path:path.join(artifacts,'vector-live-kl-mobile.png')});
   await live.evaluate(()=>{window.__journeyVectorBefore={route:JalanGPS.getState().route,bearing:JalanVectorMap.getBearing()};});
   await live.locator('#passenger-journey-handle').click();
