@@ -647,6 +647,7 @@ async function main(){
   await page.locator('#passenger-turn-toggle').click();
   await page.locator('#passenger-tab-directions').click();
   assert.equal(await page.locator('#passenger-tab-directions').getAttribute('aria-selected'),'true');
+  assert.equal(await page.locator('#passenger-directions-note').count(),0);
   assert.equal(await page.locator('#passenger-maneuver-list li').count(),2,
     'Directions tab includes the actual next maneuver and destination');
   assert.match(await page.locator('#passenger-maneuver-list').innerText(),/Test segment|left|destination/i);
@@ -1066,7 +1067,7 @@ async function main(){
     send(3,101.6,0);
     for(let i=1;i<=6;i++)send(3.0008,101.6+i*.0001,3000);
   });
-  await page.waitForFunction(()=>document.getElementById('passenger-signal-alert').textContent.includes('Recalculating route'));
+  await page.waitForFunction(()=>document.getElementById('passenger-reroute-status').dataset.state==='checking');
   assert.equal(detourRequests,1,'Go automatically requests one route after a sustained detour');
   assert.equal(await page.locator('.jalan-vehicle-marker').count(),1,
     'off-route GPS retains vehicle triangle instead of discarding it');
@@ -1075,8 +1076,9 @@ async function main(){
     'measured off-route position remains separate from old route-match state');
   assert.equal(await page.locator('#passenger-speed').innerText(),'18',
     'speed is measured GPS even when prior route is unmatched');
-  assert.equal(await page.locator('#passenger-signal-alert').isVisible(),true,
-    'recalculation feedback is visible without opening the options menu');
+  assert.equal(await page.locator('#passenger-signal-alert,.passenger-heading').count(),0,
+    'off-route diagnostics do not create a second overlay beneath the turn banner');
+  assert.equal(await page.locator('#passenger-turn-toggle').isVisible(),true);
   assert.equal(await page.evaluate(()=>JalanGPS.getState().active&&routes[0]===window.__detourOriginal.route),true,
     'existing journey stays active while the replacement request is pending');
   const origin=new URL(detourRequest.request().url()).pathname.split('/driving/')[1].split(';')[0].split(',').map(Number);
@@ -1132,6 +1134,7 @@ async function main(){
   assert.equal(await page.locator('#passenger-journey-destination').textContent(),'Destination: KLCC');
   assert.equal(await page.locator('#passenger-journey-via').textContent(),'Via Maju Expressway');
   assert.equal(await page.locator('#passenger-journey-line [data-traffic="moderate"]').count(),1);
+  assert.equal(await page.locator('#passenger-journey-traffic-note').isVisible(),false);
   const bars=await page.locator('#passenger-journey-line span').evaluateAll(nodes=>nodes.map(x=>({
     type:x.dataset.traffic,left:parseFloat(x.style.left),width:parseFloat(x.style.width)})));
   assert.ok(bars[0].left>=23&&bars[0].left<=26&&bars[0].width>=24&&bars[0].width<=28,'moderate traffic near first quarter, proportional length');
@@ -1205,6 +1208,7 @@ async function main(){
   await page.locator('#passenger-journey-handle').click();
   await page.evaluate(()=>{document.getElementById('passenger-traffic-toggle').click();});
   await page.waitForFunction(()=>document.querySelectorAll('#passenger-journey-line span').length===0);
+  assert.equal(await page.locator('#passenger-journey-traffic-note').isVisible(),true);
   assert.match(await page.locator('#passenger-journey-traffic-note').textContent(),/unavailable/);
   await page.locator('#passenger-journey-stop').click();
   assert.equal(await page.evaluate(()=>JalanGPS.getState().active),false);

@@ -551,16 +551,6 @@
    const state=window.JalanGPS?.getState();
    const matched=state?.matched&&Number.isFinite(state.accuracy)&&state.accuracy<=75&&state.fixAgeMs<10000;
    const measured=state?.active&&fix?.gpsReliable&&Number.isFinite(fix.gpsAccuracy)&&fix.gpsAccuracy<=65;
-   const alert=el('passenger-signal-alert');
-   const offRoute=state?.deviationConfirmed;
-   alert.classList.toggle('hidden',!!matched&&!!measured);
-   alert.textContent=matched?'':offRoute?
-     (state.rerouting?'Recalculating route from your current location…':
-      rerouteStatus.dataset.state==='error'?rerouteStatus.textContent:
-      autoControl.getAttribute('aria-pressed')==='true'?'Off route · waiting for the next route check':
-      'Off route · auto rerouting is off'):
-     measured?'GPS position measured · selected road not verified; turn guidance paused':
-     'GPS uncertain · showing grey last-known position, not live movement';
    el('passenger-fix').textContent=!measured?
      'GPS uncertain · grey triangle shows last known position only':
      !matched?'GPS measured independently · route alignment pending':
@@ -611,10 +601,6 @@
    const detail=event.detail||{};
    rerouteStatus.dataset.state=detail.state||'idle';
    rerouteStatus.textContent=String(detail.message||'Route status unavailable.');
-   if(window.JalanGPS?.getState()?.deviationConfirmed){
-     const alert=el('passenger-signal-alert');alert.classList.remove('hidden');
-     alert.textContent=rerouteStatus.textContent;
-   }
  });
  syncNavigationSettings();
  // Go starts the existing traffic layers/checker for this passenger session.
@@ -729,8 +715,6 @@
    incidentSnapshot={route:null,incidents:[],checkedAt:0};
    window.JalanPassengerMenu?.close();
    clearLiveEta();
-   el('passenger-signal-alert').classList.remove('hidden');
-   el('passenger-signal-alert').textContent='Waiting for verified GPS';
    syncNavigationSettings();
    rerouteStatus.dataset.state='idle';
    rerouteStatus.textContent=autoControl.getAttribute('aria-pressed')==='true'?
@@ -766,7 +750,6 @@
    if(!map.hasLayer(reportLayer))reportLayer.addTo(map);
    window.JalanPassengerMenu?.close();
    clearLiveEta();
-   el('passenger-signal-alert').classList.add('hidden');
    hideTrafficOffer();
    stopPassengerTraffic();
    cancelAutoReturn();mapContacts.clear();exploring=false;lastGPSDetail=null;
@@ -851,9 +834,6 @@
    if(state?.active&&lastGPSDetail?.gpsReliable&&
       Number.isFinite(state.gpsFixAgeMs)&&state.gpsFixAgeMs<=10000&&!document.hidden)return;
    markVehicleUncertain();
-   el('passenger-signal-alert').classList.remove('hidden');
-   el('passenger-signal-alert').textContent=document.hidden?
-     'Safari backgrounded · position unverified':'GPS signal stale · position unverified';
    el('passenger-fix').textContent=document.hidden?
      'Safari in background · last-known position only':
      'GPS stale or unavailable · grey triangle is last-known position only';
@@ -907,9 +887,6 @@
      0:lastValidHeading===null?0:-lastValidHeading);
    el('passenger-2d').textContent=document.body.classList.contains('passenger-map-flat')?
      (window.JalanVectorMap?.active?'3D map':'2.5D preview'):'2D map';
-   const heading=document.querySelector('.passenger-heading');
-   if(heading)heading.textContent=window.JalanVectorMap?.active?
-     'PASSENGER PREVIEW · 3D map':'PASSENGER PREVIEW · 2.5D map, not true 3D';
  });
  // The raster gesture surface suppresses synthetic clicks. Recognise a tap
  // here and pass a drag or pinch through to the existing map gesture handling.

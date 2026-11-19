@@ -54,9 +54,9 @@
    }
   }
   line.setAttribute('aria-label',segments.length?
-   'Traffic along the remaining route. '+segments.map(s=>s.type+' from '+fmtDist(s.from)+' to '+fmtDist(s.to)).join('; ')+'. Grey sections have no current traffic detail.':
+   'Traffic along the remaining route. '+segments.map(s=>s.type+' from '+fmtDist(s.from)+' to '+fmtDist(s.to)).join('; ')+'.':
    'No current traffic detail for the remaining route');
-  note.textContent=segments.length?'Grey: no current traffic detail':'Traffic detail unavailable';
+  note.hidden=segments.length>0;
   measure();
  }
  function cancel(){
