@@ -79,16 +79,17 @@ async function main(){
     document.dispatchEvent(new Event('visibilitychange'));
   });
   await late.clock.runFor(7000);
-  assert.equal(await credits.evaluate(el=>el.classList.contains('show-osm')),true,'background time is excluded');
+  assert.equal(await credits.evaluate(el=>el.classList.contains('show-map-credits')),true,'background time is excluded');
   await late.evaluate(()=>{
     delete document.hidden;
     document.dispatchEvent(new Event('visibilitychange'));
   });
   await late.clock.runFor(remaining-1);
-  assert.equal(await credits.evaluate(el=>el.classList.contains('show-osm')),true,'the initial window lasts 4999 visible ms');
+  assert.equal(await credits.evaluate(el=>el.classList.contains('show-map-credits')),true,'the initial window lasts 4999 visible ms');
   await late.clock.runFor(1);
-  assert.equal(await credits.evaluate(el=>el.classList.contains('show-osm')),false,'the initial window ends at 5000 visible ms');
+  assert.equal(await credits.evaluate(el=>el.classList.contains('show-map-credits')),false,'the initial window ends at 5000 visible ms');
   assert.equal(await credits.locator('.jalan-osm-credit').isVisible(),true,'the basic map retains its credit');
+  assert.equal(await credits.locator('.jalan-tiles-credit').isVisible(),false,'the basic map does not use OpenMapTiles');
   await late.clock.resume();
   assert.equal(await late.locator('#map .leaflet-control-attribution').count(),0);
   await late.locator('#jalan-home-menu').tap();
@@ -110,7 +111,13 @@ async function main(){
   assert.equal(await page.locator('#map').evaluate(x=>getComputedStyle(x).visibility),'hidden');
   assert.equal(await page.locator('#jalan-home-credits').isVisible(),false,'detailed-map splash is credit-free');
   await page.waitForFunction(()=>document.querySelector('#jalan-launch img').naturalWidth>0);
-  assert.equal(await page.locator('.jalan-launch-tagline').textContent(),'With you to your destination.');
+  const tagline=page.locator('.jalan-launch-tagline'),loading=page.locator('#jalan-launch-status');
+  for(const [language,status] of [['en','Loading your map…'],['ms','Peta sedang dimuatkan…'],['en','Loading your map…']]){
+    await page.evaluate(code=>JalanLanguage.set(code),language);
+    assert.equal(await tagline.textContent(),'Menemani Anda Sehingga ke Destinasi');
+    assert.equal(await tagline.getAttribute('lang'),'ms');
+    assert.equal(await loading.textContent(),status);
+  }
   assert.equal(await page.evaluate(async()=>{await document.fonts.load('600 29px "JALAN Script"');return document.fonts.check('600 29px "JALAN Script"');}),true,'bundled cursive font is ready');
   assert.equal(await page.locator('.jalan-launch-tagline').evaluate(el=>getComputedStyle(el).animationName),'jalan-tagline-reveal');
   await page.screenshot({path:path.join(artifacts,'jalan-launch-screen.png'),animations:'disabled'});
@@ -129,8 +136,8 @@ async function main(){
         document.querySelector('#map').dispatchEvent(new PointerEvent(type,{bubbles:true,pointerType:'touch',pointerId:8,isPrimary:true}));
       }
       const panel=document.querySelector('#jalan-home-sheet'),handle=document.querySelector('#jalan-sheet-handle');
-      const link=document.querySelector('#jalan-home-credits .jalan-osm-credit');
-      const sample=()=>[panel.dataset.state,link.getBoundingClientRect().height>0];
+      const links=document.querySelectorAll('#jalan-home-credits a');
+      const sample=()=>[panel.dataset.state,...Array.from(links,link=>link.getBoundingClientRect().height>0)];
       window.__creditStages=[sample()];
       for(const key of ['ArrowUp','ArrowUp','ArrowDown','ArrowDown']){
         handle.dispatchEvent(new KeyboardEvent('keydown',{key,bubbles:true}));
@@ -140,8 +147,8 @@ async function main(){
   });
   await page.locator('#jalan-launch').waitFor({state:'hidden'});
   await page.waitForTimeout(550);
-  assert.deepEqual(await page.evaluate(()=>window.__creditStages),[['a',true],['b',true],['c',true],['b',true],['a',true]],
-    'main map shows the OSM link in every sheet stage during the same reading window');
+  assert.deepEqual(await page.evaluate(()=>window.__creditStages),[['a',true,true],['b',true,true],['c',true,true],['b',true,true],['a',true,true]],
+    'main map shows both credit links in every sheet stage during the same reading window');
   assert.equal(await page.locator('#jalan-home-sheet').getAttribute('data-state'),'a','an early map touch cancels the opening lift');
   assert.equal(await page.locator('#map').evaluate(x=>getComputedStyle(x).visibility),'visible','reveal only after native renderer ready');
   assert.equal(await page.locator('#map').evaluate(x=>getComputedStyle(x).transform),'none');
@@ -640,17 +647,10 @@ async function main(){
   await live.waitForFunction(()=>JalanVectorMap?.active,null,{timeout:25000});
   const homeCredit=live.locator('#jalan-home-credits');
   await live.waitForFunction(()=>document.querySelector('#jalan-home-sheet').dataset.state==='b');
-  await live.waitForFunction(()=>!document.querySelector('#jalan-home-credits').classList.contains('show-osm'));
+  await live.waitForFunction(()=>!document.querySelector('#jalan-home-credits').classList.contains('show-map-credits'));
   assert.equal(await homeCredit.isVisible(),false,'stage B is clear after the five-second window');
   await live.locator('#jalan-sheet-handle').press('ArrowDown');
-  await live.waitForFunction(()=>{
-    const credit=document.querySelector('#jalan-home-credits').getBoundingClientRect();
-    const sheet=document.querySelector('#jalan-home-sheet').getBoundingClientRect();
-    return credit.height>0 && sheet.top-credit.bottom>=1 && sheet.top-credit.bottom<=5;
-  });
-  assert.equal(await homeCredit.locator('a[href*="openmaptiles.org"]').isVisible(),true);
-  assert.equal(await homeCredit.locator('a[href*="openstreetmap.org/copyright"]').isVisible(),false,
-    'returning to stage A does not show OpenStreetMap again');
+  assert.equal(await homeCredit.locator('a:visible').count(),0,'returning to stage A keeps both map credits collapsed');
   await live.waitForTimeout(550);
   assert.equal(await live.locator('#jalan-home-sheet').getAttribute('data-state'),'a');
   const mapCredits=live.locator('#map .maplibregl-ctrl-attrib, #map .leaflet-control-attribution');
