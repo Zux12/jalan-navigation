@@ -125,7 +125,9 @@ async function main(){
   assert.match(await page.locator('#passenger-app-version').innerText(),/4.8.0/);
   const about=page.locator('#passenger-about-dialog'),policy=about.getByRole('link',{name:'Privacy & terms'});
   assert.equal(await about.getByText('Made in Malaysia').isVisible(),true);
-  assert.equal(await about.locator('a').count(),1);
+  assert.equal(await about.locator('a').count(),3,'About keeps the policy link plus two map-data licences');
+  assert.equal(await about.locator('#passenger-map-licences a[href="https://www.openstreetmap.org/copyright"]').count(),1,'OSM source remains findable after five-second collapse');
+  assert.equal(await about.locator('#passenger-map-licences a[href="https://openmaptiles.org/"]').count(),1,'OpenMapTiles source remains findable without a menu credit row');
   assert.equal(await policy.getAttribute('href'),'https://igniteinnov.com/jalan/policy.html?lang=en');
   assert.equal(await policy.getAttribute('target'),'_blank');
   assert.equal(await page.locator('#jalan-home-menu-panel').isVisible(),false);
