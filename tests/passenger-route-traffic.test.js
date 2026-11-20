@@ -121,6 +121,20 @@ test('selected TomTom route requests bounded flow samples only; no nearby road o
  assert.equal(s.api.getState().active,false);
 });
 
+test('the local slowdown question reads only recent free-flow data on the matched stretch',async()=>{
+ const clock={now:Date.now()},flow={currentSpeed:25,freeFlowSpeed:70,confidence:.9,
+  coordinates:{coordinate:geometry.map(([longitude,latitude])=>({longitude,latitude}))}};
+ const s=scene({flow,clock}),r=route([]);
+ s.ctx.routes=[r];s.dispatch('jalan:routes-rendered');await s.tick();
+ const count=s.urls.length;
+ assert.equal(s.api.freeFlowAt(r,1,point(150)),70);
+ assert.equal(s.api.freeFlowAt(r,0,point(0)),null);
+ assert.equal(s.api.freeFlowAt({...r},1,point(150)),null);
+ clock.now+=300001;
+ assert.equal(s.api.freeFlowAt(r,1,point(150)),null);
+ assert.equal(s.urls.length,count);
+});
+
 test('revoking TomTom key while provider response is pending prevents stale flow redraw',async()=>{
  const flow={currentSpeed:15,freeFlowSpeed:80,confidence:.9,
   coordinates:{coordinate:geometry.map(([longitude,latitude])=>({longitude,latitude}))}};
