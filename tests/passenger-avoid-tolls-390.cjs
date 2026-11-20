@@ -69,6 +69,17 @@ module.exports=async function avoidTolls(page){
  await page.waitForFunction(()=>routes[selectedRoute]?.pinnedStop?.inboundTolls===true);
  assert.deepEqual(legRequest.body,{legs:[{},{avoids:[{name:'tollRoads'}]}]});
  assert.deepEqual(await page.evaluate(()=>routes[selectedRoute].pinnedStop.onward.tollPolicy),{});
+ await current();await page.locator('#jalan-home-menu').click();
+ const menuSwitch=page.locator('#journey-avoid-tolls');
+ await menuSwitch.uncheck();
+ await page.waitForFunction(()=>!!routes[selectedRoute]?.pinnedStop&&!routes[selectedRoute]?.tollPolicy);
+ assert.equal(legRequest.query,null);
+ // Trying to turn avoidance back on must retain the existing stop and live guidance on failure.
+ await current();await menuSwitch.check();
+ await page.locator('#journey-toll-feedback').getByText('Continuing on your current route.').waitFor();
+ assert.equal(await menuSwitch.isChecked(),false);
+ assert.equal(await page.evaluate(()=>!!JalanGPS.getState().route.pinnedStop&&JalanGPS.getState().active),true);
+ await page.getByRole('button',{name:'Keep current route'}).click();
  await page.evaluate(()=>JalanPassengerJourney.stop());
  assert.equal(await toggle.isChecked(),false);
  console.log('PASS avoid tolls: Go timer, fallback review, BM, stop refusal and per-leg approval');

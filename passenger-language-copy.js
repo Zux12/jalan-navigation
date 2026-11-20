@@ -11,6 +11,7 @@
     "Could not load routes.": "Laluan tidak dapat dimuatkan.",
     "Show routes with tolls": "Lihat laluan bertol",
     "Show all routes": "Lihat semua laluan",
+    "Continuing on your current route.": "Perjalanan diteruskan mengikut laluan semasa.",
     "Keep current route": "Kekalkan laluan semasa",
     "Add this stop?": "Tambah hentian ini?",
     "The route to this stop has tolls.": "Laluan ke hentian ini mempunyai tol.",

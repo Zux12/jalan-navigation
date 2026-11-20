@@ -9,8 +9,10 @@
  const guiding=()=>!!window.JalanGPS.getState().active;
  function paint(){
   const active=guiding(),blocked=!!phase&&!active;
-  for(const input of [plan,journey])input.checked=phase?wanted:!!selected()?.tollPolicy;
+  const pendingSelection=phase&&(!active||phase==='loading');
+  for(const input of [plan,journey])input.checked=pendingSelection?wanted:!!selected()?.tollPolicy;
   el('journey-toll-control').hidden=!active;
+  if(blocked)el('passenger-route-title').textContent='Choose your route';
   go.disabled=blocked;
   list.hidden=blocked;
   go.hidden=blocked;
@@ -23,6 +25,10 @@
     unknown:wanted?'Could not confirm a toll-free route.':'Could not load routes.',
     gps:'Waiting for your current location.'
    }[phase];
+   if(active&&phase!=='loading'){
+    const detail=document.createElement('span');detail.textContent='Continuing on your current route.';
+    box.querySelector('p').append(' ',detail);
+   }
    const actions=box.querySelector('div');actions.replaceChildren();
    function button(label,fn){
     const b=document.createElement('button');b.type='button';b.textContent=label;b.onclick=fn;actions.append(b);
