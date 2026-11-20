@@ -49,13 +49,14 @@ module.exports=async function pinCard(page,{routing=false}={}){
    routes=[{duration:200,distance:1500,geometry:{type:'LineString',coordinates:[startPoint,destination].map(p=>[p[1],p[0]])},legs:[]}];
    selectedRoute=0;renderRoutes();
  });
- let directOrigin=null;
+ let directOrigin=null,directTarget=null,failDirect=false;
  await page.route('https://router.project-osrm.org/route/v1/driving/**',route=>{
    const uri=new URL(route.request().url()),points=uri.pathname.split('/').at(-1).split(';').map(s=>s.split(',').map(Number));
    if(points.length===2){
-     directOrigin=points[0];
-     return route.fulfill({json:{code:'Ok',routes:[{duration:90,distance:800,legs:[],
-       geometry:{type:'LineString',coordinates:points}}]}});
+     directOrigin=points[0];directTarget=points[1];
+     if(failDirect)return route.fulfill({status:503,body:'Unavailable'});
+     return route.fulfill({json:{code:'Ok',routes:[140,90].map(duration=>({duration,distance:800,legs:[],
+       geometry:{type:'LineString',coordinates:points}}))}});
    }
    assert.equal(points.length,3);
    return route.fulfill({json:{code:'Ok',waypoints:points.map(location=>({location})),routes:[
@@ -91,6 +92,39 @@ module.exports=async function pinCard(page,{routing=false}={}){
    active:JalanGPS.getState().active,stop:!!routes[0].pinnedStop}));
  assert.equal(state.active,true);assert.equal(state.stop,false);
  assert.deepEqual(state.final,[3.145,101.697]);assert.deepEqual(directOrigin,[state.gps[1],state.gps[0]]);
+ async function newDestination(){
+   await press();
+   const label=await card.locator('small').textContent();
+   await card.getByRole('button',{name:'Go',exact:true}).click();
+   await card.getByRole('button',{name:'New destination',exact:true}).click();
+   return label;
+ }
+ // Choose a new pin immediately after Go, before the GPS watcher has a fix.
+ await page.evaluate(()=>{JalanGPS.stop();$('passenger-go').click();});
+ directOrigin=null;
+ const picked=await newDestination();
+ assert.equal(await page.locator('#jalan-pin-toast').textContent(),'Waiting for your current location.');
+ assert.equal(directOrigin,null);
+ assert.equal(await page.evaluate(()=>JalanGPS.getState().active),true);
+ const fix=()=>page.evaluate(()=>window.__offlineGPSWatch({timestamp:Date.now(),
+   coords:{latitude:3.1401,longitude:101.6851,accuracy:4,speed:0,heading:null}}));
+ await fix();
+ const overview=page.locator('#passenger-overview'),options=overview.locator('#passenger-route-list button');
+ await overview.waitFor({state:'visible'});
+ assert.deepEqual(directOrigin,[101.6851,3.1401]);
+ assert.equal([...directTarget].reverse().map(n=>n.toFixed(5)).join(', '),picked);
+ assert.equal(await options.count(),2);
+ assert.deepEqual(await page.evaluate(()=>routes.map(r=>r.duration)),[90,140]);
+ assert.equal(await page.evaluate(()=>JalanGPS.getState().active),false);
+ await options.nth(1).click();
+ await overview.getByRole('button',{name:'Go',exact:true}).click();
+ assert.equal(await page.evaluate(()=>JalanGPS.getState().route.duration),140);
+ await fix();
+ // A provider failure must leave the newly selected journey and pin intact.
+ failDirect=true;await newDestination();
+ await page.waitForFunction(()=>$('jalan-pin-toast').textContent==='Could not update the route. Try again.');
+ assert.equal(await page.evaluate(()=>JalanGPS.getState().active&&routes[selectedRoute].duration===140),true);
+ assert.equal(await page.evaluate(()=>destination.map(n=>n.toFixed(5)).join(', ')),picked);
  await page.evaluate(()=>{clearRoute(true);startPoint=window.__pinInitial.start;$('tt-primary').checked=window.__pinProvider;});
  await page.unroute('https://router.project-osrm.org/route/v1/driving/**');
 };
