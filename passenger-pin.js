@@ -13,6 +13,7 @@
    html:'<svg viewBox="0 0 26 40" aria-hidden="true"><path d="M13 38C11 31 1 21 1 13a12 12 0 1124 0c0 8-10 18-12 25z" fill="#8047c7" stroke="white" stroke-width="1.7"/><circle cx="13" cy="13" r="4.6" fill="white"/></svg>'});
  const marker=point=>L.marker(point,{icon,interactive:false,keyboard:false,zIndexOffset:450}).addTo(map);
  const pane=map.createPane('passenger-stop');pane.style.zIndex='455';pane.style.pointerEvents='none';
+ let tollDecision=null;
  let picked=null,tempPin=null,stopPin=null,purple=null,observed=null,track={},outcome='',retryAfter=0;
  let pendingDirect=null,request=null,hold=null,holdTimer,deadline=0,frame=0,ignoreClickUntil=0,toastTimer;
  const contacts=new Set();
@@ -69,12 +70,14 @@
  function draw(now){
    if(!picked)return;
    const left=deadline?Math.max(0,deadline-now):7000;
+   if(tollDecision){cardPosition();frame=requestAnimationFrame(draw);return;}
    if(!left){close();return;}
    cardPosition();time.textContent=Math.ceil(left/1000)+'s';bar.style.transform='scaleX('+left/7000+')';
    frame=requestAnimationFrame(draw);
  }
  function close(){
    if(!picked)return;
+   tollDecision=null;card.classList.remove('toll-decision');
    picked=null;card.hidden=true;cancelAnimationFrame(frame);
    if(tempPin)map.removeLayer(tempPin);tempPin=null;
    document.body.classList.remove('passenger-pin-open');window.dispatchEvent(new Event('jalan:pin-close'));
@@ -107,8 +110,8 @@
    ]);
  }
  function open(point){
-   if(!point||!validCoordinates(point))return;
-   close();picked=point;tempPin=marker(point);
+   if(!point||!validCoordinates(point)||window.JalanTollChoices?.blocked)return;
+   abort();close();picked=point;tempPin=marker(point);
    sub.textContent=point.map(n=>n.toFixed(5)).join(', ');
    options('Pinned location',[['Go',go],['Share location',share]]);
    document.body.classList.add('passenger-pin-open');window.dispatchEvent(new Event('jalan:pin-open'));
@@ -190,9 +193,11 @@
    }
    await changeRoute(asStop?'add':'replace',point);
  }
- async function changeRoute(kind,point){
+ async function changeRoute(kind,point,approved){
    const state=window.JalanGPS.getState(),active=state.active,previous=routes[selectedRoute],final=destination;
    const stop=previous?.pinnedStop,replacing=kind==='replace';
+   const tollPolicy=replacing?undefined:kind==='add'?approved||(previous?.tollPolicy?{}:undefined):
+     (kind==='passed'||kind==='arrived')?stop?.onward.tollPolicy:previous?.tollPolicy;
    let from=active?reliable(state):startPoint||userLocation;
    if(!from&&!(active&&replacing)){message('Waiting for your current location.');return;}
    abort();const job=new AbortController();request=job;
@@ -206,7 +211,7 @@
      for(let i=0;i<2;i++){
        if(!current()||job.signal.aborted)return;
        if(replacing)message('Calculating driving routes…',0);
-       const choices=kind==='arrived'?[stop.onward]:await requestDrivingRoutes(from,target,{signal:job.signal,via});
+       const choices=kind==='arrived'?[stop.onward]:await requestDrivingRoutes(from,target,{signal:job.signal,via,tollPolicy});
        if(!current()||job.signal.aborted)return;
        if(active){
          let latest=reliable(window.JalanGPS.getState());
@@ -233,8 +238,21 @@
        return;
      }
      throw Error();
-   }catch{
+   }catch(error){
      if(!current())return;
+     if(kind==='add'&&tollPolicy){
+       const leg=error.tollConflict;
+       // Detach the completed search before reopening the pin for an explicit decision.
+       abort();open(point);if(!picked)return;
+       tollDecision=previous;card.classList.add('toll-decision');
+       const retry=policy=>{close();if(routes[selectedRoute]===previous&&destination===final)changeRoute('add',point,policy);};
+       sub.textContent=leg?(leg==='toStop'?'The route to this stop has tolls.':'The route from this stop to your destination has tolls.'):'Could not confirm a toll-free route.';
+       options('Add this stop?',leg?[
+         [leg==='toStop'?'Allow tolls to this stop':'Allow tolls after this stop',()=>retry({...tollPolicy,[leg]:true})],
+         ['Don’t allow tolls',close]
+       ]:[['Retry',()=>retry(tollPolicy)],['Cancel',close]]);
+       cardPosition();actions.querySelector('button:last-child').focus({preventScroll:true});return;
+     }
      const latest=reliable(window.JalanGPS.getState());
      if(kind==='passed'&&latest&&window.JalanGPS.applyPinnedRoute(stop.onward,latest,'passed-offline')){
        // Drop the missed detour even during a provider outage. The cached
@@ -245,6 +263,8 @@
      }else if(kind!=='resume')message(kind==='passed'||kind==='arrived'?'Checking the onward route again shortly.':'Could not update the route. Try again.');
    }finally{clearTimeout(timer);if(request===job){request=null;document.body.classList.remove('passenger-pin-routing');}}
  }
+ window.addEventListener('jalan:toll-choice-changing',()=>{abort();close();});
+ window.addEventListener('jalan:routes-rendered',()=>{if(tollDecision&&tollDecision!==routes[selectedRoute])close();});
  for(const name of ['jalan:routes-rendered','jalan:route-cleared'])window.addEventListener(name,paintRoute);
  for(const name of ['jalan:route-cleared','jalan:journey-stop'])window.addEventListener(name,()=>{abort();close();track={};outcome='';pendingDirect=null;});
  window.addEventListener('jalan:gps-fix',e=>{

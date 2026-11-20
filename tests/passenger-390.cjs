@@ -1338,6 +1338,9 @@ async function main(){
    await pinPage.locator('#jalan-launch').waitFor({state:'hidden'});
    await require('./passenger-pin-390.cjs')(pinPage,{routing:true});
    await require('./passenger-language-390.cjs')(pinPage);
+   await pinPage.reload();
+   await pinPage.locator('#jalan-launch').waitFor({state:'hidden'});
+   await require('./passenger-avoid-tolls-390.cjs')(pinPage);
   }finally{await pinPage.close();}
 
   assert.deepEqual(errors,[],'no uncaught JS errors in either UI');

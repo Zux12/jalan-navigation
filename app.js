@@ -60,11 +60,13 @@ const fmtDist=m=>m>=1000?(m/1000).toFixed(1)+' km':Math.round(m)+' m';
 const fmtTime=s=>{const min=Math.max(1,Math.round(s/60));return min>=60?`${Math.floor(min/60)} hr ${min%60} min`:`${min} min`};
 // Fetch replacements without discarding the route/GPS session. The caller
 // decides whether a response still belongs to the current journey.
-async function requestDrivingRoutes(from,to,{signal,via}={}){
+async function requestDrivingRoutes(from,to,{signal,via,tollPolicy}={}){
  if($('tt-primary').checked){
   if(!window.JalanTomTom?.enabled())throw Error('TomTom key unavailable');
-  return window.JalanTomTom.requestRoutes(from,to,{signal,via});
+  const choices=await window.JalanTomTom.requestRoutes(from,to,{signal,via,tollPolicy});
+  return tollPolicy?window.JalanTollPolicy.check(choices,tollPolicy):choices;
  }
+ if(tollPolicy)throw Error('Could not confirm a toll-free route.');
  const path=(via?[from,via,to]:[from,to]).map(p=>`${p[1]},${p[0]}`).join(';');
  const url=`https://router.project-osrm.org/route/v1/driving/${path}?overview=full&geometries=geojson&steps=true&alternatives=${!via}`;
  const response=await fetch(url,{signal,cache:'no-store'});
@@ -142,7 +144,7 @@ function renderRoutes({preserveGPS=false}={}){
  setPerspective(!passengerMode&&!manual2D);
  window.dispatchEvent(new Event('jalan:routes-rendered'));
 }
-function selectRoute(i){selectedRoute=i;renderRoutes();window.JalanTomTom?.refreshRouteIncidents()}
+function selectRoute(i){if(window.JalanTollChoices?.blocked)return;window.JalanTollChoices?.choose();selectedRoute=i;renderRoutes();window.JalanTomTom?.refreshRouteIncidents()}
 $('start-guidance').addEventListener('click',()=>{if(watchId!==null){navigator.geolocation.clearWatch(watchId);watchId=null;$('start-guidance').textContent='Follow my location';statusEl.textContent='Location following stopped.';return}if(!navigator.geolocation){statusEl.textContent='Location is unavailable.';return}watchId=navigator.geolocation.watchPosition(p=>{const pos=[p.coords.latitude,p.coords.longitude];updateLocation(pos);map.panTo(pos);statusEl.textContent='Following your location. This is not turn-by-turn navigation.'},()=>{statusEl.textContent='Unable to follow location. Check browser permission.';navigator.geolocation.clearWatch(watchId);watchId=null;$('start-guidance').textContent='Follow my location'},{enableHighAccuracy:true,maximumAge:3000,timeout:15000});$('start-guidance').textContent='Stop following';});
 let lastSearchAt=0,destinationSelectionEpoch=0,destinationSearchEpoch=0;
 $('destination').addEventListener('input',()=>destinationSearchEpoch++);

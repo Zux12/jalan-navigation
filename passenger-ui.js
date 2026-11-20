@@ -769,7 +769,7 @@
  window.addEventListener('jalan:route-decline',hideTrafficOffer);
  syncTraffic();
  el('passenger-go').addEventListener('click',()=>{
-   if(!routes.length)return;
+   if(!routes.length||window.JalanTollChoices?.blocked)return;
    trafficOptOut=false;
    // The owner's explicit Go starts normal detour recovery. The menu can
    // disable it during this journey; internal GPS restarts never re-enable it.

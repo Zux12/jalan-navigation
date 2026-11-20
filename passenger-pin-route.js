@@ -29,7 +29,19 @@
    const sections=(raw.sections||[]).filter(s=>s.endPointIndex>split)
      .map(s=>({...s,startPointIndex:Math.max(0,s.startPointIndex-secondStart),endPointIndex:Math.min(last.points.length-1,s.endPointIndex-secondStart)}));
    const onward=normalize({summary:last.summary,legs:[last],guidance:{instructions},sections});
-   return attach(normalize(whole),point,split,onward);
+   const route=attach(normalize(whole),point,split,onward);
+   const incoming=(raw.sections||[]).filter(s=>s.startPointIndex<split)
+     .map(s=>({...s,endPointIndex:Math.min(split,s.endPointIndex)}));
+   route.pinnedStop.inboundTolls=normalize({summary:first.summary,legs:[first],sections:incoming,guidance:{instructions:[]}}).tolls;
+   // Malformed provider indices cannot certify either leg as free.
+   const maxIndex=whole.legs.reduce((n,l)=>n+l.points.length,0)-1;
+   if((raw.sections||[]).some(s=>['TOLL','TOLL_ROAD','TOLL_VIGNETTE'].includes(s.sectionType)&&
+     (!Number.isInteger(s.startPointIndex)||!Number.isInteger(s.endPointIndex)||s.startPointIndex<0||
+     s.endPointIndex<s.startPointIndex||s.endPointIndex>maxIndex||s.startPointIndex===s.endPointIndex))){
+     if(route.pinnedStop.inboundTolls!==true)route.pinnedStop.inboundTolls=null;
+     if(onward.tolls!==true)onward.tolls=null;
+   }
+   return route;
  }
  function osrm(route,point,waypoint){
    if(route.legs?.length!==2||!waypoint)throw Error('Stop missing from route.');
