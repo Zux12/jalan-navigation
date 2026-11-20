@@ -10,9 +10,13 @@ module.exports=async(browser,base,root)=>{
  const event=(id,type='accident',position=[101.687,3.139])=>({id,type,position,heading:90,road:{key:'fixture-road',level:'0:surface'},createdAt:Date.now(),updatedAt:Date.now(),expiresAt:Date.now()+3600000,contributors:1,active:true});
  await page.route('https://mterm2026-559f9bf571b5.herokuapp.com/api/jalan/reports/**',async r=>{assert.equal(r.request().method(),'POST');assert.equal(new URL(r.request().url()).search,'');const body=r.request().postDataJSON(),kind=new URL(r.request().url()).pathname.split('/').pop();let data,status=200;
  if(kind==='submit'){submissions.push(body);if(failed){status=503;data={error:'Reporting service unavailable.'};}else data={event:{...event('own-event',body.type,body.position),trafficSeverity:body.trafficSeverity,contributors:submissions.length>2?2:1},merged:submissions.length>2};}
- else if(kind==='nearby'){nearbyPosts++;data={events:nearby};}else{responses.push(body);data={event:event(body.id,'accident',[101.689,3.139])};}
+ else if(kind==='read')data={sections:[]};else if(kind==='observe')data={ok:true};else if(kind==='nearby'){nearbyPosts++;data={events:nearby};}else{responses.push(body);data={event:event(body.id,'accident',[101.689,3.139])};}
  await r.fulfill({status,contentType:'application/json',headers:{'access-control-allow-origin':'*'},body:JSON.stringify(data)});});
  await page.goto(base+'/index.html?mode=passenger');
+ const preference=page.locator('#passenger-share-speed');
+ assert.equal(await preference.isChecked(),true,'first trip shares by default');
+ await preference.evaluate(el=>{el.click();});await page.reload();
+ assert.equal(await preference.isChecked(),false,'switching sharing off survives reload');
  assert.equal(await page.locator('#passenger-reports-panel input[type=checkbox]').count(),0);
  const sharing=page.locator('#passenger-navigation-settings .passenger-nearby-consent');
  assert.equal(await sharing.locator('input').count(),1);

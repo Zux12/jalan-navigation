@@ -51,7 +51,7 @@ test('a nearby report takes priority over the local question',t=>{
  s.el('passenger-report-confirm').hidden=false;s.window.dispatchEvent(new Event('jalan:nearby-report-prompt'));
  assert.equal(s.visible(),false);s.sample(1000);assert.equal(s.visible(),false);
  s.el('passenger-report-confirm').hidden=true;s.sample(75);assert.equal(s.visible(),true);
- s.el('smart-yes').onclick();assert.equal(s.visible(),false);assert.match(s.el('smart-status').textContent,/Yes.*Not shared/);
+ let sent=0;s.window.JalanCommunityReports={reportSlowdown:()=>sent++};s.el('smart-yes').onclick();assert.equal(s.visible(),false);assert.equal(sent,1);
 });
 
 test('the engineering preview still needs its switch',t=>{
@@ -67,4 +67,11 @@ test('without flow coverage only two minutes of continuous crawling qualify',t=>
  s.sample(115,{speedMps:2});assert.equal(s.visible(),false);
  t.mock.timers.tick(5000);s.fix({speedMps:2});assert.equal(s.visible(),true);
  s.window.dispatchEvent(new Event('jalan:journey-stop'));assert.equal(s.visible(),false);
+});
+
+test('moving community traffic suppresses an isolated crawl; a confirmed slow cell can ask a stopped driver',t=>{
+ const s=scene(t);s.window.JalanCommunityFlow={condition:()=>({type:'smooth'})};
+ s.sample(180);assert.equal(s.visible(),false);
+ s.window.JalanCommunityFlow.condition=()=>({type:'heavy'});s.fix({speedMps:0});
+ assert.equal(s.visible(),true);s.el('smart-no').onclick();assert.equal(s.visible(),false);
 });

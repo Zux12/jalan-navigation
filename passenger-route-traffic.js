@@ -97,7 +97,9 @@
  const priority={light:1,moderate:2,heavy:3,closed:4};
  function classify(route,flows=[],now=Date.now()){
    const path=makePath(route?.geometry?.coordinates);
-   if(!path||route?.provider!=='tomtom'||!Number.isFinite(path.total)||path.total<=0)return [];
+   if(!path||!Number.isFinite(path.total)||path.total<=0)return [];
+   const community=window.JalanCommunityFlow?.sections(route).filter(s=>s.type!=='smooth')||[];
+   if(route.provider!=='tomtom'&&!community.length)return [];
    // Render only real route line pieces, subdivided for accurate overlay.
    const pieces=[];
    for(let from=0;from<path.total;from+=20){
@@ -128,7 +130,23 @@
        else pieces.push({type,start:from,end:to});
      }
    }
-   return pieces.map(piece=>({...piece,
+   // Split precisely at each community boundary. Never extend a coloured cell
+   // into an unobserved neighbour or obscure a provider closure.
+   let combined=pieces;
+   if(community.length){
+    const boundaries=[...new Set([...community,...pieces].flatMap(s=>[s.start,s.end]))].sort((a,b)=>a-b);
+    combined=[];let provider=0,crowd=0;
+    for(let i=1;i<boundaries.length;i++){
+     const start=boundaries[i-1],end=boundaries[i];
+     while(pieces[provider]?.end<=start)provider++;
+     while(community[crowd]?.end<=start)crowd++;
+     const a=pieces[provider],b=community[crowd];let type=a?.start<=start?a.type:null;
+     if(b?.start<=start&&(!type||priority[b.type]>priority[type]))type=b.type;
+     if(!type)continue;
+     const prev=combined.at(-1);if(prev?.type===type&&prev.end===start)prev.end=end;else combined.push({start,end,type});
+    }
+   }
+   return combined.map(piece=>({...piece,
      coordinates:originalSubpath(path,piece.start,piece.end)}));
  }
  function cacheJourney(pieces){
@@ -198,10 +216,11 @@
  }
  function choose(){
    const candidate=routes?.[selectedRoute];
-   if(!candidate||candidate.provider!=='tomtom'){
+   if(!candidate||(candidate.provider!=='tomtom'&&!window.JalanCommunityFlow?.sections(candidate).length)){
      reset();return;
    }
    if(candidate!==route){reset();route=candidate;draw();}
+   if(candidate.provider!=='tomtom')return;
    // Bounded point-by-point flow queries only on selected TomTom route and only
    // with an explicitly entered browser-held TomTom key.
    if(!lastRequestAt||Date.now()-lastRequestAt>=flowTTL)sampleFlow(candidate);
@@ -225,6 +244,7 @@
    if(event.detail?.state==='ready'&&!route&&
       routes?.[selectedRoute]?.provider==='tomtom')choose();
  });
+ window.addEventListener('jalan:community-flow',()=>{if(route)draw();else if(routes?.[selectedRoute]&&window.JalanCommunityFlow?.sections(routes[selectedRoute]).length)choose();});
  window.addEventListener('jalan:incidents-updated',()=>{if(route)draw();});
  window.JalanRouteTraffic={
    getState:()=>({active:!!route,sampledFlow:hasFlow,overlayCount:overlay.getLayers().length}),
