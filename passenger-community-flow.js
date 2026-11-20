@@ -10,11 +10,11 @@
  const notice=document.createElement('aside');notice.id='jalan-traffic-sharing-notice';notice.hidden=true;
  notice.innerHTML='<span role="status">JALAN shares your speed, road segment and direction during navigation to detect traffic. You can turn this off anytime.</span> <button type="button">Turn off sharing</button>';
  document.body.append(notice);
- let enabled=get(pref)!=='off',seen=get(noticeKey)==='1',active=false,route=null,sections=[],lookup=new Map(),cacheUntil=0,previous=null,matched=null;
+ let enabled=get(pref)!=='off',seen=get(noticeKey)==='1',active=false,route=null,sections=[],lookup=new Map(),cacheUntil=0,previous=null,matched=null,readCell=null;
  let seedKey=null,seedPromise=null,epoch=0,noticeTimer,reader=null,lastRead=0,regionOffset=0;
  const writes=new Set(),lastSent=new Map();
  box.checked=enabled;
- function resetWrites(){epoch++;for(const c of writes)c.abort();writes.clear();previous=null;matched=null;lastSent.clear();}
+ function resetWrites(){epoch++;for(const c of writes)c.abort();writes.clear();previous=null;matched=null;readCell=null;lastSent.clear();}
  function setting(on,persist){enabled=on;box.checked=on;if(persist)set(pref,on?'on':'off');if(!on){resetWrites();notice.hidden=true;}}
  box.addEventListener('change',()=>setting(box.checked,true));
  notice.querySelector('button').onclick=()=>setting(false,true);
@@ -72,14 +72,16 @@
  function fix(d){
   if(!active||document.hidden)return;
   const gps=window.JalanGPS.getState();if(!gps.active||!gps.route)return;
-  useRoute(gps.route);read();const i=d.speedLimitIndex;
+  useRoute(gps.route);read();readCell=null;const i=d.speedLimitIndex;
   if(!d.matched||!d.gpsReliable||d.nearDestination||!(d.gpsAccuracy>=0&&d.gpsAccuracy<=20)||!(d.gpsFixAgeMs>=0&&d.gpsFixAgeMs<=10000)||
      !Number.isInteger(i)||!Array.isArray(d.gpsPosition)||!Number.isFinite(d.speedMps)||d.speedMps<0||d.speedMps>55){previous=null;matched=null;return;}
   const path=model.layout(route),line=path.coords.slice(i,i+2),point=[d.gpsPosition[1],d.gpsPosition[0]];
   const p=P.project(point,line),heading=P.heading(d.heading)?d.heading:d.vehicleHeading;
-  const road=window.JalanVectorMap?.getReportRoad?.(point,heading,d.gpsAccuracy);
-  if(!p||p.offset>10||!P.heading(heading)||P.delta(heading,p.heading)>30||!P.sameRoad(road,window.JalanVectorMap?.getReportRoad?.(p.point,p.heading,d.gpsAccuracy))){previous=null;matched=null;return;}
+  if(!p||p.offset>10||!P.heading(heading)||P.delta(heading,p.heading)>30){previous=null;matched=null;return;}
   const where=model.locate(path,i,p.along/p.total);if(!where){previous=null;matched=null;return;}
+  readCell={segment:where.cell.segment,at:Date.now()-d.gpsFixAgeMs};
+  const road=window.JalanVectorMap?.getReportRoad?.(point,heading,d.gpsAccuracy);
+  if(!P.sameRoad(road,window.JalanVectorMap?.getReportRoad?.(p.point,p.heading,d.gpsAccuracy))){previous=null;matched=null;return;}
   const at=Date.now()-d.gpsFixAgeMs,old=previous,now={...where,road,point,at,anchor:where.along,verified:false};
   previous=now;matched=null;
   if(!old||at<=old.at||at-old.at>12000||!P.sameRoad(old.road,road)||where.along<old.along-4)return;
@@ -125,5 +127,8 @@
    const a=path.coords[p.index-1],b=path.coords[p.index],edge=P.project(point,[a,b]);
    return model.locate(path,p.index-1,edge.along/edge.total)?.cell.segment||null;
   },
-  condition:()=>{const s=matched&&Date.now()-matched.at<=10000&&lookup.get(matched.cell.segment);return s&&s.expiresAt>Date.now()?s:null;}};
+  condition:()=>{const s=matched&&Date.now()-matched.at<=10000&&lookup.get(matched.cell.segment);if(s&&s.expiresAt>Date.now())return s;
+   // On a basic map a reliable route match can suppress an unnecessary question.
+   const moving=readCell&&Date.now()-readCell.at<=10000&&lookup.get(readCell.segment);
+   return moving?.type==='smooth'&&moving.expiresAt>Date.now()?moving:null;}};
 })();

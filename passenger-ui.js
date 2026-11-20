@@ -667,6 +667,11 @@
    el('gps-reroute').click();
  });
  window.addEventListener('jalan:navigation-settings',syncNavigationSettings);
+ window.addEventListener('jalan:community-flow',()=>{
+   if(!document.body.classList.contains('passenger-guiding'))return;
+   el('passenger-eta').textContent=el('gps-eta').textContent||'—';
+   el('passenger-next').textContent=(el('gps-detail').textContent||'Route preview').replace(/\s*·\s*GPS matched to selected route\s*$/,'');
+ });
  window.addEventListener('jalan:community-reports',()=>{if(!turnList.classList.contains('hidden')&&activeInfoTab==='reports')renderReports();});
  window.addEventListener('jalan:reroute-status',event=>{
    if(!document.body.classList.contains('passenger-guiding'))return;
