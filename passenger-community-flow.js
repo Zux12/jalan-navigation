@@ -12,7 +12,8 @@
  notice.innerHTML='<span role="status">JALAN shares your speed, road segment and direction during navigation to detect traffic. You can turn this off anytime.</span> <button type="button">Turn off sharing</button>';
  document.body.append(notice);
  const saved=get(pref);if(storageAvailable&&saved===null){set(pref,'on');}
- let enabled=storageAvailable&&saved!=='off',seen=get(noticeKey)==='1',active=false,route=null,sections=[],lookup=new Map(),cacheUntil=0,previous=null,matched=null,readCell=null;
+ const noticeSeen=get(noticeKey);
+ let enabled=storageAvailable&&saved!=='off',seen=noticeSeen==='1',active=false,route=null,sections=[],lookup=new Map(),cacheUntil=0,previous=null,matched=null,readCell=null;
  let seedKey=null,seedPromise=null,epoch=0,noticeTimer,reader=null,lastRead=0,regionOffset=0;
  const writes=new Set(),lastSent=new Map(),verifiedRoads=new Map();
  box.checked=enabled;
@@ -32,7 +33,9 @@
  });
  function announce(){
   if(!enabled||seen||document.hidden)return;
-  notice.hidden=false;seen=true;set(noticeKey,'1');clearTimeout(noticeTimer);noticeTimer=setTimeout(()=>notice.hidden=true,12000);
+  notice.hidden=false;seen=true;set(noticeKey,'1');
+  if(!storageAvailable){setting(false,false);return;}
+  clearTimeout(noticeTimer);noticeTimer=setTimeout(()=>notice.hidden=true,12000);
  }
  function stop(){active=false;resetWrites();reader?.abort();reader=null;route=null;sections=[];lookup.clear();verifiedRoads.clear();cacheUntil=0;notice.hidden=true;clearTimeout(noticeTimer);changed();}
  function changed(){window.dispatchEvent(new Event('jalan:community-flow'));}
@@ -79,11 +82,16 @@
  function secret(){
   if(seedPromise)return seedPromise;
   let seed=get('jalan-traffic-seed-v1');
+  if(!storageAvailable){setting(false,false);throw Error('Traffic storage unavailable');}
   if(!/^[a-f0-9]{64}$/.test(seed||'')){seed=hex(crypto.getRandomValues(new Uint8Array(32)));set('jalan-traffic-seed-v1',seed);}
+  if(!storageAvailable){setting(false,false);throw Error('Traffic storage unavailable');}
   seedPromise=crypto.subtle.importKey('raw',new TextEncoder().encode(seed),{name:'HMAC',hash:'SHA-256'},false,['sign']);return seedPromise;
  }
  const hex=bytes=>Array.from(bytes,n=>n.toString(16).padStart(2,'0')).join('');
  async function send(cell,road,speed,normal,passAgeMs=null){
+  // Check the saved opt-out and detect revoked storage at the final upload boundary.
+  const livePreference=get(pref);
+  if(!storageAvailable||livePreference==='off'){setting(false,false);return;}
   const segment=model.roadSegment(cell,road);if(!segment)return;
   const passed=passAgeMs!==null;
   const before=epoch,at=Date.now(),last=lastSent.get(cell.segment);
@@ -91,7 +99,7 @@
   lastSent.set(cell.segment,{at,passed});
   const c=new AbortController();writes.add(c);
   try{seedKey=await secret();const driver=hex(new Uint8Array(await crypto.subtle.sign('HMAC',seedKey,new TextEncoder().encode(segment))));
-   if(before!==epoch||!active||!enabled||document.hidden||!window.JalanGPS.getState().active)return;
+   if(before!==epoch||!storageAvailable||!active||!enabled||document.hidden||!window.JalanGPS.getState().active)return;
    await post('observe',{segment,region:cell.region,driver,road,speed:Math.round(speed),normal:Number.isFinite(normal)&&normal>=15&&normal<=180?Math.round(normal):null,passAgeMs},c);
   }catch{}finally{writes.delete(c);}
  }
