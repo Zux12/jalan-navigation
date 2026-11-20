@@ -27,30 +27,9 @@
   <p class="jalan-about-description">Navigation for Malaysia with live traffic, road reports, and turn-by-turn directions.</p>
   <p class="jalan-about-developer"><span>Developed by</span> <strong translate="no">IgniteInno Ventures</strong></p>
   <p class="jalan-about-origin"><span aria-hidden="true">🇲🇾</span> <span>Made in Malaysia</span></p>
-  <section class="jalan-about-location-sharing" aria-labelledby="passenger-posted-speed-share-label">
-   <label for="passenger-posted-speed-share"><input type="checkbox" id="passenger-posted-speed-share">
-    <span id="passenger-posted-speed-share-label">Allow live posted speed-limit lookups</span></label>
-   <p id="passenger-posted-speed-share-explain">Off by default. Turning this on sends precise GPS coordinates to TomTom while using JALAN to look up road speed limits. Turn it off any time. Route-provided limits work without this extra lookup.</p>
-  </section>
   <a id="passenger-policy" href="https://igniteinnov.com/jalan/policy.html?lang=en" target="_blank" rel="noopener noreferrer">Privacy &amp; terms</a>
   <button type="button" id="passenger-about-ok" class="jalan-dialog-ok">Done</button>`;
  document.body.append(sound,about);
- // This is a separate, session-only opt-in: granting browser GPS permission
- // does not by itself authorize additional precise-coordinate speed lookups.
- const postedSpeedShare=el('passenger-posted-speed-share');
- window.JalanPostedSpeedSharing=Object.freeze({allowed:()=>postedSpeedShare.checked});
- postedSpeedShare.addEventListener('change',()=>window.dispatchEvent(
-  new CustomEvent('jalan:posted-speed-sharing-change',{detail:{allowed:postedSpeedShare.checked}})));
- function paintSpeedConsent(){
-  const ms=window.JalanLanguage.code==='ms';
-  el('passenger-posted-speed-share-label').textContent=ms?
-   'Benarkan semakan langsung had laju jalan':'Allow live posted speed-limit lookups';
-  el('passenger-posted-speed-share-explain').textContent=ms?
-   'Dimatikan secara lalai. Apabila dihidupkan, koordinat GPS tepat dihantar kepada TomTom untuk menyemak had laju. Boleh dimatikan pada bila-bila masa. Had laju daripada laluan tidak memerlukan semakan tambahan ini.':
-   'Off by default. Turning this on sends precise GPS coordinates to TomTom while using JALAN to look up road speed limits. Turn it off any time. Route-provided limits work without this extra lookup.';
- }
- paintSpeedConsent();
- window.addEventListener('jalan:language-change',paintSpeedConsent);
  const choice=el('passenger-voice-choice'),status=el('passenger-voice-status');
  const paintVoices=()=>{
   const state=window.JalanVoice.getState(),pending=sound.open?choice.value:state.selected;

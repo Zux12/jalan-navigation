@@ -4,37 +4,24 @@ const assert=require('node:assert/strict');
 module.exports=async function roadDetails(page){
  const home=page.locator('#jalan-home-speed .passenger-speed-limit');
  const driving=page.locator('#passenger-speed-floating .passenger-speed-limit');
- const point=[3.139,101.687],next=[3.139,101.68715],end=[3.139,101.691];
+ const point=[3.139,101.687],next=[3.139,101.68715],gap=[3.139,101.68733],end=[3.139,101.691];
  const fix=point=>page.evaluate(point=>dispatchEvent(new CustomEvent('jalan:free-location',{
   detail:{point,accuracy:5,timestamp:Date.now(),heading:null,speed:0}})),point);
  let lookups=0;
  await page.route('https://api.tomtom.com/search/2/reverseGeocode/**',route=>{
   lookups++;
-  const url=new URL(route.request().url());
-  assert.equal(url.searchParams.get('returnSpeedLimit'),'true');
-  return route.fulfill({json:{addresses:[{position:point.join(','),address:{speedLimit:'80.00KPH'}}]}});
+  return route.fulfill({json:{addresses:[]}});
  });
  assert.equal(await home.isVisible(),false);
- const sharing=page.locator('#passenger-posted-speed-share');
- assert.equal(await sharing.isChecked(),false,'fresh session defaults to no extra GPS transmission');
- await fix(point);
- assert.equal(lookups,0,'location display alone never triggers precise-coordinate lookup');
  await page.locator('#jalan-home-menu').click();
  await page.locator('#passenger-about').click();
- assert.match(await page.locator('#passenger-posted-speed-share-explain').textContent(),/precise GPS coordinates to TomTom/);
- await sharing.check();
+ assert.equal(await page.locator('#passenger-posted-speed-share').count(),0);
  await page.locator('#passenger-about-ok').click();
- await fix(point);await home.waitFor({state:'visible'});
- assert.equal(await home.textContent(),'80');
- assert.deepEqual(await home.evaluate(el=>{
-  const css=getComputedStyle(el),box=el.getBoundingClientRect(),parent=el.parentElement.getBoundingClientRect();
-  return [css.backgroundColor,css.color,css.borderColor,box.right>parent.right&&box.left<parent.right,box.bottom>parent.bottom&&box.top<parent.bottom];
- }),['rgb(255, 255, 255)','rgb(17, 17, 17)','rgb(232, 120, 10)',true,true]);
- await fix(point);assert.equal(lookups,1,'stationary phone reuses the lookup');
- await fix(next);assert.equal(await home.isVisible(),false,'previous road limit clears immediately');
+ await fix(point);await fix(next);
+ assert.equal(await home.isVisible(),false,'free driving has no route speed limit');
 
- const coordinates=[point,next,end].map(([latitude,longitude])=>({latitude,longitude}));
- const travel={sectionType:'TRAVEL_MODE',travelMode:'car',startPointIndex:0,endPointIndex:2};
+ const coordinates=[point,next,gap,end].map(([latitude,longitude])=>({latitude,longitude}));
+ const travel={sectionType:'TRAVEL_MODE',travelMode:'car',startPointIndex:0,endPointIndex:3};
  const paid={sectionType:'TOLL',startPointIndex:0,endPointIndex:1};
  const speed=(start,limit)=>({sectionType:'SPEED_LIMIT',startPointIndex:start,endPointIndex:start+1,maxSpeedLimitInKmh:limit});
  const raw=(duration,sections)=>({summary:{lengthInMeters:500,travelTimeInSeconds:duration},
@@ -55,15 +42,6 @@ module.exports=async function roadDetails(page){
  await page.getByText('Ada Tol',{exact:true}).waitFor();
  assert.equal(await choices.nth(1).locator('small:last-child').textContent(),'Tanpa Tol');
  await page.evaluate(()=>JalanLanguage.set('en',false));
- // Revoke in the 390px About sheet *before* Go; navigation intentionally
- // hides menu controls while guiding. Route-provided limits must still work.
- await page.locator('#jalan-home-menu').click();
- await page.locator('#passenger-about').click();
- await sharing.uncheck();
- await page.locator('#passenger-about-ok').click();
- assert.equal(await sharing.isChecked(),false);
- // A second free-driving lookup is permitted if the new street fix arrived after the debounce.
- const lookupsBeforeGo=lookups;
  // Use the app's actual guidance watcher and measured GPS updates.
  await page.evaluate(()=>{
   navigator.geolocation.watchPosition=ok=>{window.__roadDetailsFix=ok;return 990;};
@@ -75,11 +53,19 @@ module.exports=async function roadDetails(page){
  await page.waitForFunction(()=>!!window.__roadDetailsFix);
  await drive(point);await driving.waitFor({state:'visible'});
  assert.equal(await driving.textContent(),'80');
+ await page.waitForFunction(()=>document.getElementById('passenger-speed').textContent==='29');
+ assert.deepEqual(await driving.evaluate(el=>{
+  const css=getComputedStyle(el),box=el.getBoundingClientRect(),parent=el.parentElement.getBoundingClientRect();
+  return [css.backgroundColor,css.color,css.borderColor,box.right>parent.right&&box.left<parent.right,box.bottom>parent.bottom&&box.top<parent.bottom];
+ }),['rgb(255, 255, 255)','rgb(17, 17, 17)','rgb(232, 120, 10)',true,true]);
  // Use adjacent fixes straddling the sign to avoid a synthetic GPS jump.
  await drive([next[0],next[1]+0.0001]);
  await page.waitForFunction(()=>document.querySelector('#passenger-speed-floating .passenger-speed-limit').textContent==='50');
+ await drive([gap[0],gap[1]+0.00007]);
+ await driving.waitFor({state:'hidden'});
+ assert.equal(await page.locator('#passenger-speed').textContent(),'29','GPS speed survives a gap in route limits');
  await page.evaluate(()=>dispatchEvent(new CustomEvent('jalan:location-quality',{detail:{error:true}})));
  assert.equal(await driving.isVisible(),false);
- assert.equal(lookups,lookupsBeforeGo,'matched route speeds do not need reverse lookups');
+ assert.equal(lookups,0,'no extra GPS lookup during free driving or navigation');
  assert.ok(requests>=1);
 };
