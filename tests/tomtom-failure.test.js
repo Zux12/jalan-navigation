@@ -82,7 +82,20 @@ test('route calculation requests TomTom-native route TRAFFIC sections',async()=>
  const s=scene();
  await s.nodes['tt-route'].onclick();await s.tick();
  assert.equal(s.calls.length,1);
- assert.equal(new URL(s.calls[0].url).searchParams.get('sectionType'),'traffic');
+ assert.deepEqual(new URL(s.calls[0].url).searchParams.getAll('sectionType'),['traffic','speedLimit','toll','tollRoad','travelMode']);
+});
+test('toll-free needs a complete response and speed limits apply only to their segments',()=>{
+ const {roadDetails}=scene().ctx.window.JalanTomTom;
+ const mode={sectionType:'TRAVEL_MODE',startPointIndex:0,endPointIndex:4};
+ const toll={sectionType:'TOLL',startPointIndex:2,endPointIndex:2};
+ const speed={sectionType:'SPEED_LIMIT',startPointIndex:1,endPointIndex:3,maxSpeedLimitInKmh:80};
+ assert.equal(roadDetails([mode,toll,speed],5).tolls,true);
+ assert.equal(roadDetails([mode,speed],5).tolls,false);
+ for(const sections of [null,[],[speed],[{...mode,startPointIndex:1}],[mode,{...toll,endPointIndex:30}]]){
+  assert.equal(roadDetails(sections,5).tolls,null);
+ }
+ const road=roadDetails([speed,{...speed,maxSpeedLimitInKmh:0},{...speed,endPointIndex:6}],5);
+ assert.deepEqual(Array.from(road.speedLimits,s=>[s.start,s.end,s.limit]),[[1,3,80]]);
 });
 test('route-linked sections use road metadata and route point indices, not a 25m incident radius',()=>{
  const api=scene().ctx.window.JalanTomTom;

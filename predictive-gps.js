@@ -13,7 +13,7 @@
    const along=cum[i-1]+t*(cum[i]-cum[i-1]),d=Math.hypot(ax+t*dx,ay+t*dy);
    // Favor continuity when parallel route segments are close together.
    const score=d+(near===null?0:Math.min(160,Math.abs(along-near)*0.18));
-   if(score<(best.score??Infinity))best={distance:d,along,position:interpolate(a,b,t),score,
+   if(score<(best.score??Infinity))best={distance:d,along,segmentIndex:t===1&&i<pts.length-1?i:i-1,position:interpolate(a,b,t),score,
     bearing:(Math.atan2(dx,dy)*180/Math.PI+360)%360};
   }return best;}
   let lastTime=null,lastGood=null,along=0,velocity=0,offCount=0,offSince=null,lastMode='waiting',initialOff=null;
@@ -48,11 +48,6 @@
   }
   return {feed,at,snap,get total(){return total;}};
  }
- // Display matching is separate from measured GPS and navigation progress.
- // A nearby dot is not proof that a moving car changed roads.
- function createRoadMotion(coordinates){
-  const route=create(coordinates),routePoints=coordinates.map(p=>[p[1],p[0]]);
-  let lastRoad=null,pending=null,departed=false,departureLine=null;
   const difference=(a,b)=>Math.abs(((a-b+540)%360)-180);
   const bearing=(a,b)=>{const p=rad(a[0]),q=rad(b[0]),d=rad(b[1]-a[1]);
    return (Math.atan2(Math.sin(d)*Math.cos(q),Math.cos(p)*Math.sin(q)-Math.sin(p)*Math.cos(q)*Math.cos(d))*180/Math.PI+360)%360;};
@@ -66,6 +61,28 @@
     if(distance<best.distance)best={distance,position:interpolate(a,b,t),bearing:bearing(a,b)};
    }return best;
   }
+ // A shared tile road identity lets free-driving reuse a lookup briefly.
+ // At parallel roads or a crossing, wait until one road is distinguishable.
+ function streetAt(point,roads,accuracy,course){
+  if(!Array.isArray(roads)||!roads.length)return null;
+  const candidates=[];
+  for(const road of roads){
+   const near=nearest(point,road.coordinates.map(p=>[p[1],p[0]]));
+   if(near.distance>18)continue;
+   const angle=course===null?0:difference(course,near.bearing);
+   if(Math.min(angle,180-angle)>35)continue;
+   candidates.push({road,distance:near.distance});
+  }
+  candidates.sort((a,b)=>a.distance-b.distance);
+  if(!candidates.length||candidates[0].distance>12||
+     candidates.length>1&&candidates[1].distance-candidates[0].distance<Math.max(4,accuracy*.6))return '';
+  return JSON.stringify(candidates[0].road.coordinates);
+ }
+ // Display matching is separate from measured GPS and navigation progress.
+ // A nearby dot is not proof that a moving car changed roads.
+ function createRoadMotion(coordinates){
+  const route=create(coordinates),routePoints=coordinates.map(p=>[p[1],p[0]]);
+  let lastRoad=null,pending=null,departed=false,departureLine=null;
   function connected(line,anchor,reach){
    // Only test nearby route segments; rendered roads cannot establish grade
    // connectivity at a bridge/tunnel, so those candidates are excluded below.
@@ -96,7 +113,8 @@
    }
    if(match.distance<=band&&!diverging){
     lastRoad={position:match.position,along:match.along,time,heading:match.bearing,motionHeading:course??match.bearing};pending=null;departed=false;departureLine=null;
-    return {position:match.position,heading:match.bearing,onRoute:true,certain:true,allowDeviation:false,mode:'road-aligned'};
+    return {position:match.position,heading:match.bearing,
+     speedLimitIndex:match.distance<=12&&(course===null||difference(course,match.bearing)<=45)?match.segmentIndex:null,onRoute:true,certain:true,allowDeviation:false,mode:'road-aligned'};
    }
    if(departed&&(!departureLine||roads===null))
     return {position:raw,onRoute:false,certain:false,allowDeviation:true,mode:'departure-unverified'};
@@ -156,7 +174,7 @@
   }
   return {feed};
  }
- window.JalanPredictiveGPS={create,createRoadMotion,runTests(){
+ window.JalanPredictiveGPS={create,createRoadMotion,streetAt,runTests(){
   const line=[[101.6000,3.0000],[101.6100,3.0000]];
   function f(m,p,t,acc=8,speed=15){return m.feed({position:p,time:t,accuracy:acc,speed});}
   const a=create(line);f(a,[3,101.6000],1000);const jump=f(a,[3.003,101.605],2000);const recovered=f(a,[3,101.6005],4000);

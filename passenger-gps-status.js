@@ -58,7 +58,7 @@
    },error=>{
     failure=error.code===1?'GPS location permission denied':'GPS location is unavailable · waiting for a new reading';
     if(error.code===1){permitted=false;stopWatch();}
-    paint();
+    window.dispatchEvent(new CustomEvent('jalan:free-location-error',{detail:{error:true}}));paint();
    },{enableHighAccuracy:true,maximumAge:1500,timeout:15000});
    if(watch===null||!permitted||guiding||document.hidden)geo.clearWatch(id);else watch=id;
   }catch{watch=null;failure='GPS location is unavailable';paint();}

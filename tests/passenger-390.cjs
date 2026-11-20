@@ -600,7 +600,7 @@ async function main(){
   assert.equal(await page.locator('#passenger-gps-status').getAttribute('data-quality'),'green');
   assert.match(await page.locator('#passenger-next').textContent(),/Arrival approx/);
   assert.doesNotMatch(await page.locator('#passenger-next').textContent(),/GPS matched to selected route/);
-  assert.equal(await page.locator('#passenger-speed-floating').getAttribute('aria-label'),'7 kilometres per hour');
+  assert.equal(await page.locator('#passenger-speed-floating .passenger-speed-reading').getAttribute('aria-label'),'7 kilometres per hour');
   assert.equal(await page.evaluate(()=>document.getElementById('passenger-fix').textContent.includes('GPS matched')),true);
   // Actual proactive engine denies missing key and never offers a route
   // after a blocked TomTom request, even with matched synthetic GPS.
@@ -1316,6 +1316,8 @@ async function main(){
   assert.equal(await deniedPage.evaluate(()=>document.getElementById('tt-key').value),'SYNTHETIC_MANAGED_TEST_KEY');
   assert.equal(await deniedPage.evaluate(()=>document.getElementById('tt-primary').checked),true);
   assert.equal(await deniedPage.locator('#passenger-key').count(),0,'configured routing needs no passenger key entry');
+  assert.deepEqual(deniedErrors,[]);
+  await require('./passenger-road-details-390.cjs')(deniedPage);
   assert.deepEqual(deniedErrors,[]);
   await deniedContext.close();
   await require('./destination-suggestions-390.cjs')({context,base,root});

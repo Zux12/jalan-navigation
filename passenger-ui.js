@@ -389,7 +389,9 @@
      const left=document.createElement('span'),bold=document.createElement('b'),small=document.createElement('small');
      bold.textContent=i===0?'Fastest route':'Alternative '+i;
      small.textContent=fmtDist(r.distance)+' · '+(r.provider==='tomtom'?'Traffic estimate':'No traffic');
-     left.append(bold,small);
+     const toll=document.createElement('small');
+     toll.textContent=r.tolls===true?'Has Tolls':r.tolls===false?'Toll-Free':'Toll info unavailable';
+     left.append(bold,small,toll);
      const time=document.createElement('span');
      time.className='route-time';
      time.textContent=fmtTime(r.duration)+(delta>0?' · '+label:'');
@@ -634,7 +636,7 @@
    const speed=fix?.gpsReliable&&Number.isFinite(fix.speedMps)&&fix.speedMps>=0?
      String(Math.round(fix.speedMps*3.6)):'—';
    el('passenger-speed').textContent=speed;
-   el('passenger-speed-floating').setAttribute('aria-label',speed==='—'?
+   el('passenger-speed-floating').firstElementChild.setAttribute('aria-label',speed==='—'?
      'Speed unavailable':speed+' kilometres per hour');
    el('passenger-turn-arrow').textContent=turnIcon(message,window.JalanGPS?.instructionStep?.(message));
    if(!turnList.classList.contains('hidden')){

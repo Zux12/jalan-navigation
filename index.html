@@ -7,7 +7,7 @@
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; base-uri 'self'; object-src 'none'; form-action 'self'; script-src 'self' https://unpkg.com https://maps.googleapis.com https://maps.gstatic.com; style-src 'self' 'unsafe-inline' https://unpkg.com https://fonts.googleapis.com; img-src 'self' data: blob: https://tiles.openfreemap.org https://unpkg.com https://*.tile.openstreetmap.org https://api.tomtom.com https://maps.gstatic.com https://maps.googleapis.com https://lh3.googleusercontent.com; font-src 'self' data: https://fonts.gstatic.com; media-src 'self' blob:; connect-src 'self' https://tiles.openfreemap.org https://api.tomtom.com https://router.project-osrm.org https://nominatim.openstreetmap.org https://overpass-api.de https://mterm2026-559f9bf571b5.herokuapp.com https://maps.googleapis.com https://places.googleapis.com https://maps.gstatic.com; worker-src 'self' blob:; frame-src 'none'; upgrade-insecure-requests" />
   <link rel="preload" href="fonts/DancingScript.ttf" as="font" type="font/ttf" crossorigin />
   <link rel="stylesheet" href="passenger-launch.css?v=4" />
-  <script src="passenger-language-copy.js?v=2"></script>
+  <script src="passenger-language-copy.js?v=2-road1"></script>
   <script src="passenger-language.js?v=1"></script>
   <script src="passenger-launch.js?v=8"></script>
   <meta name="theme-color" content="#ffffff" />
@@ -23,7 +23,7 @@
   <title>JALAN 4.8.0 — Testing</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
   <link rel="stylesheet" href="style.css?v=4-7-1" />
-  <link rel="stylesheet" href="passenger.css?v=31" />
+  <link rel="stylesheet" href="passenger.css?v=31-road1" />
   <link rel="stylesheet" href="passenger-home-sheet.css?v=17-recent" />
   <link rel="stylesheet" href="passenger-menu-dialogs.css?v=3-about" />
   <link rel="stylesheet" href="passenger-reporting.css?v=6" />
@@ -79,7 +79,7 @@
       <section id="passenger-reports-panel" role="tabpanel" aria-labelledby="passenger-tab-reports"><ol id="passenger-report-list"></ol><p id="passenger-report-note" hidden></p></section>
       <section id="passenger-directions-panel" role="tabpanel" aria-labelledby="passenger-tab-directions" class="hidden"><ol id="passenger-maneuver-list"></ol></section></section>
     <button id="passenger-recenter-floating" class="passenger-recenter-floating" type="button" aria-label="Recenter map on matched GPS position" title="Recenter map">◎</button>
-    <div id="passenger-speed-floating" class="passenger-speed-floating" role="img" aria-label="Speed unavailable"><strong id="passenger-speed">—</strong><small>km/h</small></div>
+    <div id="passenger-speed-floating" class="passenger-speed-floating"><span class="passenger-speed-reading" role="img" aria-label="Speed unavailable"><strong id="passenger-speed">—</strong><small>km/h</small></span><span class="passenger-speed-limit" role="img" hidden></span></div>
     <div id="passenger-journey-sheet" class="passenger-bottom" data-expanded="false"><button id="passenger-journey-handle" class="passenger-journey-handle" type="button" aria-controls="passenger-journey-content" aria-expanded="false" aria-label="Expand journey details"><span></span></button><div class="passenger-stats"><b id="passenger-eta">—</b><b id="passenger-distance">—</b><button id="passenger-search" class="passenger-search" type="button" aria-label="Search destination" aria-controls="jalan-home-sheet" aria-expanded="false" title="Search destination"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m15.5 15.5 5 5"/></svg></button></div>
       <section id="passenger-journey-content" class="passenger-journey-content" aria-label="Journey details" aria-hidden="true" inert>
         <h2 id="passenger-journey-destination" class="passenger-journey-destination">Destination: Selected destination</h2>
@@ -282,14 +282,14 @@
   <script src="comparison.js?v=4-2"></script>
   <script src="traffic-test.js?v=4-2"></script>
   <script src="jalan-config.js?v=3"></script>
-  <script src="tomtom-live.js?v=4-14-pin1-lang1"></script>
+  <script src="tomtom-live.js?v=4-14-pin1-lang1-road1"></script>
   <script src="passenger-maneuvers.js?v=1"></script>
   <script src="passenger-malay-audio.js?v=1"></script>
   <script src="voice-guidance.js?v=4-7-lang1"></script>
   <script src="navigation-sim.js?v=4-5-1"></script>
-  <script src="predictive-gps.js?v=4-6"></script>
-  <script src="gps-navigation.js?v=4-15-pin1-lang1"></script>
-  <script src="proactive-routing.js?v=4-5-pin1-lang1"></script>
+  <script src="predictive-gps.js?v=4-6-road1"></script>
+  <script src="gps-navigation.js?v=4-15-pin1-lang1-road1"></script>
+  <script src="proactive-routing.js?v=4-5-pin1-lang1-road1"></script>
   <script src="journey-log.js?v=4-2"></script>
   <script src="speed-intelligence.js?v=4-3"></script>
   <script src="predictive-tests.js?v=4-3"></script>
@@ -304,16 +304,17 @@
   <script src="jalan-kl-3c.js?v=3c2"></script>
   <script src="community-report-model.js?v=2"></script>
   <script src="passenger-navigation-view.js?v=1"></script>
-  <script src="passenger-ui.js?v=42"></script>
+  <script src="passenger-ui.js?v=42-road1"></script>
   <script src="passenger-route-traffic.js?v=5"></script>
   <script src="passenger-saved-places.js?v=2-lang1"></script>
-  <script src="passenger-home-sheet.js?v=18-recent"></script>
+  <script src="passenger-home-sheet.js?v=18-recent-road1"></script>
   <script src="destination-match.js?v=2"></script>
   <script src="google-place-search.js?v=4-lang1"></script>
   <script src="destination-suggestions.js?v=6-lang1"></script>
   <script src="passenger-menu-dialogs.js?v=4-about"></script>
   <script src="passenger-route-sheet.js?v=2"></script>
-  <script src="passenger-gps-status.js?v=3"></script>
+  <script src="passenger-gps-status.js?v=3-road1"></script>
+  <script src="passenger-speed-limit.js?v=1"></script>
   <script src="passenger-journey-model.js?v=2"></script>
   <script src="passenger-journey-sheet.js?v=6"></script>
   <script src="passenger-route-start.js?v=3-pin1"></script>
