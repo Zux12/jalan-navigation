@@ -43,3 +43,8 @@ body:not(.passenger-guiding) #passenger-navigation-settings .passenger-nearby-co
 .passenger-report-button[data-category=visibility]{--report-accent:#b4a0df}
 .passenger-report-button[data-category]:active{background:color-mix(in srgb,var(--report-accent) 35%,#131c2a)}
 .jalan-report-categories :is([data-type=light],[data-type=moderate],[data-type=heavy]){border-inline-start:5px solid var(--report-accent)}
+
+/* Leave the journey sheet and map controls reachable during the local question. */
+body.passenger-guiding #smart-prompt {
+ box-sizing:border-box; bottom:calc(174px + var(--passenger-map-footer-offset,0px) + env(safe-area-inset-bottom));
+}

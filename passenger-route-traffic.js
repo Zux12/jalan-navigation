@@ -10,7 +10,7 @@
  });
  const maxSamples=6, flowTTL=5*60*1000, incidentTTL=10*60*1000;
  const windowMeters=80, maxOffsetMeters=16;
- let route=null,epoch=0,aborters=[],flowAt=0,lastRequestAt=0,refreshId=null,flowMatches=[],
+ let route=null,epoch=0,aborters=[],flowAt=0,lastRequestAt=0,refreshId=null,flowMatches=[],flowPath=null,
      overlay=L.layerGroup().addTo(map),hasFlow=false;
  let journeySnapshot={route:null,total:0,segments:[]},journeyExpires=Infinity;
  const key=document.getElementById('tt-key');
@@ -84,7 +84,7 @@
    // classification. No slowing = blue, never imply "light congestion".
    const ratio=speed/free;
    const type=ratio>=.90?null:ratio>=.70?'light':ratio>=.45?'moderate':'heavy';
-   return {type,ratio,segments:matching,confidence:
+   return {type,ratio,freeFlowSpeed:free,segments:matching,confidence:
      Number.isFinite(data.confidence)?data.confidence:null};
  }
  function severity(section){
@@ -152,7 +152,7 @@
    }
  }
  function reset(){
-   epoch++;aborters.forEach(a=>a.abort());aborters=[];flowMatches=[];flowAt=0;lastRequestAt=0;hasFlow=false;
+   epoch++;aborters.forEach(a=>a.abort());aborters=[];flowMatches=[];flowPath=null;flowAt=0;lastRequestAt=0;hasFlow=false;
    if(refreshId){clearInterval(refreshId);refreshId=null;}
    overlay.clearLayers();route=null;cacheJourney([]);
  }
@@ -184,8 +184,17 @@
      }catch{return null;}
    }));
    if(epoch!==id||route!==current)return;
-   flowAt=Date.now();flowMatches=outputs.filter(Boolean);hasFlow=flowMatches.length>0;
+   flowAt=Date.now();flowPath=path;flowMatches=outputs.filter(Boolean);hasFlow=flowMatches.length>0;
    draw();
+ }
+ // Read an already matched sample from the current route without requesting the phone's position.
+ function freeFlowAt(current,index,position){
+   if(current!==route||!flowMatches.length||Date.now()-flowAt>flowTTL||
+      !Number.isInteger(index)||index<0||index+1>=flowPath.coords.length||!goodPoint(position))return null;
+   const start=flowPath.distance[index],end=flowPath.distance[index+1];
+   const along=Math.min(end,start+metresBetween(flowPath.coords[index],position));
+   const match=flowMatches.find(sample=>sample.segments.some(([a,b])=>a<=along&&along<=b));
+   return match?.freeFlowSpeed??null;
  }
  function choose(){
    const candidate=routes?.[selectedRoute];
@@ -223,6 +232,6 @@
      if(Date.now()>journeyExpires)cacheJourney(classify(route,flowMatches));
      return {...journeySnapshot,segments:journeySnapshot.segments.map(s=>({...s}))};
    },
-   classify,makeFlowMatch,makePath,originalSubpath,samplesFor,severity,reset
+   freeFlowAt,classify,makeFlowMatch,makePath,originalSubpath,samplesFor,severity,reset
  };
 })();
