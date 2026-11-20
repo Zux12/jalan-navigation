@@ -28,7 +28,9 @@ test('first-trip sharing needs measured travel on a matched road, an opt-out abo
  const road={key:'vector-abba',level:'0:surface'};let active=true,resolveSignature,readerRoad=road;
  w.JalanVectorMap={getReportRoad:()=>readerRoad};w.JalanGPS={getState:()=>({active,route})};
  w.JalanRouteTraffic={freeFlowAt:()=>60};w.JalanFlowModel=M;w.JalanReportModel=P;
- const localStorage={getItem:k=>storage.get(k),setItem:(k,v)=>storage.set(k,v)};
+ let storageReadable=true;
+ const localStorage={getItem:k=>{if(!storageReadable)throw Error('blocked storage');return storage.get(k);},
+  setItem:(k,v)=>{if(!storageReadable)throw Error('blocked storage');storage.set(k,v);}};
  const src=fs.readFileSync(path.join(__dirname,'../passenger-community-flow.js'),'utf8');
  const setPref=on=>{box.checked=on;box.dispatchEvent(new Event('change'));};
  const next=()=>new Promise(resolve=>setImmediate(resolve));
@@ -49,7 +51,17 @@ test('first-trip sharing needs measured travel on a matched road, an opt-out abo
  }
  readerRoad=road;setPref(true);fix(101,5000);fix(101.0002,1000);await next();resolveSignature();await next();
  const obs=calls.find(([u])=>u.endsWith('observe'));assert.ok(obs);assert.deepEqual(Object.keys(obs[1]).sort(),['driver','normal','passAgeMs','region','road','segment','speed']);
- assert.equal(obs[1].speed,18);active=false;w.dispatchEvent(new Event('jalan:journey-stop'));fix(101.0004);
+ assert.equal(obs[1].speed,18);
+ // A browser that loses storage access while active must fail closed even if a
+ // preference synchronization event arrives with no readable preference.
+ storageReadable=false;
+ const lost=new Event('storage');lost.key='jalan-traffic-sharing-v1';w.dispatchEvent(lost);
+ assert.equal(box.checked,false,'blocked preference reads cannot silently enable sharing');
+ const sent=calls.filter(([u])=>u.endsWith('observe')).length;
+ fix(101.0004);await next();
+ assert.equal(calls.filter(([u])=>u.endsWith('observe')).length,sent);
+ setPref(true);assert.equal(box.checked,false,'a failed preference save cannot enable sharing');
+ active=false;w.dispatchEvent(new Event('jalan:journey-stop'));fix(101.0004);
 });
 test('coincident surface, bridge and tunnel cells have distinct identities; ambiguous grade cannot affect ETA',()=>{
  const cell=shape.cells[0],surface={key:'vector-abba',level:'0:surface'};
