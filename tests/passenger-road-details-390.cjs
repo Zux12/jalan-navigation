@@ -55,6 +55,13 @@ module.exports=async function roadDetails(page){
  await page.getByText('Ada Tol',{exact:true}).waitFor();
  assert.equal(await choices.nth(1).locator('small:last-child').textContent(),'Tanpa Tol');
  await page.evaluate(()=>JalanLanguage.set('en',false));
+ // Revoke in the 390px About sheet *before* Go; navigation intentionally
+ // hides menu controls while guiding. Route-provided limits must still work.
+ await page.locator('#jalan-home-menu').click();
+ await page.locator('#passenger-about').click();
+ await sharing.uncheck();
+ await page.locator('#passenger-about-ok').click();
+ assert.equal(await sharing.isChecked(),false);
  // A second free-driving lookup is permitted if the new street fix arrived after the debounce.
  const lookupsBeforeGo=lookups;
  // Use the app's actual guidance watcher and measured GPS updates.
@@ -75,11 +82,4 @@ module.exports=async function roadDetails(page){
  assert.equal(await driving.isVisible(),false);
  assert.equal(lookups,lookupsBeforeGo,'matched route speeds do not need reverse lookups');
  assert.ok(requests>=1);
- // Revoke the separate opt-in in the actual 390px dialog; the checkbox
- // does not gate speed data already included in a manually requested route.
- await page.locator('#jalan-home-menu').click();
- await page.locator('#passenger-about').click();
- await sharing.uncheck();
- await page.locator('#passenger-about-ok').click();
- assert.equal(await sharing.isChecked(),false);
 };
