@@ -17,10 +17,19 @@
  const writes=new Set(),lastSent=new Map(),verifiedRoads=new Map();
  box.checked=enabled;
  function resetWrites(){epoch++;for(const c of writes)c.abort();writes.clear();previous=null;matched=null;readCell=null;lastSent.clear();}
- function setting(on,persist){enabled=on;box.checked=on;if(persist)set(pref,on?'on':'off');if(!on){resetWrites();notice.hidden=true;}}
+ function setting(on,persist){
+  if(persist)set(pref,on?'on':'off');
+  // A storage denial after the initial load must never silently re-enable uploads.
+  enabled=Boolean(on&&storageAvailable);box.checked=enabled;
+  if(!enabled){resetWrites();notice.hidden=true;}
+ }
  box.addEventListener('change',()=>setting(box.checked,true));
  notice.querySelector('button').onclick=()=>setting(false,true);
- window.addEventListener('storage',e=>{if(e.key===pref||e.key===null)setting(get(pref)!=='off',false);});
+ window.addEventListener('storage',e=>{
+  if(e.key!==pref&&e.key!==null)return;
+  const stored=get(pref);
+  setting(storageAvailable&&stored!=='off',false);
+ });
  function announce(){
   if(!enabled||seen||document.hidden)return;
   notice.hidden=false;seen=true;set(noticeKey,'1');clearTimeout(noticeTimer);noticeTimer=setTimeout(()=>notice.hidden=true,12000);
