@@ -255,3 +255,9 @@ body.passenger-guiding .passenger-turn-chevron{position:absolute;right:28px;bott
 /* OpenFreeMap's own branding is optional. Retain the required data credits. */
 .maplibregl-ctrl-attrib-inner a[href="https://openfreemap.org"],
 .maplibregl-ctrl-attrib-inner a[href="https://openfreemap.org/"]{display:none}
+
+.passenger-speed-reading{display:flex;flex-direction:column;align-items:center}
+.passenger-speed-limit{position:absolute;right:-8px;bottom:-6px;box-sizing:border-box;
+ width:30px;height:30px;display:grid;place-items:center;border:3px solid #e8780a;border-radius:50%;
+ background:#fff;color:#111;font:700 13px/1 system-ui;font-variant-numeric:tabular-nums;pointer-events:none}
+.passenger-speed-limit[hidden]{display:none}

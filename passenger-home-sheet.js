@@ -63,8 +63,7 @@
  menu.setAttribute('aria-label','Open JALAN menu');menu.setAttribute('aria-controls','jalan-home-menu-panel');
  menu.setAttribute('aria-expanded','false');menu.textContent='☰';
  const speed=document.createElement('div');speed.id='jalan-home-speed';
- speed.setAttribute('aria-label','Speed unavailable until reliable GPS');
- speed.innerHTML='<strong id="jalan-home-speed-value">—</strong><small>km/h</small>';
+ speed.innerHTML='<span class="passenger-speed-reading" role="img" aria-label="Speed unavailable until reliable GPS"><strong id="jalan-home-speed-value">—</strong><small>km/h</small></span><span class="passenger-speed-limit" role="img" hidden></span>';
  const report=document.createElement('button');report.id='jalan-home-report';report.type='button';
  report.setAttribute('aria-label','Report road event (coming soon)');
  report.innerHTML='<span aria-hidden="true">⚠</span>';
@@ -327,7 +326,7 @@
      Number.isFinite(d.accuracy)&&d.accuracy<=75;
    const v=valid?String(Math.round(d.speedMps*3.6)):'—';
    $('jalan-home-speed-value').textContent=v;
-   speed.setAttribute('aria-label',valid?'Speed '+v+' kilometres per hour':'Speed unavailable until reliable GPS');
+   speed.firstElementChild.setAttribute('aria-label',valid?'Speed '+v+' kilometres per hour':'Speed unavailable until reliable GPS');
  });
  setState('a');
  // Offer shortcuts once on launch. Any touch, keyboard action or map interaction takes priority.

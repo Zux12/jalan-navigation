@@ -26,7 +26,7 @@ function scene(){
   {latitude:3.145,longitude:101.69}]}],summary:{
   travelTimeInSeconds:180,lengthInMeters:2500,trafficDelayInSeconds:30},guidance:{instructions:[]}}]};
  const ctx={window:{JalanGPS:{getState:()=>state,applyTrafficRoute:()=>{applied++;return true;}},
-  JalanTomTom:{refreshRouteIncidents(){}},dispatchEvent:e=>events.push(e.type)},
+  JalanTomTom:{refreshRouteIncidents(){},async fetchRouteData(url,signal){return (await fetch(url,{signal})).json();},roadDetails(){return {}}},dispatchEvent:e=>events.push(e.type)},
   document:{hidden:false,getElementById:id=>nodes[id],addEventListener(){}},
   destination:[3.145,101.69],fetch,URL,AbortController,console,
   setInterval(){return 1},CustomEvent:class{constructor(type){this.type=type}}};

@@ -33,3 +33,20 @@ test('TomTom carries onward instructions and traffic relative to its second leg'
  assert.equal(r.pinnedStop.index,1);assert.equal(r.pinnedStop.onward.steps[0].routeOffsetInMeters,70);
  assert.deepEqual(r.pinnedStop.onward.sections,[{startPointIndex:0,endPointIndex:1}]);
 });
+
+test('through-stop speed limits retain provider point indices on both legs',()=>{
+ const pt=i=>({longitude:101+i*.001,latitude:3});
+ const leg=i=>({points:[pt(i),pt(i+1)],summary:{lengthInMeters:110}});
+ for(const end of [2,3]){
+  const raw={legs:[leg(0),leg(1)],summary:{lengthInMeters:220},sections:[
+   {sectionType:'TRAVEL_MODE',startPointIndex:0,endPointIndex:end},
+   {sectionType:'SPEED_LIMIT',startPointIndex:end-1,endPointIndex:end,maxSpeedLimitInKmh:50}
+  ]};
+  const normalized=r=>({geometry:{coordinates:r.legs.flatMap(l=>l.points.map(p=>[p.longitude,p.latitude]))},
+   distance:r.summary.lengthInMeters,sections:r.sections});
+  const route=tomtom(raw,stop.point,normalized);
+  assert.equal(route.geometry.coordinates.length,end+1);
+  const onward=route.pinnedStop.onward.sections[1];
+  assert.deepEqual([onward.startPointIndex,onward.endPointIndex,onward.maxSpeedLimitInKmh],[0,1,50]);
+ }
+});

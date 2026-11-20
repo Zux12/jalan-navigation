@@ -285,7 +285,8 @@ async function main(){
   assert.equal(await page.locator('#passenger-route-list button').count(),3);
   assert.equal(await page.locator('#passenger-settings').count(),0,'route settings are only in the shared menu');
   assert.equal(await page.locator('#passenger-route-provider').count(),0,'provider subtitle is removed');
-  assert.equal(await page.locator('#passenger-overview small').count(),4,'route-card details and explicit passenger safety notice remain, without a diagnostic strip');
+  assert.equal(await page.locator('#passenger-overview small').count(),7,'three routes each show distance and toll information, plus one shared passenger safety notice');
+  assert.deepEqual(await page.locator('#passenger-route-list small:last-child').allTextContents(),Array(3).fill('Toll info unavailable'),'fallback routes leave their toll status unknown');
   assert.equal(await page.locator('#jalan-route-traffic-legend').count(),0,'traffic legend no longer covers the map');
   // A shorter Safari-like visible viewport must never clip the Go button.
   // A long list should scroll inside the card instead of pushing Go below it.
@@ -600,7 +601,7 @@ async function main(){
   assert.equal(await page.locator('#passenger-gps-status').getAttribute('data-quality'),'green');
   assert.match(await page.locator('#passenger-next').textContent(),/Arrival approx/);
   assert.doesNotMatch(await page.locator('#passenger-next').textContent(),/GPS matched to selected route/);
-  assert.equal(await page.locator('#passenger-speed-floating').getAttribute('aria-label'),'7 kilometres per hour');
+  assert.equal(await page.locator('#passenger-speed-floating .passenger-speed-reading').getAttribute('aria-label'),'7 kilometres per hour');
   assert.equal(await page.evaluate(()=>document.getElementById('passenger-fix').textContent.includes('GPS matched')),true);
   // Actual proactive engine denies missing key and never offers a route
   // after a blocked TomTom request, even with matched synthetic GPS.
@@ -1316,6 +1317,8 @@ async function main(){
   assert.equal(await deniedPage.evaluate(()=>document.getElementById('tt-key').value),'SYNTHETIC_MANAGED_TEST_KEY');
   assert.equal(await deniedPage.evaluate(()=>document.getElementById('tt-primary').checked),true);
   assert.equal(await deniedPage.locator('#passenger-key').count(),0,'configured routing needs no passenger key entry');
+  assert.deepEqual(deniedErrors,[]);
+  await require('./passenger-road-details-390.cjs')(deniedPage);
   assert.deepEqual(deniedErrors,[]);
   await deniedContext.close();
   await require('./destination-suggestions-390.cjs')({context,base,root});
