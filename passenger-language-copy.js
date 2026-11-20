@@ -46,7 +46,6 @@
     'Navigation for Malaysia with live traffic, road reports, and turn-by-turn directions.': 'Panduan navigasi untuk perjalanan di Malaysia dengan maklumat trafik semasa, laporan jalan raya dan panduan arah di setiap simpang.',
     'Made in Malaysia': 'Buatan Malaysia',
     'Privacy & terms': 'Privasi & terma',
-    'Map data licences': 'Lesen data peta',
     'Done': 'Selesai',
     'JALAN development': 'Pembangunan JALAN',
     'Developed by': 'Dibangunkan oleh',

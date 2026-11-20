@@ -702,8 +702,6 @@ async function main(){
   assert.equal(await live.locator('#jalan-home-menu-panel a[href*="openstreetmap.org"],#jalan-home-menu-panel a[href*="openmaptiles.org"],#jalan-home-menu-panel a[href*="openfreemap.org"]').count(),0,'the open guidance menu contains no map credits');
   await live.locator('#passenger-about').click();
   assert.equal(await live.locator('#passenger-policy').isVisible(),true);
-  assert.equal(await live.locator('#passenger-map-licences a[href="https://www.openstreetmap.org/copyright"]').isVisible(),true,'OSM licence accessible in About after map credits expire');
-  assert.equal(await live.locator('#passenger-map-licences a[href="https://openmaptiles.org/"]').isVisible(),true,'OpenMapTiles licence accessible in About, without a menu credit row');
   assert.equal(await live.evaluate(()=>JalanGPS.getState().active),true,'guidance stays active under About');
   await live.locator('#passenger-about-ok').click();
   assert.equal(await live.locator('#jalan-home-menu-panel').isVisible(),false);

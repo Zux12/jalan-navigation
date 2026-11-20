@@ -27,10 +27,6 @@
   <p class="jalan-about-description">Navigation for Malaysia with live traffic, road reports, and turn-by-turn directions.</p>
   <p class="jalan-about-developer"><span>Developed by</span> <strong translate="no">IgniteInno Ventures</strong></p>
   <p class="jalan-about-origin"><span aria-hidden="true">🇲🇾</span> <span>Made in Malaysia</span></p>
-  <section id="passenger-map-licences" class="jalan-about-licences" aria-label="Map data licences">
-   <h3>Map data licences</h3>
-   <p translate="no"><a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">© OpenStreetMap contributors</a> · <a href="https://openmaptiles.org/" target="_blank" rel="noopener noreferrer">© OpenMapTiles</a></p>
-  </section>
   <a id="passenger-policy" href="https://igniteinnov.com/jalan/policy.html?lang=en" target="_blank" rel="noopener noreferrer">Privacy &amp; terms</a>
   <button type="button" id="passenger-about-ok" class="jalan-dialog-ok">Done</button>`;
  document.body.append(sound,about);
