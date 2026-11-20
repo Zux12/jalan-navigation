@@ -4,28 +4,24 @@
  if(new URLSearchParams(location.search).get('mode')!=='passenger')return;
  const model=window.JalanFlowModel,P=window.JalanReportModel;
  const base='https://mterm2026-559f9bf571b5.herokuapp.com/api/jalan/reports/flow/';
- const box=document.getElementById('passenger-share-speed'),pref='jalan-traffic-sharing-v1',noticeKey='jalan-traffic-notice-v1';
- let storageAvailable=true;
- const get=k=>{try{return localStorage.getItem(k);}catch{storageAvailable=false;return null;}};
- const set=(k,v)=>{try{localStorage.setItem(k,v);}catch{storageAvailable=false;}};
+ const box=document.getElementById('passenger-share-speed');
+ // Upload consent is affirmative, in-memory and only valid for the current journey.
  const notice=document.createElement('aside');notice.id='jalan-traffic-sharing-notice';notice.hidden=true;
- notice.innerHTML='<span role="status">JALAN shares your speed, road segment and direction during navigation to detect traffic. You can turn this off anytime.</span> <button type="button">Turn off sharing</button>';
+ notice.innerHTML='<span role="status">With your permission, JALAN shares measured speed, matched road segment, direction and a journey-only pseudonymous token with its traffic service. Sharing stops when this journey ends.</span> <button type="button">Turn off sharing</button>';
  document.body.append(notice);
- const saved=get(pref);if(storageAvailable&&saved===null){set(pref,'on');}
- let enabled=storageAvailable&&saved!=='off',seen=get(noticeKey)==='1',active=false,route=null,sections=[],lookup=new Map(),cacheUntil=0,previous=null,matched=null,readCell=null;
- let seedKey=null,seedPromise=null,epoch=0,noticeTimer,reader=null,lastRead=0,regionOffset=0;
+ let enabled=false,seen=false,active=false,route=null,sections=[],lookup=new Map(),cacheUntil=0,previous=null,matched=null,readCell=null;
+ let seedPromise=null,epoch=0,noticeTimer,reader=null,lastRead=0,regionOffset=0;
  const writes=new Set(),lastSent=new Map(),verifiedRoads=new Map();
- box.checked=enabled;
- function resetWrites(){epoch++;for(const c of writes)c.abort();writes.clear();previous=null;matched=null;readCell=null;lastSent.clear();}
- function setting(on,persist){enabled=on;box.checked=on;if(persist)set(pref,on?'on':'off');if(!on){resetWrites();notice.hidden=true;}}
- box.addEventListener('change',()=>setting(box.checked,true));
- notice.querySelector('button').onclick=()=>setting(false,true);
- window.addEventListener('storage',e=>{if(e.key===pref||e.key===null)setting(get(pref)!=='off',false);});
+ box.checked=false;
+ function resetWrites(){epoch++;for(const c of writes)c.abort();writes.clear();seedPromise=null;previous=null;matched=null;readCell=null;lastSent.clear();}
+ function setting(on){enabled=on===true;box.checked=enabled;if(!enabled){resetWrites();seen=false;notice.hidden=true;}else if(active)announce();}
+ box.addEventListener('change',()=>setting(box.checked));
+ notice.querySelector('button').onclick=()=>setting(false);
  function announce(){
   if(!enabled||seen||document.hidden)return;
-  notice.hidden=false;seen=true;set(noticeKey,'1');clearTimeout(noticeTimer);noticeTimer=setTimeout(()=>notice.hidden=true,12000);
+  notice.hidden=false;seen=true;clearTimeout(noticeTimer);noticeTimer=setTimeout(()=>notice.hidden=true,12000);
  }
- function stop(){active=false;resetWrites();reader?.abort();reader=null;route=null;sections=[];lookup.clear();verifiedRoads.clear();cacheUntil=0;notice.hidden=true;clearTimeout(noticeTimer);changed();}
+ function stop(){active=false;setting(false);reader?.abort();reader=null;route=null;sections=[];lookup.clear();verifiedRoads.clear();cacheUntil=0;clearTimeout(noticeTimer);changed();}
  function changed(){window.dispatchEvent(new Event('jalan:community-flow'));}
  function useRoute(r){if(r===route)return;resetWrites();reader?.abort();reader=null;route=r;sections=[];lookup=new Map();verifiedRoads.clear();cacheUntil=0;lastRead=0;regionOffset=0;changed();}
  async function post(name,body,controller){
@@ -69,9 +65,9 @@
  function current(r){if(!r||r!==route)return [];if(cacheUntil&&Date.now()>=cacheUntil)refresh();return sections;}
  function secret(){
   if(seedPromise)return seedPromise;
-  let seed=get('jalan-traffic-seed-v1');
-  if(!/^[a-f0-9]{64}$/.test(seed||'')){seed=hex(crypto.getRandomValues(new Uint8Array(32)));set('jalan-traffic-seed-v1',seed);}
-  seedPromise=crypto.subtle.importKey('raw',new TextEncoder().encode(seed),{name:'HMAC',hash:'SHA-256'},false,['sign']);return seedPromise;
+  // Fresh random key per consent period; no long-lived cross-journey upload identifier.
+  const seed=crypto.getRandomValues(new Uint8Array(32));
+  seedPromise=crypto.subtle.importKey('raw',seed,{name:'HMAC',hash:'SHA-256'},false,['sign']);return seedPromise;
  }
  const hex=bytes=>Array.from(bytes,n=>n.toString(16).padStart(2,'0')).join('');
  async function send(cell,road,speed,normal,passAgeMs=null){
@@ -81,7 +77,7 @@
   if(last&&at-last.at<20000&&(!passed||last.passed))return;
   lastSent.set(cell.segment,{at,passed});
   const c=new AbortController();writes.add(c);
-  try{seedKey=await secret();const driver=hex(new Uint8Array(await crypto.subtle.sign('HMAC',seedKey,new TextEncoder().encode(segment))));
+  try{const key=await secret();const driver=hex(new Uint8Array(await crypto.subtle.sign('HMAC',key,new TextEncoder().encode(segment))));
    if(before!==epoch||!active||!enabled||document.hidden||!window.JalanGPS.getState().active)return;
    await post('observe',{segment,region:cell.region,driver,road,speed:Math.round(speed),normal:Number.isFinite(normal)&&normal>=15&&normal<=180?Math.round(normal):null,passAgeMs},c);
   }catch{}finally{writes.delete(c);}

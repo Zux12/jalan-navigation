@@ -14,9 +14,12 @@ module.exports=async(browser,base,root)=>{
  await r.fulfill({status,contentType:'application/json',headers:{'access-control-allow-origin':'*'},body:JSON.stringify(data)});});
  await page.goto(base+'/index.html?mode=passenger');
  const preference=page.locator('#passenger-share-speed');
- assert.equal(await preference.isChecked(),true,'first trip shares by default');
- await preference.evaluate(el=>{el.click();});await page.reload();
- assert.equal(await preference.isChecked(),false,'switching sharing off survives reload');
+ assert.equal(await preference.isChecked(),false,'first trip cannot passively share speed');
+ await preference.evaluate(el=>el.click());assert.equal(await preference.isChecked(),true,'passenger can explicitly opt in');
+ await page.evaluate(()=>{window.dispatchEvent(new Event('jalan:journey-start'));window.dispatchEvent(new Event('jalan:journey-stop'));});
+ assert.equal(await preference.isChecked(),false,'Stop revokes journey consent');
+ await preference.evaluate(el=>el.click());await page.reload();
+ assert.equal(await preference.isChecked(),false,'consent never persists to a new session');
  const restricted=await browser.newContext({viewport:{width:390,height:844},isMobile:true,hasTouch:true});
  try{
   await restricted.addInitScript(()=>{Storage.prototype.getItem=()=>{throw Error('blocked');};});

@@ -22,7 +22,7 @@ test('1 km at 15 instead of 60 adds three minutes; remaining, provider delay and
  assert.equal(eta({trafficSections:[{...traffic,simpleCategory:'ROAD_CLOSURE'}]}),0);
  assert.equal(M.remainingDelay(route,rows('smooth'),0),0);assert.equal(M.remainingDelay(route,sections,0,Date.now()+310000),0);
 });
-test('first-trip sharing needs measured travel on a matched road, an opt-out aborts uploads and leaves area reads enabled',async()=>{
+test('journey-scoped opt-in gates first-trip observations, revocation aborts writes and region reads remain available',async()=>{
  const w=new EventTarget(),d=new EventTarget(),box=new EventTarget(),button={},notice={},storage=new Map(),calls=[];
  notice.querySelector=()=>button;d.getElementById=()=>box;d.createElement=()=>notice;d.body={append(){}};
  const road={key:'vector-abba',level:'0:surface'};let active=true,resolveSignature,readerRoad=road;
@@ -36,11 +36,14 @@ test('first-trip sharing needs measured travel on a matched road, an opt-out abo
  vm.runInNewContext(src,{window:w,document:d,location:{search:'?mode=passenger'},URLSearchParams,localStorage,crypto,TextEncoder,Uint8Array,Date,Event,AbortController,setTimeout:()=>1,clearTimeout(){},setInterval(){},
   fetch:async(url,options)=>{calls.push([url,JSON.parse(options.body),options.signal]);return {ok:true,json:async()=>({sections:[{segment:M.roadSegment(shape.cells[0],road),expiresAt:Date.now()+60000,type:'heavy',speed:15,normal:60}]})};}});
  const fix=(lon,age=0)=>w.dispatchEvent(new CustomEvent('jalan:gps-fix',{detail:{matched:true,gpsReliable:true,gpsAccuracy:5,gpsFixAgeMs:age,gpsPosition:[0,lon],heading:90,speedMps:5,speedLimitIndex:0}}));
- assert.equal(box.checked,true);fix(101);assert.equal(calls.length,0);
- w.dispatchEvent(new Event('jalan:journey-start'));assert.equal(notice.hidden,false);await next();
+ assert.equal(box.checked,false,'first visit must never upload by default');fix(101);assert.equal(calls.length,0);
+ w.dispatchEvent(new Event('jalan:journey-start'));assert.equal(notice.hidden,true);await next();
  assert.equal(w.JalanCommunityFlow.sections(route).length,1);
+ fix(101,5000);fix(101.0002,1000);await next();
+ assert.equal(resolveSignature,undefined,'a matched speed sample cannot upload before consent');
+ setPref(true);assert.equal(notice.hidden,false,'consent is visibly acknowledged');
  fix(101,5000);fix(101.0002,1000);await next();assert.ok(resolveSignature);
- setPref(false);resolveSignature();await next();assert.equal(calls.filter(([u])=>u.endsWith('observe')).length,0);
+ setPref(false);resolveSignature();await next();assert.equal(calls.filter(([u])=>u.endsWith('observe')).length,0,'revoked pending signature cannot upload');
  w.dispatchEvent(new Event('jalan:journey-stop'));w.dispatchEvent(new Event('jalan:journey-start'));await next();
  assert.equal(box.checked,false);assert.equal(notice.hidden,true);assert.ok(calls.filter(([u])=>u.endsWith('read')).length>=2);
  for(const other of [null,{...road,level:'1:bridge'},{...road,level:'-1:tunnel'}]){
@@ -49,7 +52,8 @@ test('first-trip sharing needs measured travel on a matched road, an opt-out abo
  }
  readerRoad=road;setPref(true);fix(101,5000);fix(101.0002,1000);await next();resolveSignature();await next();
  const obs=calls.find(([u])=>u.endsWith('observe'));assert.ok(obs);assert.deepEqual(Object.keys(obs[1]).sort(),['driver','normal','passAgeMs','region','road','segment','speed']);
- assert.equal(obs[1].speed,18);active=false;w.dispatchEvent(new Event('jalan:journey-stop'));fix(101.0004);
+ assert.equal(obs[1].speed,18);active=false;w.dispatchEvent(new Event('jalan:journey-stop'));
+ assert.equal(box.checked,false,'Stop automatically revokes speed sharing');fix(101.0004);
 });
 test('coincident surface, bridge and tunnel cells have distinct identities; ambiguous grade cannot affect ETA',()=>{
  const cell=shape.cells[0],surface={key:'vector-abba',level:'0:surface'};
