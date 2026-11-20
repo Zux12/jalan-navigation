@@ -34,6 +34,12 @@ module.exports=async(browser,base,root)=>{
  await page.locator('#jalan-home-report').click();await page.locator('[data-type=weather]').click();await page.locator('[data-type=flood]').click();await page.locator('#passenger-report-submit').click();await page.waitForFunction(()=>!document.getElementById('passenger-report-dialog').open);
  assert.equal(await page.locator('.jalan-community-report-pin').count(),1,'merged event replaces existing pin');
  await page.evaluate(()=>{const original=JalanGPS.getState;window.__reportFixtureActive=true;JalanGPS.getState=()=>({...original(),active:window.__reportFixtureActive,gpsFixAgeMs:0,gpsPosition:[window.__reportPosition[1],window.__reportPosition[0]],route:{geometry:{coordinates:[[101.68,3.139],[101.70,3.139]]}}});});
+ // Explicit one-tap reporting works while passive sharing and nearby lookup are off.
+ const beforePrompt=submissions.length;
+ await page.evaluate(()=>{document.getElementById('smart-demo').click();document.getElementById('smart-yes').click();});
+ await page.waitForFunction(()=>document.getElementById('passenger-report-toast').textContent==='Traffic report sent.');
+ assert.equal(submissions.length,beforePrompt+1);assert.equal(submissions.at(-1).type,'traffic');
+ assert.equal(nearbyPosts,0);
  nearby=[event('ahead-event','accident',[101.689,3.139])];
  await page.evaluate(()=>{window.__reportPosition=[101.688,3.139];window.dispatchEvent(new CustomEvent('jalan:gps-fix',{detail:{gpsReliable:true,gpsPosition:[3.139,101.688],gpsAccuracy:8,gpsFixAgeMs:0,heading:90}}));});
  assert.equal(nearbyPosts,0,'GPS events alone must not upload position or fetch nearby reports');

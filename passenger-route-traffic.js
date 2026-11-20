@@ -118,7 +118,7 @@
          const a=section.startPointIndex,b=section.endPointIndex;
          if(!Number.isInteger(a)||!Number.isInteger(b)||a<0||b<=a||
             b>=path.distance.length)continue;
-         if(path.distance[a]>=to||path.distance[b]<=from)continue;
+         if(Math.min(path.distance[b],to)-Math.max(path.distance[a],from)<.01)continue;
          const incident=severity(section);
          if(incident&&(!type||priority[incident]>priority[type]))type=incident;
        }

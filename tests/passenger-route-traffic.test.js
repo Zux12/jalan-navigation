@@ -157,3 +157,12 @@ test('journey traffic snapshot reuses existing evidence, expires and clears on k
  assert.equal(s.urls.length,count);
  s.setKey('');assert.equal(s.api.getJourneySnapshot().route,null);
 });
+
+test('community colours cover exact cell boundaries, preserve closures, and restore provider colour on recovery',()=>{
+ const s=scene(),r=route([section(0,1,1),section(1,2,3,{simpleCategory:'ROAD_CLOSURE'})]);
+ let observed=[{start:52,end:152,type:'heavy'}];s.ctx.window.JalanCommunityFlow={sections:()=>observed};
+ const types=()=>s.api.classify(r).map(x=>[Math.round(x.start),Math.round(x.end),x.type]);
+ assert.deepEqual(Array.from(types(),x=>Array.from(x)),[[0,52,'light'],[52,100,'heavy'],[100,200,'closed']]);
+ observed=[{start:52,end:152,type:'smooth'}];
+ assert.deepEqual(Array.from(types(),x=>Array.from(x)),[[0,100,'light'],[100,200,'closed']]);
+});

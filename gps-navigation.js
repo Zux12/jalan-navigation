@@ -104,6 +104,14 @@
   const remaining=Math.max(0,total-progress)/total;
   return route.duration*remaining+(window.JalanCommunityFlow?.eta(route,1-remaining)||0);
  }
+ function paintArrival(seconds,mode){
+  el('gps-detail').textContent=`Arrival approx. ${new Date(Date.now()+seconds*1000).toLocaleTimeString('en-MY',{hour:'numeric',minute:'2-digit'})} · ${mode==='matched'?'GPS matched to selected route':'Position estimated; verify GPS'}`;
+ }
+ window.addEventListener?.('jalan:community-flow',()=>{
+  if(!active||!route||!total||latestMode==='deviation')return;
+  const seconds=remainingTime();el('gps-eta').textContent=fmtTime(seconds);
+  if(latestMatched)paintArrival(seconds,latestMode);
+ });
  function update(fix){
   if(!active)return;
   const now=Date.now(),sampleTime=Number(fix.timestamp);
@@ -187,7 +195,7 @@
    if(trustworthy)window.JalanVoice.announce(voice,next.along.toFixed(1),d,next.action,next.step);
   }
   else el('gps-instruction').textContent=maneuvers.length?'Continue toward destination':'Follow selected route — detailed maneuvers unavailable';
-  el('gps-detail').textContent=`Arrival approx. ${new Date(Date.now()+seconds*1000).toLocaleTimeString('en-MY',{hour:'numeric',minute:'2-digit'})} · ${mode==='matched'?'GPS matched to selected route':'Position estimated; verify GPS'}`;
+  paintArrival(seconds,mode);
   if(mode==='deviation'){
    el('gps-instruction').textContent=auto?'Off route · recalculating…':'Off route · recalculation is off';
    el('gps-detail').textContent='Finding a route from your current location to the same destination';

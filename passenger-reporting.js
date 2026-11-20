@@ -80,7 +80,16 @@
  function hideCard(){card.hidden=true;prompt=null;clearTimeout(promptTimer);}
  $('passenger-report-dismiss').onclick=hideCard;
  for(const button of card.querySelectorAll('[data-answer]'))button.onclick=async()=>{if(!prompt)return;const event=prompt;hideCard();try{const fix=await capture();const result=await api('/respond',{id:event.id,actor,journey,answer:button.dataset.answer,...fix});upsert(result.event);tell(button.dataset.answer==='cleared'?'Thanks. Your cleared response was recorded.':'Thanks. The report timer was refreshed.');}catch(e){tell('Response not saved: '+e.message);}};
- function routeItems(){const state=window.JalanGPS?.getState?.(),line=state?.route?.geometry?.coordinates;if(!line)return [];return events.filter(e=>P.alive(e)).flatMap(e=>{const match=P.routeMatch(e,line);return match?[{...e,routeAlong:match.along,routeTotal:match.total}]:[];});}
+ function routeItems(){const state=window.JalanGPS?.getState?.(),line=state?.route?.geometry?.coordinates;if(!line)return [];return events.filter(e=>P.alive(e)).flatMap(e=>{const match=P.routeMatch(e,line);
+   if(match&&e.type==='traffic'){
+    const shape=window.JalanFlowModel.layout(state.route);
+    if(e.segment&&!shape.edges[match.index-1]?.some(c=>c.segment===e.segment))return [];
+    if(!e.segment){
+     const road=window.JalanVectorMap?.getReportRoad?.(match.point,match.heading);
+     if(road&&e.road&&!P.sameRoad(road,e.road)||(!road||!e.road)&&match.offset>10)return [];
+    }
+   }
+   return match?[{...e,routeAlong:match.along,routeTotal:match.total}]:[];});}
  function checkCard(fix){if(!nearbyConsent){hideCard();return;}if(prompt){if(!P.alive(prompt)||!fix||!P.sameRoad(prompt.road,fix.road)||P.delta(prompt.heading,fix.heading)>40||P.distance(prompt.position,fix.position)>150)hideCard();return;}
   if(!fix||document.hidden||dialog.open||document.body.classList.contains('passenger-modal-open')||!$('jalan-home-menu-panel').classList.contains('hidden')||!window.JalanGPS?.getState?.().active||Date.now()-fix.at>10000||!P.heading(fix.heading)||!P.road(fix.road))return;
   const line=window.JalanGPS.getState().route?.geometry?.coordinates,current=P.project(fix.position,line);if(!current||current.offset>25||P.delta(current.heading,fix.heading)>40)return;

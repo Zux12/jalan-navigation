@@ -47,8 +47,9 @@
   }catch{}finally{if(reader===c)reader=null;}
  }
  function refresh(){const at=Date.now();for(const [k,v]of lookup)if(v.expiresAt<=at)lookup.delete(k);
-  sections=(model.layout(route)?.cells||[]).filter(c=>lookup.has(c.segment)).map(c=>({...c,...lookup.get(c.segment)}));
-  cacheUntil=sections.reduce((v,s)=>Math.min(v,s.expiresAt),Infinity);changed();}
+  const next=(model.layout(route)?.cells||[]).filter(c=>lookup.has(c.segment)).map(c=>({...c,...lookup.get(c.segment)}));
+  const dirty=next.length!==sections.length||next.some((s,i)=>s.segment!==sections[i].segment||s.type!==sections[i].type||s.speed!==sections[i].speed||s.normal!==sections[i].normal);
+  sections=next;cacheUntil=sections.reduce((v,s)=>Math.min(v,s.expiresAt),Infinity);if(dirty)changed();}
  function current(r){if(!r||r!==route)return [];if(cacheUntil&&Date.now()>=cacheUntil)refresh();return sections;}
  function secret(){
   if(seedPromise)return seedPromise;
@@ -76,8 +77,8 @@
      !Number.isInteger(i)||!Array.isArray(d.gpsPosition)||!Number.isFinite(d.speedMps)||d.speedMps<0||d.speedMps>55){previous=null;matched=null;return;}
   const path=model.layout(route),line=path.coords.slice(i,i+2),point=[d.gpsPosition[1],d.gpsPosition[0]];
   const p=P.project(point,line),heading=P.heading(d.heading)?d.heading:d.vehicleHeading;
-  const road=window.JalanVectorMap?.getReportRoad?.(point,heading);
-  if(!p||p.offset>10||!P.heading(heading)||P.delta(heading,p.heading)>30||!road){previous=null;matched=null;return;}
+  const road=window.JalanVectorMap?.getReportRoad?.(point,heading,d.gpsAccuracy);
+  if(!p||p.offset>10||!P.heading(heading)||P.delta(heading,p.heading)>30||!P.sameRoad(road,window.JalanVectorMap?.getReportRoad?.(p.point,p.heading,d.gpsAccuracy))){previous=null;matched=null;return;}
   const where=model.locate(path,i,p.along/p.total);if(!where){previous=null;matched=null;return;}
   const at=Date.now()-d.gpsFixAgeMs,old=previous,now={...where,road,point,at,anchor:where.along,verified:false};
   previous=now;matched=null;
@@ -117,6 +118,12 @@
  document.addEventListener('visibilitychange',()=>{resetWrites();if(document.hidden){reader?.abort();}else if(active){announce();read();}});
  setInterval(()=>{if(!active||document.hidden)return;if(cacheUntil&&cacheUntil<=Date.now())refresh();read();},5000);
  window.JalanCommunityFlow={sections:current,eta:(r,f)=>model.remainingDelay(r,current(r),f),
-  match:(point,road)=>matched&&Date.now()-matched.at<=10000&&P.sameRoad(road,matched.road)&&P.distance(point,matched.point)<=12?matched.cell.segment:null,
+  match:(point,road)=>{
+   if(!matched||Date.now()-matched.at>10000||!P.sameRoad(road,matched.road)||P.distance(point,matched.point)>80)return null;
+   const path=model.layout(route),p=P.project(point,path.coords);
+   if(!p||p.offset>10||Math.abs(p.along-matched.along)>90)return null;
+   const a=path.coords[p.index-1],b=path.coords[p.index],edge=P.project(point,[a,b]);
+   return model.locate(path,p.index-1,edge.along/edge.total)?.cell.segment||null;
+  },
   condition:()=>{const s=matched&&Date.now()-matched.at<=10000&&lookup.get(matched.cell.segment);return s&&s.expiresAt>Date.now()?s:null;}};
 })();
