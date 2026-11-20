@@ -142,11 +142,33 @@ async function main(){
   });
   await page.locator('#jalan-launch').waitFor({state:'hidden'});
   await page.waitForTimeout(550);
-  assert.deepEqual(await page.evaluate(()=>window.__creditStages),[['a',true,true],['b',true,true],['c',true,true],['b',true,true],['a',true,true]],
-    'main map shows both credit links in every sheet stage during the same reading window');
+  assert.deepEqual(await page.evaluate(()=>window.__creditStages),[['a',true,false],['b',true,false],['c',true,false],['b',true,false],['a',true,false]],
+    'the separate OpenMapTiles credit is the only link on the vector map');
   assert.equal(await page.locator('#jalan-home-sheet').getAttribute('data-state'),'a','an early map touch cancels the opening lift');
   assert.equal(await page.locator('#map').evaluate(x=>getComputedStyle(x).visibility),'visible','reveal only after native renderer ready');
   assert.equal(await page.locator('#map').evaluate(x=>getComputedStyle(x).transform),'none');
+  const recentCredit=page.locator('.jalan-recent-credit'),handle=page.locator('#jalan-sheet-handle');
+  await page.waitForTimeout(5100);
+  assert.equal(await recentCredit.count(),1,'a collapsed Recent section spends none of the reading time');
+  await handle.press('ArrowUp');
+  await recentCredit.waitFor({state:'visible'});
+  const emptyRow=page.locator('.jalan-recent-empty');
+  assert.equal(await emptyRow.textContent(),'Your recently selected destinations will appear here during this session. © OpenStreetMap');
+  assert.equal(await recentCredit.evaluate(el=>el.tagName==='SPAN'&&!el.closest('a')&&getComputedStyle(el).font===getComputedStyle(el.parentElement).font),true);
+  await page.evaluate(()=>JalanLanguage.set('ms'));
+  assert.match(await emptyRow.textContent(),/di sini\. © OpenStreetMap$/);
+  await page.evaluate(()=>window.dispatchEvent(new CustomEvent('jalan:destination-selected',{
+    detail:{name:'Fixture stop',label:'Fixture stop',point:[3.14,101.68]}
+  })));
+  assert.equal(await page.locator('.jalan-sheet-recent h2 .jalan-recent-credit').isVisible(),true);
+  await page.evaluate(()=>JalanLanguage.set('en'));
+  assert.equal(await page.locator('.jalan-sheet-recent h2').textContent(),'Recent © OpenStreetMap');
+  await page.waitForTimeout(4100);
+  assert.equal(await recentCredit.isVisible(),true,'still present before five visible seconds');
+  await recentCredit.waitFor({state:'detached',timeout:2200});
+  assert.equal((await page.locator('.jalan-sheet-recent h2').textContent()).trim(),'Recent');
+  assert.equal(await page.locator('#jalan-recent-list li').innerText(),'Fixture stop');
+  await handle.press('ArrowDown');
   await require('./passenger-pin-390.cjs')(page);
   await page.evaluate(()=>{window.__mapClicks=0;map.on('click',()=>{window.__mapClicks++;});});
   await page.locator('#jalan-vector-map canvas').click({position:{x:60,y:340}});
