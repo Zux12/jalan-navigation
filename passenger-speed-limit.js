@@ -71,6 +71,10 @@
    const section=Number.isInteger(i)?onRoute.route?.speedLimits?.find(s=>s.start<=i&&i<s.end):null;
    show(section?.limit??null);return;
   }
+  // Browsing with GPS enabled is not consent for an extra third-party GET
+  // containing the device's precise coordinates. Only route sections are
+  // shown until the passenger expressly enables this separate session choice.
+  if(window.JalanPostedSpeedSharing?.allowed?.()!==true){clear();return;}
   const course=Number.isFinite(heading)&&heading>=0&&heading<360&&speed>=1?heading:null;
   const roads=window.JalanVectorMap?.nearbyRoads?.(point);
   const street=window.JalanPredictiveGPS.streetAt(point,roads,accuracy,course);
@@ -91,6 +95,7 @@
   measured({point:d.gpsPosition,accuracy:d.gpsAccuracy,timestamp:Date.now()-d.gpsFixAgeMs,
     heading:d.vehicleHeading??d.heading,speed:d.speedMps},d.matched?{index:d.speedLimitIndex,route:state.route}:null);
  });
+ window.addEventListener('jalan:posted-speed-sharing-change',reset);
  window.addEventListener('jalan:journey-start',()=>{guiding=true;reset();});
  window.addEventListener('jalan:journey-stop',()=>{guiding=false;reset();});
  for(const event of ['jalan:free-location-error','jalan:initial-location-error','jalan:route-change','jalan:route-cleared','pagehide'])

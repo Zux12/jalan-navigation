@@ -54,3 +54,20 @@
  border:1px solid #b8cadb; border-radius:9px; background:#fff; color:#172b45;
  font:600 16px system-ui,sans-serif;
 }
+
+/* Secondary, optional third-party GPS use is never implied by browser GPS permission. */
+#passenger-about-dialog .jalan-about-location-sharing{
+ margin:12px 0 3px; padding:12px 0 9px; border-top:1px solid #dae3ee;
+}
+#passenger-about-dialog .jalan-about-location-sharing label{
+ display:flex; align-items:flex-start; gap:10px; font-size:.94rem; line-height:1.4;
+}
+#passenger-about-dialog .jalan-about-location-sharing input{
+ margin:2px 0 0; width:20px; height:20px; flex:none; accent-color:#136dec;
+}
+#passenger-about-dialog .jalan-about-location-sharing input:focus-visible{
+ outline:3px solid #2478c3; outline-offset:3px;
+}
+#passenger-about-dialog .jalan-about-location-sharing p{
+ margin:4px 0 0; color:#52677e; font-size:.83rem; line-height:1.45;
+}
