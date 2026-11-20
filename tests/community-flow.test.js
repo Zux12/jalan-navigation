@@ -25,8 +25,8 @@ test('1 km at 15 instead of 60 adds three minutes; remaining, provider delay and
 test('first-trip sharing needs measured travel on a matched road, an opt-out aborts uploads and leaves area reads enabled',async()=>{
  const w=new EventTarget(),d=new EventTarget(),box=new EventTarget(),button={},notice={},storage=new Map(),calls=[];
  notice.querySelector=()=>button;d.getElementById=()=>box;d.createElement=()=>notice;d.body={append(){}};
- const road={key:'vector-abba',level:'0:surface'};let active=true,resolveSignature;
- w.JalanVectorMap={getReportRoad:()=>road};w.JalanGPS={getState:()=>({active,route})};
+ const road={key:'vector-abba',level:'0:surface'};let active=true,resolveSignature,readerRoad=road;
+ w.JalanVectorMap={getReportRoad:()=>readerRoad};w.JalanGPS={getState:()=>({active,route})};
  w.JalanRouteTraffic={freeFlowAt:()=>60};w.JalanFlowModel=M;w.JalanReportModel=P;
  const localStorage={getItem:k=>storage.get(k),setItem:(k,v)=>storage.set(k,v)};
  const src=fs.readFileSync(path.join(__dirname,'../passenger-community-flow.js'),'utf8');
@@ -34,15 +34,29 @@ test('first-trip sharing needs measured travel on a matched road, an opt-out abo
  const next=()=>new Promise(resolve=>setImmediate(resolve));
  const crypto={getRandomValues:b=>b.fill(1),subtle:{importKey:async()=>1,sign:()=>new Promise(resolve=>{resolveSignature=()=>resolve(new Uint8Array(32));})}};
  vm.runInNewContext(src,{window:w,document:d,location:{search:'?mode=passenger'},URLSearchParams,localStorage,crypto,TextEncoder,Uint8Array,Date,Event,AbortController,setTimeout:()=>1,clearTimeout(){},setInterval(){},
-  fetch:async(url,options)=>{calls.push([url,JSON.parse(options.body),options.signal]);return {ok:true,json:async()=>({sections:[]})};}});
+  fetch:async(url,options)=>{calls.push([url,JSON.parse(options.body),options.signal]);return {ok:true,json:async()=>({sections:[{segment:M.roadSegment(shape.cells[0],road),expiresAt:Date.now()+60000,type:'heavy',speed:15,normal:60}]})};}});
  const fix=(lon,age=0)=>w.dispatchEvent(new CustomEvent('jalan:gps-fix',{detail:{matched:true,gpsReliable:true,gpsAccuracy:5,gpsFixAgeMs:age,gpsPosition:[0,lon],heading:90,speedMps:5,speedLimitIndex:0}}));
  assert.equal(box.checked,true);fix(101);assert.equal(calls.length,0);
  w.dispatchEvent(new Event('jalan:journey-start'));assert.equal(notice.hidden,false);await next();
+ assert.equal(w.JalanCommunityFlow.sections(route).length,1);
  fix(101,5000);fix(101.0002,1000);await next();assert.ok(resolveSignature);
  setPref(false);resolveSignature();await next();assert.equal(calls.filter(([u])=>u.endsWith('observe')).length,0);
  w.dispatchEvent(new Event('jalan:journey-stop'));w.dispatchEvent(new Event('jalan:journey-start'));await next();
  assert.equal(box.checked,false);assert.equal(notice.hidden,true);assert.ok(calls.filter(([u])=>u.endsWith('read')).length>=2);
- setPref(true);fix(101,5000);fix(101.0002,1000);await next();resolveSignature();await next();
+ for(const other of [null,{...road,level:'1:bridge'},{...road,level:'-1:tunnel'}]){
+  readerRoad=other;w.dispatchEvent(new Event('jalan:journey-stop'));w.dispatchEvent(new Event('jalan:journey-start'));await next();
+  assert.equal(w.JalanCommunityFlow.sections(route).length,0);assert.equal(w.JalanCommunityFlow.eta(route,0),0);
+ }
+ readerRoad=road;setPref(true);fix(101,5000);fix(101.0002,1000);await next();resolveSignature();await next();
  const obs=calls.find(([u])=>u.endsWith('observe'));assert.ok(obs);assert.deepEqual(Object.keys(obs[1]).sort(),['driver','normal','passAgeMs','region','road','segment','speed']);
  assert.equal(obs[1].speed,18);active=false;w.dispatchEvent(new Event('jalan:journey-stop'));fix(101.0004);
+});
+test('coincident surface, bridge and tunnel cells have distinct identities; ambiguous grade cannot affect ETA',()=>{
+ const cell=shape.cells[0],surface={key:'vector-abba',level:'0:surface'};
+ const bridge={...surface,level:'1:bridge'},tunnel={...surface,level:'-1:tunnel'};
+ const ids=[surface,bridge,tunnel].map(road=>M.roadSegment(cell,road));assert.equal(new Set(ids).size,3);
+ assert.equal(M.roadSegment(cell,null),null);
+ assert.equal(M.readRoad(shape,cell,()=>null),null);
+ let n=0;assert.equal(M.readRoad(shape,cell,()=>++n===2?bridge:surface),null);
+ assert.equal(M.roadSegment(cell,M.readRoad(shape,cell,()=>bridge)),ids[1]);
 });

@@ -83,7 +83,12 @@
  function routeItems(){const state=window.JalanGPS?.getState?.(),line=state?.route?.geometry?.coordinates;if(!line)return [];return events.filter(e=>P.alive(e)).flatMap(e=>{const match=P.routeMatch(e,line);
    if(match&&e.type==='traffic'){
     const shape=window.JalanFlowModel.layout(state.route);
-    if(e.segment&&!shape.edges[match.index-1]?.some(c=>c.segment===e.segment))return [];
+    if(e.segment){
+     const cell=shape.edges[match.index-1]?.find(c=>window.JalanFlowModel.roadSegment(c,e.road)===e.segment);
+     const resolve=window.JalanVectorMap?.getReportRoad;
+     const road=cell&&resolve&&window.JalanFlowModel.readRoad(shape,cell,resolve);
+     if(!P.sameRoad(road,e.road))return [];
+    }
     if(!e.segment){
      const road=window.JalanVectorMap?.getReportRoad?.(match.point,match.heading);
      if(road&&e.road&&!P.sameRoad(road,e.road)||(!road||!e.road)&&match.offset>10)return [];

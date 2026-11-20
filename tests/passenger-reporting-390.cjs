@@ -17,6 +17,23 @@ module.exports=async(browser,base,root)=>{
  assert.equal(await preference.isChecked(),true,'first trip shares by default');
  await preference.evaluate(el=>{el.click();});await page.reload();
  assert.equal(await preference.isChecked(),false,'switching sharing off survives reload');
+ const restricted=await browser.newContext({viewport:{width:390,height:844},isMobile:true,hasTouch:true});
+ try{
+  await restricted.addInitScript(()=>{Storage.prototype.getItem=()=>{throw Error('blocked');};});
+  const noStorage=await restricted.newPage();let outgoing=0;
+  await noStorage.route('**/*',r=>{
+   const u=r.request().url();
+   if(u.includes('/api/jalan/reports/'))outgoing++;
+   if(u.startsWith(base+'/'))return r.continue();
+   if(u.startsWith('https://unpkg.com/leaflet@1.9.4/dist/leaflet.')){
+    const ext=u.endsWith('.js')?'js':'css';return r.fulfill({contentType:ext==='js'?'application/javascript':'text/css',body:fs.readFileSync(path.join(root,'node_modules/leaflet/dist/leaflet.'+ext))});
+   }
+   return r.abort();
+  });
+  await noStorage.goto(base+'/index.html?mode=passenger');assert.equal(await noStorage.locator('#passenger-share-speed').isChecked(),false);
+  assert.equal(outgoing,0);
+ }finally{await restricted.close();}
+
  assert.equal(await page.locator('#passenger-reports-panel input[type=checkbox]').count(),0);
  const sharing=page.locator('#passenger-navigation-settings .passenger-nearby-consent');
  assert.equal(await sharing.locator('input').count(),1);

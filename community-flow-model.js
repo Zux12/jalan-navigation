@@ -55,5 +55,23 @@
   for(const [section,observed]of attributed)extra+=Math.max(0,observed-section.delayInSeconds);
   return extra;
  }
- return {layout,locate,remainingDelay};
+ // Preserve a geometry prefix for inexpensive regional reads. The full ID
+ // binds the direction, vector road identity and grade before aggregation.
+ function roadSegment(cell,road){
+  if(!cell||!road||!/^vector-[a-f0-9]{1,8}$/.test(road.key)||!/^-?\d{1,2}:(surface|bridge|tunnel)$/.test(road.level))return null;
+  return cell.segment.slice(0,9)+hash(cell.segment+'|'+road.key+'|'+road.level).slice(1,9);
+ }
+ function readRoad(path,cell,resolve){
+  const i=cell.index,a=path.coords[i],b=path.coords[i+1],len=path.offsets[i+1]-path.offsets[i];
+  const dx=(b[0]-a[0])*Math.cos((a[1]+b[1])*Math.PI/360),heading=(Math.atan2(dx,b[1]-a[1])*180/Math.PI+360)%360;
+  let road=null;
+  for(const f of [.2,.5,.8]){
+   const t=(cell.start+(cell.end-cell.start)*f-path.offsets[i])/len;
+   const candidate=resolve([a[0]+(b[0]-a[0])*t,a[1]+(b[1]-a[1])*t],heading,8,true);
+   if(!candidate||(road&&(road.key!==candidate.key||road.level!==candidate.level)))return null;
+   road=candidate;
+  }
+  return road;
+ }
+ return {layout,locate,remainingDelay,roadSegment,readRoad};
 });

@@ -5,14 +5,16 @@
  const model=window.JalanFlowModel,P=window.JalanReportModel;
  const base='https://mterm2026-559f9bf571b5.herokuapp.com/api/jalan/reports/flow/';
  const box=document.getElementById('passenger-share-speed'),pref='jalan-traffic-sharing-v1',noticeKey='jalan-traffic-notice-v1';
- const get=k=>{try{return localStorage.getItem(k);}catch{return null;}};
- const set=(k,v)=>{try{localStorage.setItem(k,v);}catch{}};
+ let storageAvailable=true;
+ const get=k=>{try{return localStorage.getItem(k);}catch{storageAvailable=false;return null;}};
+ const set=(k,v)=>{try{localStorage.setItem(k,v);}catch{storageAvailable=false;}};
  const notice=document.createElement('aside');notice.id='jalan-traffic-sharing-notice';notice.hidden=true;
  notice.innerHTML='<span role="status">JALAN shares your speed, road segment and direction during navigation to detect traffic. You can turn this off anytime.</span> <button type="button">Turn off sharing</button>';
  document.body.append(notice);
- let enabled=get(pref)!=='off',seen=get(noticeKey)==='1',active=false,route=null,sections=[],lookup=new Map(),cacheUntil=0,previous=null,matched=null,readCell=null;
+ const saved=get(pref);if(storageAvailable&&saved===null){set(pref,'on');}
+ let enabled=storageAvailable&&saved!=='off',seen=get(noticeKey)==='1',active=false,route=null,sections=[],lookup=new Map(),cacheUntil=0,previous=null,matched=null,readCell=null;
  let seedKey=null,seedPromise=null,epoch=0,noticeTimer,reader=null,lastRead=0,regionOffset=0;
- const writes=new Set(),lastSent=new Map();
+ const writes=new Set(),lastSent=new Map(),verifiedRoads=new Map();
  box.checked=enabled;
  function resetWrites(){epoch++;for(const c of writes)c.abort();writes.clear();previous=null;matched=null;readCell=null;lastSent.clear();}
  function setting(on,persist){enabled=on;box.checked=on;if(persist)set(pref,on?'on':'off');if(!on){resetWrites();notice.hidden=true;}}
@@ -20,12 +22,12 @@
  notice.querySelector('button').onclick=()=>setting(false,true);
  window.addEventListener('storage',e=>{if(e.key===pref||e.key===null)setting(get(pref)!=='off',false);});
  function announce(){
-  if(!enabled||seen)return;
+  if(!enabled||seen||document.hidden)return;
   notice.hidden=false;seen=true;set(noticeKey,'1');clearTimeout(noticeTimer);noticeTimer=setTimeout(()=>notice.hidden=true,12000);
  }
- function stop(){active=false;resetWrites();reader?.abort();reader=null;route=null;sections=[];lookup.clear();cacheUntil=0;notice.hidden=true;clearTimeout(noticeTimer);changed();}
+ function stop(){active=false;resetWrites();reader?.abort();reader=null;route=null;sections=[];lookup.clear();verifiedRoads.clear();cacheUntil=0;notice.hidden=true;clearTimeout(noticeTimer);changed();}
  function changed(){window.dispatchEvent(new Event('jalan:community-flow'));}
- function useRoute(r){if(r===route)return;resetWrites();reader?.abort();reader=null;route=r;sections=[];lookup=new Map();cacheUntil=0;lastRead=0;regionOffset=0;changed();}
+ function useRoute(r){if(r===route)return;resetWrites();reader?.abort();reader=null;route=r;sections=[];lookup=new Map();verifiedRoads.clear();cacheUntil=0;lastRead=0;regionOffset=0;changed();}
  async function post(name,body,controller){
   const timeout=setTimeout(()=>controller.abort(),10000);
   try{const r=await fetch(base+name,{method:'POST',credentials:'omit',cache:'no-store',headers:{'Content-Type':'application/json'},body:JSON.stringify(body),signal:controller.signal});
@@ -42,7 +44,21 @@
   const c=new AbortController();reader=c;lastRead=Date.now();
   try{const data=await post('read',{regions},c);if(c.signal.aborted||r!==route||!Array.isArray(data.sections))return;
    const values=new Map(data.sections.filter(s=>['smooth','light','moderate','heavy'].includes(s.type)&&s.expiresAt>Date.now()&&s.normal>0&&s.speed>0).map(s=>[s.segment,s]));
-   for(const cell of path.cells)if(regions.includes(cell.region)){if(values.has(cell.segment))lookup.set(cell.segment,values.get(cell.segment));else lookup.delete(cell.segment);}
+   const prefixes=new Set([...values.keys()].map(id=>id.slice(0,9)));
+   for(const cell of path.cells)if(regions.includes(cell.region)){
+    lookup.delete(cell.segment);
+    if(!prefixes.has(cell.segment.slice(0,9)))continue;
+    const renderer=window.JalanVectorMap;
+    // A basic map can reuse a grade verified earlier on this same route.
+    // Unloaded, uncertain and stacked roads have no community colour or ETA.
+    let road=verifiedRoads.get(cell.segment);
+    if(renderer?.active!==false&&renderer?.getReportRoad){
+     road=model.readRoad(path,cell,renderer.getReportRoad);
+     if(road)verifiedRoads.set(cell.segment,road);else verifiedRoads.delete(cell.segment);
+    }
+    const fullId=model.roadSegment(cell,road),summary=values.get(fullId);
+    if(summary)lookup.set(cell.segment,{...summary,road,segment:cell.segment});
+   }
    refresh();
   }catch{}finally{if(reader===c)reader=null;}
  }
@@ -59,14 +75,15 @@
  }
  const hex=bytes=>Array.from(bytes,n=>n.toString(16).padStart(2,'0')).join('');
  async function send(cell,road,speed,normal,passAgeMs=null){
+  const segment=model.roadSegment(cell,road);if(!segment)return;
   const passed=passAgeMs!==null;
   const before=epoch,at=Date.now(),last=lastSent.get(cell.segment);
   if(last&&at-last.at<20000&&(!passed||last.passed))return;
   lastSent.set(cell.segment,{at,passed});
   const c=new AbortController();writes.add(c);
-  try{seedKey=await secret();const driver=hex(new Uint8Array(await crypto.subtle.sign('HMAC',seedKey,new TextEncoder().encode(cell.segment))));
+  try{seedKey=await secret();const driver=hex(new Uint8Array(await crypto.subtle.sign('HMAC',seedKey,new TextEncoder().encode(segment))));
    if(before!==epoch||!active||!enabled||document.hidden||!window.JalanGPS.getState().active)return;
-   await post('observe',{segment:cell.segment,region:cell.region,driver,road,speed:Math.round(speed),normal:Number.isFinite(normal)&&normal>=15&&normal<=180?Math.round(normal):null,passAgeMs},c);
+   await post('observe',{segment,region:cell.region,driver,road,speed:Math.round(speed),normal:Number.isFinite(normal)&&normal>=15&&normal<=180?Math.round(normal):null,passAgeMs},c);
   }catch{}finally{writes.delete(c);}
  }
  function fix(d){
@@ -80,8 +97,8 @@
   if(!p||p.offset>10||!P.heading(heading)||P.delta(heading,p.heading)>30){previous=null;matched=null;return;}
   const where=model.locate(path,i,p.along/p.total);if(!where){previous=null;matched=null;return;}
   readCell={segment:where.cell.segment,at:Date.now()-d.gpsFixAgeMs};
-  const road=window.JalanVectorMap?.getReportRoad?.(point,heading,d.gpsAccuracy);
-  if(!P.sameRoad(road,window.JalanVectorMap?.getReportRoad?.(p.point,p.heading,d.gpsAccuracy))){previous=null;matched=null;return;}
+  const road=window.JalanVectorMap?.getReportRoad?.(point,heading,d.gpsAccuracy,true);
+  if(!P.sameRoad(road,window.JalanVectorMap?.getReportRoad?.(p.point,p.heading,d.gpsAccuracy,true))){previous=null;matched=null;return;}
   const at=Date.now()-d.gpsFixAgeMs,old=previous,now={...where,road,point,at,anchor:where.along,verified:false};
   previous=now;matched=null;
   if(!old||at<=old.at||at-old.at>12000||!P.sameRoad(old.road,road)||where.along<old.along-4)return;
@@ -125,9 +142,9 @@
    const path=model.layout(route),p=P.project(point,path.coords);
    if(!p||p.offset>10||Math.abs(p.along-matched.along)>90)return null;
    const a=path.coords[p.index-1],b=path.coords[p.index],edge=P.project(point,[a,b]);
-   return model.locate(path,p.index-1,edge.along/edge.total)?.cell.segment||null;
+   return model.roadSegment(model.locate(path,p.index-1,edge.along/edge.total)?.cell,road);
   },
-  condition:()=>{const s=matched&&Date.now()-matched.at<=10000&&lookup.get(matched.cell.segment);if(s&&s.expiresAt>Date.now())return s;
+  condition:()=>{const s=matched&&Date.now()-matched.at<=10000&&lookup.get(matched.cell.segment);if(s&&s.expiresAt>Date.now()&&P.sameRoad(matched.road,s.road))return s;
    // On a basic map a reliable route match can suppress an unnecessary question.
    const moving=readCell&&Date.now()-readCell.at<=10000&&lookup.get(readCell.segment);
    return moving?.type==='smooth'&&moving.expiresAt>Date.now()?moving:null;}};
