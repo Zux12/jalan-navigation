@@ -301,8 +301,14 @@
  function updateButtons(){el('gps-auto').textContent='Auto reroute: '+(auto?'On':'Off');el('gps-auto').setAttribute('aria-pressed',String(auto));el('gps-voice').textContent='Voice: '+window.JalanVoice.label(voice);el('gps-voice').setAttribute('aria-pressed',String(voice!=='mute'));}
  el('gps-start').onclick=start;el('gps-exit').onclick=()=>{stop();if(routes.length)renderRoutes();};el('gps-recenter').onclick=()=>{if(current)map.setView(current,16);};el('gps-reroute').onclick=()=>reroute(false);
  el('gps-auto').onclick=()=>{auto=!auto;if(!auto)cancelReroute();updateButtons();window.dispatchEvent(new CustomEvent('jalan:navigation-settings',{detail:{auto,voice}}));};
- function setVoiceMode(value){if(!['full','alerts','mute'].includes(value))return false;voice=value;window.JalanVoice.setMode?.(value);updateButtons();window.dispatchEvent(new CustomEvent('jalan:navigation-settings',{detail:{auto,voice}}));if('speechSynthesis'in window)speechSynthesis.cancel();return true;}
- el('gps-voice').onclick=()=>{setVoiceMode(window.JalanVoice.nextMode(voice));if(voice!=='mute'&&active)window.JalanVoice.alert(voice,window.JalanVoice.label(voice));};
+ function setVoiceMode(value){
+  if(!window.JalanVoice.setMode(value))return false;
+  voice=value;
+  updateButtons();
+  window.dispatchEvent(new CustomEvent('jalan:navigation-settings',{detail:{auto,voice}}));
+  return true;
+ }
+ el('gps-voice').onclick=()=>setVoiceMode(window.JalanVoice.nextMode(voice));
  document.addEventListener('visibilitychange',()=>{if(active&&document.hidden){cancelReroute();warn('Safari backgrounded. GPS and speech may pause; do not rely on navigation.');if('speechSynthesis'in window)speechSynthesis.cancel();}});
  for(const [id,type] of [['tt-key','input'],['tt-primary','change'],['tt-remove-key','click']])el(id)?.addEventListener(type,cancelReroute);
  updateButtons();

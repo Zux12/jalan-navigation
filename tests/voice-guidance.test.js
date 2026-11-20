@@ -18,7 +18,7 @@ function scene({voices=[],store=new Map(),blocked=false,supported=true,language=
   Date:{now:()=>now},CustomEvent:class{constructor(type,init){this.type=type;this.detail=init?.detail;}}};
  if(supported){context.speechSynthesis=synth;context.window.speechSynthesis=synth;
   context.SpeechSynthesisUtterance=context.window.SpeechSynthesisUtterance=class{constructor(text){this.text=text;}};}
- if(audio)context.window.JalanMalayAudio={available:true,cancel(){},
+ if(audio)context.window.JalanMalayAudio={available:true,cancel(){},unlock(){},
   speak:(key,d)=>{clips.push([key,d]);return true;},preview:()=>{clips.push(['preview']);return true;},
   alert:text=>{clips.push(['alert',text]);return true;}};
  vm.runInNewContext(source,context);
@@ -44,6 +44,29 @@ test('sample is independent from mute, milestones and guidance throttle',()=>{
  s.api.announce('full','left',180,'turn left');assert.equal(s.utterances.length,2);
  s.advance();s.api.announce('full','left',180,'turn left');assert.equal(s.utterances.length,2,'milestone only once');
  s.utterances[0].onerror();assert.equal(s.events.at(-1).detail.state,'error');
+});
+test('enabling guidance speaks in the chosen voice and leaves the next turn eligible immediately',()=>{
+ const s=scene({voices:[us]});s.api.choose(id(us));
+ s.api.announce('mute','turn',180,'turn left');
+ s.api.setMode('full');
+ assert.equal(s.utterances[0]?.text,'Full guidance');
+ assert.equal(s.utterances[0].voice,us);
+ s.api.announce('full','turn',180,'turn left');
+ assert.match(s.utterances.at(-1).text,/turn left/);
+ s.api.setMode('full');
+ s.api.announce('full','turn',180,'turn left');
+ assert.equal(s.utterances.length,2,'saving the same mode does not repeat a prompt');
+ s.api.setMode('mute');s.api.setMode('full');
+ s.api.announce('full','turn',180,'turn left');
+ assert.equal(s.utterances.length,4,'re-enabling lets the current turn be heard again');
+});
+test('recorded Malay mode confirmation uses the mode clip and respects Alerts only and Mute',()=>{
+ const s=scene({voices:[uk],language:'ms',audio:true});
+ s.api.setMode('alerts');s.api.announce('alerts','turn',180,'turn left');
+ s.api.setMode('mute');
+ assert.deepEqual(s.clips,[['alert','Alerts only']]);
+ s.api.setMode('full');
+ assert.deepEqual(s.clips.at(-1),['alert','Full guidance']);
 });
 test('voice choice survives reload and temporary missing voice uses default until voices arrive',()=>{
  const s=scene({voices:[us]});s.api.choose(id(us));
