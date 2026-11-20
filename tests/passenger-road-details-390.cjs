@@ -34,7 +34,7 @@ module.exports=async function roadDetails(page){
  await page.route('https://api.tomtom.com/routing/1/calculateRoute/**',route=>{
   requests++;
   const fields=new URL(route.request().url()).searchParams.getAll('sectionType');
-  for(const field of ['speedLimit','toll','tollVignette','traffic','travelMode'])assert.ok(fields.includes(field));
+  for(const field of ['speedLimit','toll','tollVignette','traffic','travelMode'])assert.ok(fields.includes(field),'missing '+field+' in route fields '+fields.join(','));
   return route.fulfill({json:{routes:[raw(60,[travel,paid,speed(0,80),speed(1,50)]),raw(70,[travel]),raw(90,undefined)]}});
  });
  await page.evaluate(async([from,to])=>{

@@ -35,7 +35,9 @@
   if(!Number.isFinite(r.summary?.travelTimeInSeconds)||r.summary.travelTimeInSeconds<=0||!Number.isFinite(r.summary?.lengthInMeters)||r.summary.lengthInMeters<=0||!Number.isFinite(r.summary?.trafficDelayInSeconds??0)||r.summary.trafficDelayInSeconds<0)throw Error('Invalid TomTom route measurements');
   const roadGuidance=r.guidance?.instructions||[];
   const steps=roadGuidance.slice(0,120).map(x=>({street:x.street,roadNumbers:x.roadNumbers,roundaboutExitNumber:x.roundaboutExitNumber,exitNumber:x.exitNumber,signpostText:x.signpostText,name:x.street||x.roadNumber||x.message||'road',distance:0,location:x.point?[x.point.longitude,x.point.latitude]:null,routeOffsetInMeters:Number.isFinite(x.routeOffsetInMeters)?x.routeOffsetInMeters:null,message:x.message||'',maneuver:{type:x.maneuver||'continue',modifier:x.message||''}}));
-  return {provider:'tomtom',...window.JalanTomTom.roadDetails(r.sections,coordinates.length),roadGuidance,geometry:{type:'LineString',coordinates},duration:r.summary.travelTimeInSeconds,distance:r.summary.lengthInMeters,delay:r.summary.trafficDelayInSeconds||0,legs:[{steps}]};
+  return {provider:'tomtom',...window.JalanTomTom.roadDetails(r.sections,coordinates.length),
+   trafficSections:Array.isArray(r.sections)?r.sections.filter(s=>s?.sectionType==='TRAFFIC').slice(0,120):null,
+   trafficSectionsCheckedAt:Date.now(),roadGuidance,geometry:{type:'LineString',coordinates},duration:r.summary.travelTimeInSeconds,distance:r.summary.lengthInMeters,delay:r.summary.trafficDelayInSeconds||0,legs:[{steps}]};
  };
  async function check(force=false){
   if(!force&&(!enabled||document.hidden||Date.now()-lastCheck<CHECK_MS||Date.now()<declinedUntil))return;
@@ -60,7 +62,7 @@
    async function directCandidates(){
    const points=[sourcePosition,target].map(p=>p.map(n=>n.toFixed(6)).join(',')).join(':');
    const url=new URL('https://api.tomtom.com/routing/1/calculateRoute/'+points+'/json');
-   Object.entries({key:apiKey,traffic:'true',departAt:'now',travelMode:'car',routeType:'fastest',maxAlternatives:'2',instructionsType:'text',language:'en-GB'}).forEach(([k,v])=>url.searchParams.set(k,v));
+   Object.entries({key:apiKey,traffic:'true',departAt:'now',travelMode:'car',routeType:'fastest',maxAlternatives:'2',instructionsType:'text',sectionType:'traffic',language:'en-GB'}).forEach(([k,v])=>url.searchParams.set(k,v));
    const data=await window.JalanTomTom.fetchRouteData(url,requestController.signal);
    if(!current())return;
    if(!Array.isArray(data.routes)||!data.routes.length)throw Error('No routes found');
