@@ -44,8 +44,26 @@ function routeCleared(){token++;routeAbort?.abort();routeAbort=null;invalidateIn
 function hide(){active=false;clearInterval(timer);clearTimeout(debounce);invalidateIncidents();if(tiles)map.removeLayer(tiles);tiles=null;trafficState('off','Traffic off');}
 // Request travel mode as well: a complete route section is evidence that
 // TomTom processed the requested sections even when no toll is present.
-function appendRoadSections(url){
+async function fetchRouteData(base,signal){
+ const url=new URL(base);
  for(const type of ['speedLimit','toll','tollRoad','travelMode'])url.searchParams.append('sectionType',type);
+ const options={signal,cache:'no-store'};
+ let response=await fetch(url,options),basic=false;
+ // If an optional field is rejected, retain the ordinary driving route.
+ // Never retry key, quota or routing failures as missing road information.
+ if(response.status===400||response.status===403){
+  const error=await response.json().catch(()=>null);
+  const reason=error?.detailedError?.message||error?.error?.description||'';
+  if(!signal?.aborted&&/section.?type|speed.?limit|toll.?road|toll section/i.test(reason)){
+   basic=true;response=await fetch(base,options);
+  }
+ }
+ if(!response.ok)throw Error('TomTom routing HTTP '+response.status);
+ const data=await response.json();
+ if(basic)for(const route of data.routes||[]){
+  if(Array.isArray(route.sections))route.sections=route.sections.filter(s=>s?.sectionType==='TRAFFIC');
+ }
+ return data;
 }
 function roadDetails(sections,pointCount){
  const speeds=[];
@@ -81,10 +99,7 @@ async function requestRoutes(from,to,{signal,via}={}){
  const path=(via?[from,via,to]:[from,to]).map(p=>p.map(x=>x.toFixed(6)).join(',')).join(':');
  const url=new URL('https://api.tomtom.com/routing/1/calculateRoute/'+path+'/json');
  for(const [a,b] of Object.entries({key:k,traffic:'true',departAt:'now',travelMode:'car',routeType:'fastest',maxAlternatives:via?'0':'2',instructionsType:'text',sectionType:'traffic',language:'en-GB'}))url.searchParams.set(a,b);
- appendRoadSections(url);
- const response=await fetch(url,{signal,cache:'no-store'});
- if(!response.ok)throw Error('TomTom routing HTTP '+response.status);
- const data=await response.json();
+ const data=await fetchRouteData(url,signal);
  if(!data.routes?.length)throw Error('No routes returned');
  return via?data.routes.map(r=>window.JalanPinnedRoute.tomtom(r,via,normal)):data.routes.map(normal);
 }
@@ -314,6 +329,6 @@ function startPassengerTraffic(){
  el('tt-incident-toggle').checked=true;
  return connect();
 }
-window.JalanTomTom={enabled,calculate,requestRoutes,appendRoadSections,roadDetails,routeCleared,refreshRouteIncidents,
+window.JalanTomTom={enabled,calculate,requestRoutes,fetchRouteData,roadDetails,routeCleared,refreshRouteIncidents,
  startPassengerTraffic,stopPassengerTraffic:hide,reportRouteTolerance,projectReportPoint,matchReportGeometry,trafficSectionsForRoute};
 })();

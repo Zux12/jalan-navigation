@@ -14,12 +14,22 @@
    const [first,last]=raw.legs||[];
    if(raw.legs?.length!==2||!first.points?.length||!last.points?.length)throw Error('Stop missing from route.');
    const split=first.points.length-1,offset=first.summary.lengthInMeters;
+   // Some route geometries list the shared stop in both legs. Use the
+   // provider's travel-mode end index to retain its exact numbering.
+   const lastIndex=first.points.length+last.points.length-1;
+   const sameStop=first.points[split].latitude===last.points[0].latitude&&
+     first.points[split].longitude===last.points[0].longitude;
+   const sectionEnd=(raw.sections||[]).reduce((end,s)=>s.sectionType==='TRAVEL_MODE'&&
+     Number.isInteger(s.endPointIndex)?Math.max(end,s.endPointIndex):end,-1);
+   const mergedBoundary=sameStop&&sectionEnd===lastIndex-1;
+   const whole=mergedBoundary?{...raw,legs:[first,{...last,points:last.points.slice(1)}]}:raw;
+   const secondStart=sameStop&&sectionEnd===lastIndex?split+1:split;
    const instructions=(raw.guidance?.instructions||[]).filter(i=>i.routeOffsetInMeters>=offset)
      .map(i=>({...i,routeOffsetInMeters:i.routeOffsetInMeters-offset,pointIndex:undefined}));
    const sections=(raw.sections||[]).filter(s=>s.endPointIndex>split)
-     .map(s=>({...s,startPointIndex:Math.max(0,s.startPointIndex-split),endPointIndex:Math.min(last.points.length-1,s.endPointIndex-split)}));
+     .map(s=>({...s,startPointIndex:Math.max(0,s.startPointIndex-secondStart),endPointIndex:Math.min(last.points.length-1,s.endPointIndex-secondStart)}));
    const onward=normalize({summary:last.summary,legs:[last],guidance:{instructions},sections});
-   return attach(normalize(raw),point,split,onward);
+   return attach(normalize(whole),point,split,onward);
  }
  function osrm(route,point,waypoint){
    if(route.legs?.length!==2||!waypoint)throw Error('Stop missing from route.');

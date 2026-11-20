@@ -61,11 +61,7 @@
    const points=[sourcePosition,target].map(p=>p.map(n=>n.toFixed(6)).join(',')).join(':');
    const url=new URL('https://api.tomtom.com/routing/1/calculateRoute/'+points+'/json');
    Object.entries({key:apiKey,traffic:'true',departAt:'now',travelMode:'car',routeType:'fastest',maxAlternatives:'2',instructionsType:'text',language:'en-GB'}).forEach(([k,v])=>url.searchParams.set(k,v));
-   window.JalanTomTom.appendRoadSections(url);
-   const response=await fetch(url,{signal:requestController.signal,cache:'no-store'});
-   if(!current())return;
-   if(!response.ok)throw Error('TomTom HTTP '+response.status);
-   const data=await response.json();
+   const data=await window.JalanTomTom.fetchRouteData(url,requestController.signal);
    if(!current())return;
    if(!Array.isArray(data.routes)||!data.routes.length)throw Error('No routes found');
    // Never offer a faster route from malformed summary/geometry metadata.
