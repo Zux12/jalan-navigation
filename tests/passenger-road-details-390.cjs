@@ -26,7 +26,7 @@ module.exports=async function roadDetails(page){
 
  const coordinates=[point,next,end].map(([latitude,longitude])=>({latitude,longitude}));
  const travel={sectionType:'TRAVEL_MODE',travelMode:'car',startPointIndex:0,endPointIndex:2};
- const paid={sectionType:'TOLL_ROAD',startPointIndex:0,endPointIndex:1};
+ const paid={sectionType:'TOLL',startPointIndex:0,endPointIndex:1};
  const speed=(start,limit)=>({sectionType:'SPEED_LIMIT',startPointIndex:start,endPointIndex:start+1,maxSpeedLimitInKmh:limit});
  const raw=(duration,sections)=>({summary:{lengthInMeters:500,travelTimeInSeconds:duration},
   legs:[{points:coordinates}],sections});
@@ -34,7 +34,7 @@ module.exports=async function roadDetails(page){
  await page.route('https://api.tomtom.com/routing/1/calculateRoute/**',route=>{
   requests++;
   const fields=new URL(route.request().url()).searchParams.getAll('sectionType');
-  for(const field of ['speedLimit','tollRoad','traffic','travelMode'])assert.ok(fields.includes(field));
+  for(const field of ['speedLimit','toll','tollVignette','traffic','travelMode'])assert.ok(fields.includes(field));
   return route.fulfill({json:{routes:[raw(60,[travel,paid,speed(0,80),speed(1,50)]),raw(70,[travel]),raw(90,undefined)]}});
  });
  await page.evaluate(async([from,to])=>{

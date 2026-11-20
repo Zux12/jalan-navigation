@@ -45,22 +45,24 @@ function hide(){active=false;clearInterval(timer);clearTimeout(debounce);invalid
 // Request travel mode as well: a complete route section is evidence that
 // TomTom processed the requested sections even when no toll is present.
 async function fetchRouteData(base,signal){
- const url=new URL(base);
- for(const type of ['speedLimit','toll','tollRoad','travelMode'])url.searchParams.append('sectionType',type);
  const options={signal,cache:'no-store'};
- let response=await fetch(url,options),basic=false;
- // If an optional field is rejected, retain the ordinary driving route.
- // Never retry key, quota or routing failures as missing road information.
- if(response.status===400||response.status===403){
+ const tollSections=['toll','tollVignette','travelMode'];
+ let fields=['speedLimit',...tollSections],response;
+ for(;;){
+  const url=new URL(base);
+  for(const type of fields)url.searchParams.append('sectionType',type);
+  response=await fetch(url,options);
+  if(response.ok)break;
+  const httpError=new Error('TomTom routing HTTP '+response.status);
+  if(!fields.length||signal?.aborted||![400,403].includes(response.status))throw httpError;
   const error=await response.json().catch(()=>null);
   const reason=error?.detailedError?.message||error?.error?.description||'';
-  if(!signal?.aborted&&/section.?type|speed.?limit|toll.?road|toll section/i.test(reason)){
-   basic=true;response=await fetch(base,options);
-  }
+  if(!/section.?type|speed.?limit|toll.?road|toll section/i.test(reason))throw httpError;
+  // A key that cannot request speed sections can still confirm tolls.
+  fields=fields.includes('speedLimit')&&/speed.?limit/i.test(reason)?tollSections:[];
  }
- if(!response.ok)throw Error('TomTom routing HTTP '+response.status);
  const data=await response.json();
- if(basic)for(const route of data.routes||[]){
+ if(!fields.length)for(const route of data.routes||[]){
   if(Array.isArray(route.sections))route.sections=route.sections.filter(s=>s?.sectionType==='TRAFFIC');
  }
  return data;

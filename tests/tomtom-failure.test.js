@@ -82,17 +82,28 @@ test('route calculation requests TomTom-native route TRAFFIC sections',async()=>
  const s=scene();
  await s.nodes['tt-route'].onclick();await s.tick();
  assert.equal(s.calls.length,1);
- assert.deepEqual(new URL(s.calls[0].url).searchParams.getAll('sectionType'),['traffic','speedLimit','toll','tollRoad','travelMode']);
+ assert.deepEqual(new URL(s.calls[0].url).searchParams.getAll('sectionType'),['traffic','speedLimit','toll','tollVignette','travelMode']);
 });
 test('a rejected optional field preserves the base TomTom route and keeps toll status unknown',async()=>{
  const s=scene(),calls=[];
  s.ctx.fetch=async url=>{
   calls.push(new URL(url).searchParams.getAll('sectionType'));
-  if(calls.length===1)return {ok:false,status:400,json:async()=>({detailedError:{message:'Unsupported sectionType speedLimit'}})};
+  if(calls.length===1)return {ok:false,status:400,json:async()=>({detailedError:{message:'Unsupported sectionType'}})};
   return {ok:true,json:async()=>({routes:[{sections:[{sectionType:'TRAVEL_MODE'}]}]})};
  };
  const data=await s.ctx.window.JalanTomTom.fetchRouteData(new URL('https://example.test/?sectionType=traffic'));
  assert.deepEqual(calls[1],['traffic']);assert.equal(data.routes[0].sections.length,0);
+});
+test('a key without speed-section access can still confirm tolls',async()=>{
+ const api=scene(),calls=[],sections=[{sectionType:'TRAVEL_MODE',startPointIndex:0,endPointIndex:2}];
+ api.ctx.fetch=async url=>{
+  calls.push(new URL(url).searchParams.getAll('sectionType'));
+  if(calls.length===1)return {ok:false,status:403,json:async()=>({detailedError:{message:'speedLimit not allowed'}})};
+  return {ok:true,json:async()=>({routes:[{sections}]})};
+ };
+ const data=await api.ctx.window.JalanTomTom.fetchRouteData('https://example.test/?sectionType=traffic');
+ assert.deepEqual(calls[1],['traffic','toll','tollVignette','travelMode']);
+ assert.equal(api.ctx.window.JalanTomTom.roadDetails(data.routes[0].sections,3).tolls,false);
 });
 test('toll-free needs a complete response and speed limits apply only to their segments',()=>{
  const {roadDetails}=scene().ctx.window.JalanTomTom;
