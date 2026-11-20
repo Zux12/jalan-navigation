@@ -492,7 +492,7 @@
    }
    for(const report of window.JalanCommunityReports?.routeItems?.()||[]){
      const type=window.JalanReportModel.types[report.type];
-     items.push({lat:report.position[1],lng:report.position[0],title:window.JalanReportModel.reportLabel(report.type,report.trafficSeverity)+' · '+report.contributors+' community report'+(report.contributors===1?'':'s'),detail:'Community report · expires '+new Date(report.expiresAt).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}),routeAlong:report.routeAlong,routeTotal:report.routeTotal,source:'community',icon:type.icon,category:report.trafficSeverity||report.type});
+     items.push({lat:report.position[1],lng:report.position[0],title:window.JalanReportModel.reportLabel(report.type,report.trafficSeverity)+(report.type==='traffic'?' · '+(report.status==='confirmed'?'Confirmed':'Reported'):'')+' · '+report.contributors+' community report'+(report.contributors===1?'':'s'),detail:'Community report · expires '+new Date(report.expiresAt).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}),routeAlong:report.routeAlong,routeTotal:report.routeTotal,source:'community',icon:type.icon,category:report.trafficSeverity||report.type});
    }
    const freshIncidents=incidentSnapshot.route===route&&
      Date.now()-incidentSnapshot.checkedAt<=10*60*1000?incidentSnapshot.incidents:[];
@@ -667,6 +667,11 @@
    el('gps-reroute').click();
  });
  window.addEventListener('jalan:navigation-settings',syncNavigationSettings);
+ window.addEventListener('jalan:community-flow',()=>{
+   if(!document.body.classList.contains('passenger-guiding'))return;
+   el('passenger-eta').textContent=el('gps-eta').textContent||'—';
+   el('passenger-next').textContent=(el('gps-detail').textContent||'Route preview').replace(/\s*·\s*GPS matched to selected route\s*$/,'');
+ });
  window.addEventListener('jalan:community-reports',()=>{if(!turnList.classList.contains('hidden')&&activeInfoTab==='reports')renderReports();});
  window.addEventListener('jalan:reroute-status',event=>{
    if(!document.body.classList.contains('passenger-guiding'))return;

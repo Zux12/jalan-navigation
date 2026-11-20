@@ -10,9 +10,30 @@ module.exports=async(browser,base,root)=>{
  const event=(id,type='accident',position=[101.687,3.139])=>({id,type,position,heading:90,road:{key:'fixture-road',level:'0:surface'},createdAt:Date.now(),updatedAt:Date.now(),expiresAt:Date.now()+3600000,contributors:1,active:true});
  await page.route('https://mterm2026-559f9bf571b5.herokuapp.com/api/jalan/reports/**',async r=>{assert.equal(r.request().method(),'POST');assert.equal(new URL(r.request().url()).search,'');const body=r.request().postDataJSON(),kind=new URL(r.request().url()).pathname.split('/').pop();let data,status=200;
  if(kind==='submit'){submissions.push(body);if(failed){status=503;data={error:'Reporting service unavailable.'};}else data={event:{...event('own-event',body.type,body.position),trafficSeverity:body.trafficSeverity,contributors:submissions.length>2?2:1},merged:submissions.length>2};}
- else if(kind==='nearby'){nearbyPosts++;data={events:nearby};}else{responses.push(body);data={event:event(body.id,'accident',[101.689,3.139])};}
+ else if(kind==='read')data={sections:[]};else if(kind==='observe')data={ok:true};else if(kind==='nearby'){nearbyPosts++;data={events:nearby};}else{responses.push(body);data={event:event(body.id,'accident',[101.689,3.139])};}
  await r.fulfill({status,contentType:'application/json',headers:{'access-control-allow-origin':'*'},body:JSON.stringify(data)});});
  await page.goto(base+'/index.html?mode=passenger');
+ const preference=page.locator('#passenger-share-speed');
+ assert.equal(await preference.isChecked(),true,'first trip shares by default');
+ await preference.evaluate(el=>{el.click();});await page.reload();
+ assert.equal(await preference.isChecked(),false,'switching sharing off survives reload');
+ const restricted=await browser.newContext({viewport:{width:390,height:844},isMobile:true,hasTouch:true});
+ try{
+  await restricted.addInitScript(()=>{Storage.prototype.getItem=()=>{throw Error('blocked');};});
+  const noStorage=await restricted.newPage();let outgoing=0;
+  await noStorage.route('**/*',r=>{
+   const u=r.request().url();
+   if(u.includes('/api/jalan/reports/'))outgoing++;
+   if(u.startsWith(base+'/'))return r.continue();
+   if(u.startsWith('https://unpkg.com/leaflet@1.9.4/dist/leaflet.')){
+    const ext=u.endsWith('.js')?'js':'css';return r.fulfill({contentType:ext==='js'?'application/javascript':'text/css',body:fs.readFileSync(path.join(root,'node_modules/leaflet/dist/leaflet.'+ext))});
+   }
+   return r.abort();
+  });
+  await noStorage.goto(base+'/index.html?mode=passenger');assert.equal(await noStorage.locator('#passenger-share-speed').isChecked(),false);
+  assert.equal(outgoing,0);
+ }finally{await restricted.close();}
+
  assert.equal(await page.locator('#passenger-reports-panel input[type=checkbox]').count(),0);
  const sharing=page.locator('#passenger-navigation-settings .passenger-nearby-consent');
  assert.equal(await sharing.locator('input').count(),1);
@@ -30,6 +51,12 @@ module.exports=async(browser,base,root)=>{
  await page.locator('#jalan-home-report').click();await page.locator('[data-type=weather]').click();await page.locator('[data-type=flood]').click();await page.locator('#passenger-report-submit').click();await page.waitForFunction(()=>!document.getElementById('passenger-report-dialog').open);
  assert.equal(await page.locator('.jalan-community-report-pin').count(),1,'merged event replaces existing pin');
  await page.evaluate(()=>{const original=JalanGPS.getState;window.__reportFixtureActive=true;JalanGPS.getState=()=>({...original(),active:window.__reportFixtureActive,gpsFixAgeMs:0,gpsPosition:[window.__reportPosition[1],window.__reportPosition[0]],route:{geometry:{coordinates:[[101.68,3.139],[101.70,3.139]]}}});});
+ // Explicit one-tap reporting works while passive sharing and nearby lookup are off.
+ const beforePrompt=submissions.length;
+ await page.evaluate(()=>{document.getElementById('smart-demo').click();document.getElementById('smart-yes').click();});
+ await page.waitForFunction(()=>document.getElementById('passenger-report-toast').textContent==='Traffic report sent.');
+ assert.equal(submissions.length,beforePrompt+1);assert.equal(submissions.at(-1).type,'traffic');
+ assert.equal(nearbyPosts,0);
  nearby=[event('ahead-event','accident',[101.689,3.139])];
  await page.evaluate(()=>{window.__reportPosition=[101.688,3.139];window.dispatchEvent(new CustomEvent('jalan:gps-fix',{detail:{gpsReliable:true,gpsPosition:[3.139,101.688],gpsAccuracy:8,gpsFixAgeMs:0,heading:90}}));});
  assert.equal(nearbyPosts,0,'GPS events alone must not upload position or fetch nearby reports');

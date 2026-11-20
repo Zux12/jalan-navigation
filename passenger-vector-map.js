@@ -72,6 +72,31 @@
    trafficFeatureCount=0;status.disabled=true;status.textContent='Basic map · detailed view unavailable';
    original.invalidateSize({animate:false});emit();
  }
+ // For sharing/ETA, inspect the transportation source itself. A style can hide
+ // a tunnel or an underlying road that still matters to the grade decision.
+ let roadSourceCache=null;
+ function allGradeFeatures(position){
+  if(gl.getZoom()<13||!gl.getBounds().contains(position))return [];
+  const sourceIds=[...new Set(gl.getStyle().layers.filter(l=>l['source-layer']==='transportation').map(l=>l.source))];
+  if(!sourceIds.length||sourceIds.some(id=>!gl.isSourceLoaded(id)))return [];
+  if(!roadSourceCache){
+   const rows=[];
+   for(const source of sourceIds){
+    for(const feature of gl.querySourceFeatures(source,{sourceLayer:'transportation'})){
+     const geom=feature.geometry,lines=geom.type==='LineString'?[geom.coordinates]:geom.type==='MultiLineString'?geom.coordinates:[];
+     for(const line of lines){
+      if(line.length<2)continue;
+      let west=180,east=-180,south=90,north=-90;
+      for(const [x,y]of line){west=Math.min(west,x);east=Math.max(east,x);south=Math.min(south,y);north=Math.max(north,y);}
+      rows.push({west,east,south,north,feature:{id:feature.id,properties:feature.properties,geometry:{type:'LineString',coordinates:line}}});
+     }
+    }
+   }
+   roadSourceCache={sourceIds,rows};
+  }
+  const [x,y]=position;
+  return roadSourceCache.rows.filter(r=>x>=r.west-.00025&&x<=r.east+.00025&&y>=r.south-.00025&&y<=r.north+.00025).map(r=>r.feature);
+ }
  window.JalanVectorMap={
    get active(){return active;},
    requestFrame(){if(active)gl.triggerRepaint();},
@@ -81,13 +106,14 @@
    getBearing(){return active?gl.getBearing():0;},
    getPitch(){return active?gl.getPitch():0;},
    setCamera(options){if(active)gl.jumpTo(options);},
-   getReportRoad(position,heading){
+   getReportRoad(position,heading,accuracy=0,allGrades=false){
      try{
      const P=window.JalanReportModel;if(!active||!P||!P.coord(position)||!P.heading(heading))return null;
      const layers=gl.getStyle().layers.filter(l=>l.type==='line'&&l['source-layer']==='transportation').map(l=>l.id);
      if(!layers.length)return null;
      const point=gl.project(lngLat([position[1],position[0]])),seen=new Set(),candidates=[];
-     for(const feature of gl.queryRenderedFeatures([[point.x-45,point.y-45],[point.x+45,point.y+45]],{layers})){
+     const features=allGrades?allGradeFeatures(position):gl.queryRenderedFeatures([[point.x-45,point.y-45],[point.x+45,point.y+45]],{layers});
+     for(const feature of features){
        const p=feature.properties||{};if(!['motorway','trunk','primary','secondary','tertiary','minor','service','residential','unclassified','living_street'].includes(p.class))continue;
        const lines=feature.geometry.type==='LineString'?[feature.geometry.coordinates]:feature.geometry.type==='MultiLineString'?feature.geometry.coordinates:[];
        for(const line of lines){const match=P.project(position,line);if(!match||match.offset>20||Math.min(P.delta(match.heading,heading),P.delta((match.heading+180)%360,heading))>40)continue;
@@ -99,7 +125,7 @@
      }
      candidates.sort((a,b)=>a.offset-b.offset);
      // Ambiguous parallel/crossing roads remain unmatched rather than guessed.
-     if(!candidates.length||(candidates[1]&&candidates[1].offset-candidates[0].offset<5))return null;
+     if(!candidates.length||(candidates[1]&&candidates[1].offset-candidates[0].offset<Math.max(5,accuracy)))return null;
      return {key:candidates[0].key,level:candidates[0].level};
      }catch{return null;}
    },
@@ -154,6 +180,8 @@
    map.getBounds=()=>{const b=gl.getBounds();return L.latLngBounds([b.getSouth(),b.getWest()],[b.getNorth(),b.getEast()]);};
    map.invalidateSize=options=>{original.invalidateSize(options);gl.resize();return map;};
    gl.on('move',syncCamera);
+   gl.on('moveend',()=>{roadSourceCache=null;});
+   gl.on('sourcedata',e=>{if(roadSourceCache?.sourceIds.includes(e.sourceId))roadSourceCache=null;});
    gl.on('render',()=>{if(active)window.dispatchEvent(new Event('jalan:vector-render'));});
    // Only physical gestures suspend GPS follow; programmatic camera changes do not.
    ['dragstart','zoomstart','rotatestart','pitchstart'].forEach(event=>gl.on(event,e=>{

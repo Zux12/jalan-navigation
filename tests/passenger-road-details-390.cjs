@@ -2,6 +2,8 @@
 const assert=require('node:assert/strict');
 
 module.exports=async function roadDetails(page){
+ await page.route('**/reports/flow/read',r=>r.fulfill({json:{sections:[]}}));
+ await page.route('**/reports/flow/observe',r=>r.fulfill({json:{ok:true}}));
  await page.clock.install();
  await page.reload({waitUntil:'load'});
  const home=page.locator('#jalan-home-speed .passenger-speed-limit');
@@ -84,7 +86,7 @@ module.exports=async function roadDetails(page){
  assert.equal(await page.locator('#smart-enable').isChecked(),false,'passenger guidance needs no engineering switch');
  assert.equal(await page.locator('#passenger-nearby-consent').isChecked(),false,'local question needs no location upload');
  await page.evaluate(()=>JalanLanguage.set('ms',false));
- await ask.getByRole('button',{name:'Ya',exact:true}).waitFor();
+ await ask.getByRole('button',{name:'Ya, laporkan trafik',exact:true}).waitFor();
  await page.clock.fastForward(8100);
  assert.equal(await ask.isVisible(),false,'unanswered question closes after eight seconds');
  assert.equal(await page.evaluate(()=>JalanGPS.getState().active),true);

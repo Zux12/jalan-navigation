@@ -1,4 +1,4 @@
-// The slowdown question uses local navigation data. Answers stay on this device.
+// Passenger confirmation submits one explicit report. The engineering demo stays local.
 (() => {
  'use strict';
  const el=id=>document.getElementById(id);
@@ -8,7 +8,7 @@
  prompt.className='smart-prompt hidden';
  prompt.setAttribute('role','status');
  prompt.innerHTML='<strong>Are you stuck in traffic?</strong><div class="smart-prompt-actions">'+
-  '<button type="button" id="smart-yes">Yes</button><button type="button" id="smart-no">No</button>'+
+  '<button type="button" id="smart-yes">'+(passenger?'Yes, report traffic':'Yes')+'</button><button type="button" id="smart-no">No</button>'+
   '<button type="button" id="smart-close" aria-label="Dismiss traffic question">×</button></div>';
  document.body.append(prompt);
  const status=el('smart-status'),enable=el('smart-enable');
@@ -36,7 +36,11 @@
    try{const phrase=new SpeechSynthesisUtterance('Are you stuck in traffic?');phrase.lang='en-GB';speechSynthesis.speak(phrase);}catch{}
   }
  }
- el('smart-yes').onclick=()=>dismiss('yes');
+ el('smart-yes').onclick=()=>{
+  if(prompt.classList.contains('hidden'))return;
+  if(!passenger){dismiss('yes');return;}
+  dismiss();window.JalanCommunityReports?.reportSlowdown();
+ };
  el('smart-no').onclick=()=>dismiss('no');
  el('smart-close').onclick=()=>dismiss();
  el('smart-demo').onclick=()=>show(true);
@@ -55,7 +59,7 @@
   if(!passenger&&!enable.checked)return;
   if(document.hidden||!document.body.classList.contains('nav-active')||!fix?.matched||fix.nearDestination||
      !Number.isFinite(fix.accuracy)||fix.accuracy<0||fix.accuracy>25||!Number.isFinite(fix.speedMps)||
-     fix.speedMps*3.6<4||fix.speedMps*3.6>25){reset();return;}
+     fix.speedMps<0||(!passenger&&fix.speedMps*3.6<4)||fix.speedMps*3.6>25){reset();return;}
   let ceiling,requiredMs=75000;
   let at=Date.now();
   if(passenger){
@@ -63,6 +67,10 @@
    if(!state.active||!route||!fix.gpsReliable||!Number.isInteger(index)||index<0||
       index+1>=(route.geometry?.coordinates?.length??0)||!Array.isArray(fix.gpsPosition)||
       !Number.isFinite(fix.gpsFixAgeMs)||fix.gpsFixAgeMs<0||fix.gpsFixAgeMs>10000||passengerBusy()){reset();return;}
+   const community=window.JalanCommunityFlow?.condition();
+   if(community?.type==='smooth'){reset();return;}
+   if(community){if(Date.now()-lastAsked>=cooldown)show();return;}
+   if(fix.speedMps*3.6<4){reset();return;}
    if(route!==previousRoute){reset();previousRoute=route;}
    at-=fix.gpsFixAgeMs;
    const [lat,lon]=fix.gpsPosition;

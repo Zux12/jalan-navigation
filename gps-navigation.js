@@ -100,6 +100,18 @@
      Math.abs(c.latitude)<=90&&Math.abs(c.longitude)<=180
   }}));
  }
+ function remainingTime(){
+  const remaining=Math.max(0,total-progress)/total;
+  return route.duration*remaining+(window.JalanCommunityFlow?.eta(route,1-remaining)||0);
+ }
+ function paintArrival(seconds,mode){
+  el('gps-detail').textContent=`Arrival approx. ${new Date(Date.now()+seconds*1000).toLocaleTimeString('en-MY',{hour:'numeric',minute:'2-digit'})} · ${mode==='matched'?'GPS matched to selected route':'Position estimated; verify GPS'}`;
+ }
+ window.addEventListener?.('jalan:community-flow',()=>{
+  if(!active||!route||!total||latestMode==='deviation')return;
+  const seconds=remainingTime();el('gps-eta').textContent=fmtTime(seconds);
+  if(latestMatched)paintArrival(seconds,latestMode);
+ });
  function update(fix){
   if(!active)return;
   const now=Date.now(),sampleTime=Number(fix.timestamp);
@@ -166,13 +178,13 @@
   rerouteFix=lastPositionFix;
   current=mode==='matched'?p:raw;
   const trustworthy=measured&&mode==='matched'&&Number.isFinite(accuracy);
+  if(trustworthy)progress=Math.max(progress,result.along);
   latestMatched=trustworthy;lastReportedAccuracy=trustworthy?accuracy:Infinity;
-  window.dispatchEvent(new CustomEvent('jalan:gps-fix',{detail:{speedLimitIndex:trustworthy?display?.speedLimitIndex:null,accuracy:trustworthy?accuracy:Infinity,remainingSeconds:route?route.duration*Math.max(0,total-progress)/total:null,remainingMeters:route?route.distance*Math.max(0,total-progress)/total:null,speedMps:fix.coords.speed,matchedPosition:trustworthy?p:null,heading:fix.coords.heading,routeSegment:route?.geometry?.coordinates?.length?'route-'+selectedRoute:null,matched:trustworthy,nearDestination:trustworthy&&!!(destination&&meters(p,destination)<110),...positionEvidence(measured)}}));
+  window.dispatchEvent(new CustomEvent('jalan:gps-fix',{detail:{speedLimitIndex:trustworthy?display?.speedLimitIndex:null,accuracy:trustworthy?accuracy:Infinity,remainingSeconds:route?remainingTime():null,remainingMeters:route?route.distance*Math.max(0,total-progress)/total:null,speedMps:fix.coords.speed,matchedPosition:trustworthy?p:null,heading:fix.coords.heading,routeSegment:route?.geometry?.coordinates?.length?'route-'+selectedRoute:null,matched:trustworthy,nearDestination:trustworthy&&!!(destination&&meters(p,destination)<110),...positionEvidence(measured)}}));
   updateLocation(raw);marker?.setLatLng(vehiclePosition);
   el('gps-accuracy').textContent=Number.isFinite(accuracy)?Math.round(accuracy)+' m':'Unknown';
   el('gps-match-status').textContent={matched:'On route · GPS matched',predicted:'Route prediction · checking GPS',uncertain:'GPS uncertain · estimated position',deviation:'Deviation confirmed',waiting:'Waiting for reliable GPS',stale:'Old GPS reading ignored',invalid:'Invalid GPS reading'}[mode]||'Route prediction';
-  if(trustworthy)progress=Math.max(progress,result.along);
-  const left=Math.max(0,total-progress),distance=route.distance*left/total,seconds=route.duration*left/total;
+  const left=Math.max(0,total-progress),distance=route.distance*left/total,seconds=remainingTime();
   el('gps-distance').textContent=fmtDist(distance);el('gps-eta').textContent=fmtTime(seconds);
   const next=maneuvers.find(x=>x.along>progress+12);
   activeInstruction=null;
@@ -183,7 +195,7 @@
    if(trustworthy)window.JalanVoice.announce(voice,next.along.toFixed(1),d,next.action,next.step);
   }
   else el('gps-instruction').textContent=maneuvers.length?'Continue toward destination':'Follow selected route — detailed maneuvers unavailable';
-  el('gps-detail').textContent=`Arrival approx. ${new Date(Date.now()+seconds*1000).toLocaleTimeString('en-MY',{hour:'numeric',minute:'2-digit'})} · ${mode==='matched'?'GPS matched to selected route':'Position estimated; verify GPS'}`;
+  paintArrival(seconds,mode);
   if(mode==='deviation'){
    el('gps-instruction').textContent=auto?'Off route · recalculating…':'Off route · recalculation is off';
    el('gps-detail').textContent='Finding a route from your current location to the same destination';
@@ -313,7 +325,7 @@
  for(const [id,type] of [['tt-key','input'],['tt-primary','change'],['tt-remove-key','click']])el(id)?.addEventListener(type,cancelReroute);
  updateButtons();
  window.JalanGPS={
-  getState(){return {active,...positionEvidence(!!(lastMeasuredAccepted&&lastPositionFix&&Date.now()-lastPositionFix.at<=10000)),deviationConfirmed:active&&latestMode==='deviation'&&!!freshRerouteFix(),rerouting,matched:active&&latestMatched&&lastFixAt>0,position:current?[...current]:null,accuracy:lastFixAt?lastReportedAccuracy:Infinity,fixAgeMs:lastFixAt?Date.now()-lastFixAt:Infinity,remainingSeconds:active&&route?route.duration*Math.max(0,total-progress)/total:null,remainingMeters:active&&route?route.distance*Math.max(0,total-progress)/total:null,route};},
+  getState(){return {active,...positionEvidence(!!(lastMeasuredAccepted&&lastPositionFix&&Date.now()-lastPositionFix.at<=10000)),deviationConfirmed:active&&latestMode==='deviation'&&!!freshRerouteFix(),rerouting,matched:active&&latestMatched&&lastFixAt>0,position:current?[...current]:null,accuracy:lastFixAt?lastReportedAccuracy:Infinity,fixAgeMs:lastFixAt?Date.now()-lastFixAt:Infinity,remainingSeconds:active&&route?remainingTime():null,remainingMeters:active&&route?route.distance*Math.max(0,total-progress)/total:null,route};},
   // Read-only route maneuvers generated from the selected provider's actual
   // instructions. Distances are from current matched progress, not fabricated
   // turn guesses from arbitrary OSM polylines.
