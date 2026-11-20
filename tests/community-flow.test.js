@@ -63,6 +63,26 @@ test('first-trip sharing needs measured travel on a matched road, an opt-out abo
  setPref(true);assert.equal(box.checked,false,'a failed preference save cannot enable sharing');
  active=false;w.dispatchEvent(new Event('jalan:journey-stop'));fix(101.0004);
 });
+test('partial storage denial during notice initialization or activation disables passive traffic sharing',()=>{
+ const src=fs.readFileSync(path.join(__dirname,'../passenger-community-flow.js'),'utf8');
+ for(const stage of ['notice-read','notice-write']){
+  const w=new EventTarget(),d=new EventTarget(),box=new EventTarget(),button={},notice={querySelector:()=>button},saved=new Map([['jalan-traffic-sharing-v1','on']]);
+  d.getElementById=()=>box;d.createElement=()=>notice;d.body={append(){}};
+  w.JalanFlowModel=M;w.JalanReportModel=P;w.JalanGPS={getState:()=>({active:false,route:null})};
+  const localStorage={
+   getItem:k=>{if(stage==='notice-read'&&k==='jalan-traffic-notice-v1')throw Error('denied notice read');return saved.get(k)??null;},
+   setItem:(k,v)=>{if(stage==='notice-write'&&k==='jalan-traffic-notice-v1')throw Error('denied notice write');saved.set(k,v);}
+  };
+  vm.runInNewContext(src,{window:w,document:d,location:{search:'?mode=passenger'},URLSearchParams,localStorage,Date,Event,AbortController,
+   setTimeout:()=>1,clearTimeout(){},setInterval(){}});
+  if(stage==='notice-write'){
+   assert.equal(box.checked,true,'sharing initially follows the saved enabled preference');
+   w.dispatchEvent(new Event('jalan:journey-start'));
+  }
+  assert.equal(box.checked,false,stage+' must disable sharing when storage is denied');
+  assert.equal(notice.hidden,true,'the now-invalid notice must be hidden');
+ }
+});
 test('coincident surface, bridge and tunnel cells have distinct identities; ambiguous grade cannot affect ETA',()=>{
  const cell=shape.cells[0],surface={key:'vector-abba',level:'0:surface'};
  const bridge={...surface,level:'1:bridge'},tunnel={...surface,level:'-1:tunnel'};
