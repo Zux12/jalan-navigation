@@ -17,9 +17,9 @@
  let pendingDirect=null,request=null,hold=null,holdTimer,deadline=0,frame=0,ignoreClickUntil=0,toastTimer;
  const contacts=new Set();
  const same=(a,b)=>!!a&&!!b&&a[0]===b[0]&&a[1]===b[1];
- function message(value){
+ function message(value,duration=3000){
    clearTimeout(toastTimer);toast.textContent=value;toast.hidden=false;
-   toastTimer=setTimeout(()=>{toast.hidden=true;},3000);
+   if(duration)toastTimer=setTimeout(()=>{toast.hidden=true;},duration);
  }
  function paintRoute(){
    const route=routes[selectedRoute],stop=route?.pinnedStop;
@@ -146,11 +146,42 @@
  window.addEventListener('click',e=>{if(surface(e)&&performance.now()<ignoreClickUntil){e.preventDefault();e.stopImmediatePropagation();}},true);
  window.addEventListener('keydown',e=>{if(e.key==='Escape')close();else restartIdle();});
  window.addEventListener('blur',()=>{endHold();contacts.clear();restartIdle();});
- function abort(){if(request){request.abort();request=null;}document.body.classList.remove('passenger-pin-routing');}
+ function abort(){if(request){request.abort();request=null;toast.hidden=true;}document.body.classList.remove('passenger-pin-routing');}
+ window.addEventListener('jalan:journey-start',abort);
  for(const [id,event] of [['tt-primary','change'],['tt-key','input'],['tt-remove-key','click']])
    $(id)?.addEventListener(event,abort);
  const reliable=s=>s?.gpsReliable&&s.gpsFixAgeMs<=10000?s.gpsPosition:null;
+ function waitForFix(signal){
+   message('Waiting for your current location.',0);
+   return new Promise((resolve,reject)=>{
+     function onFix(event){
+       const point=reliable(event.detail);
+       if(!point)return;
+       window.removeEventListener('jalan:gps-fix',onFix);
+       signal.removeEventListener('abort',onAbort);
+       resolve(point);
+     }
+     function onAbort(){reject(signal.reason);}
+     signal.throwIfAborted();
+     signal.addEventListener('abort',onAbort,{once:true});
+     window.addEventListener('jalan:gps-fix',onFix,{signal});
+   });
+ }
  function place(point){return {lat:point[0],lon:point[1],name:'Pinned location',display_name:'Pinned location · '+point.map(x=>x.toFixed(5)).join(', ')};}
+ function previewDestination(choices,from,point){
+   const available=choices.filter(route=>{
+     const coords=route?.geometry?.coordinates;
+     return Number.isFinite(route?.duration)&&route.duration>0&&Number.isFinite(route.distance)&&route.distance>0&&
+       Array.isArray(coords)&&coords.length>=2&&coords.every(p=>Array.isArray(p)&&validCoordinates([p[1],p[0]]));
+   });
+   if(!available.length)throw Error('No driving routes');
+   for(const route of available)route.pinnedDestinationAccess=[...route.geometry.coordinates.at(-1)].reverse();
+   // End the old journey only after we have replacement choices to display.
+   clearRoute(true);
+   setStart(from,'Your starting location');
+   setDestinationPlace(place(point),point);
+   routes=available;selectedRoute=0;setPanelCollapsed(true);renderRoutes();
+ }
  async function startChange(asStop){
    const point=picked;close();abort();
    if(!point)return;
@@ -161,38 +192,44 @@
  }
  async function changeRoute(kind,point){
    const state=window.JalanGPS.getState(),active=state.active,previous=routes[selectedRoute],final=destination;
-   const stop=previous?.pinnedStop;
+   const stop=previous?.pinnedStop,replacing=kind==='replace';
    let from=active?reliable(state):startPoint||userLocation;
-   if(!from){message('Waiting for your current location.');return;}
+   if(!from&&!(active&&replacing)){message('Waiting for your current location.');return;}
    abort();const job=new AbortController();request=job;
    document.body.classList.add('passenger-pin-routing');
    const timer=setTimeout(()=>job.abort(),18000);
    const primary=$('tt-primary').checked;
-   const current=()=>request===job&&primary===$('tt-primary').checked&&routes[selectedRoute]===previous&&destination===final&&window.JalanGPS.getState().active===active;
+   const current=()=>request===job&&primary===$('tt-primary').checked&&(replacing||routes[selectedRoute]===previous)&&destination===final&&window.JalanGPS.getState().active===active;
    try{
-     const target=kind==='replace'?point:final,via=kind==='add'?point:null;
+     if(!from)from=await waitForFix(job.signal);
+     const target=replacing?point:final,via=kind==='add'?point:null;
      for(let i=0;i<2;i++){
-       let candidate;
-       if(kind==='arrived')candidate=stop.onward;
-       else{
-         const choices=await requestDrivingRoutes(from,target,{signal:job.signal,via});
-         candidate=choices.slice().sort((a,b)=>a.duration-b.duration)[0];
-       }
        if(!current()||job.signal.aborted)return;
-       if(!candidate?.geometry?.coordinates?.length)throw Error();
-       if(kind==='replace')candidate.pinnedDestinationAccess=[...candidate.geometry.coordinates.at(-1)].reverse();
-       else if(previous?.pinnedDestinationAccess)candidate.pinnedDestinationAccess=previous.pinnedDestinationAccess;
+       if(replacing)message('Calculating driving routes…',0);
+       const choices=kind==='arrived'?[stop.onward]:await requestDrivingRoutes(from,target,{signal:job.signal,via});
+       if(!current()||job.signal.aborted)return;
        if(active){
-         const latest=reliable(window.JalanGPS.getState());
+         let latest=reliable(window.JalanGPS.getState());
+         if(!latest&&replacing)latest=await waitForFix(job.signal);
+         if(!current()||job.signal.aborted)return;
          if(!latest)throw Error();
          if(model.meters(latest,from)>150){from=latest;continue;}
+       }
+       if(replacing){
+         previewDestination(choices,from,point);
+         window.JalanTomTom?.refreshRouteIncidents?.(true);
+         return;
+       }
+       const candidate=choices.slice().sort((a,b)=>a.duration-b.duration)[0];
+       if(!candidate?.geometry?.coordinates?.length)throw Error();
+       if(previous?.pinnedDestinationAccess)candidate.pinnedDestinationAccess=previous.pinnedDestinationAccess;
+       if(active){
          if(!window.JalanGPS.applyPinnedRoute(candidate,from,kind))throw Error();
        }else{routes=[candidate];selectedRoute=0;renderRoutes();}
-       if(kind==='replace')setDestinationPlace(place(point),point);
        window.dispatchEvent(new CustomEvent('jalan:route-change',{detail:{reason:'pin-'+kind,provider:candidate.provider||'osrm'}}));
        window.JalanTomTom?.refreshRouteIncidents?.(true);
        pendingDirect=null;
-       if(kind!=='resume')message({add:'Stop added.',replace:'Destination updated.',arrived:'Stop reached. Continuing to your destination.',passed:'Stop passed. Continuing to your destination.'}[kind]);
+       if(kind!=='resume')message({add:'Stop added.',arrived:'Stop reached. Continuing to your destination.',passed:'Stop passed. Continuing to your destination.'}[kind]);
        return;
      }
      throw Error();
