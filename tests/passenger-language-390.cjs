@@ -5,7 +5,10 @@ module.exports=async function passengerLanguage(page){
  const errors=[];
  page.on('pageerror',error=>errors.push(error.message));
  await page.addInitScript(()=>Object.defineProperty(navigator,'language',{configurable:true,value:'ms-MY'}));
- await page.evaluate(()=>localStorage.removeItem('jalan-passenger-language-v1'));
+ await page.evaluate(()=>{
+   localStorage.removeItem('jalan-passenger-language-v1');
+   localStorage.removeItem('jalan-voice-mode-v1');
+ });
  const reload=async()=>{
    await page.reload();
    await page.locator('#jalan-launch').waitFor({state:'hidden'});
@@ -51,7 +54,30 @@ module.exports=async function passengerLanguage(page){
  });
  const instruction=page.locator('#passenger-instruction');
  await page.waitForFunction(()=>document.getElementById('passenger-instruction').textContent.includes('Turn left onto Jalan Ampang'));
- const original=await instruction.textContent();await select('ms');
+ const original=await instruction.textContent();
+ // Model a phone that ignores GPS-triggered speech until the first utterance
+ // is spoken in the user's tap. A subsequent cancel would cut that speech off.
+ await page.evaluate(()=>{
+   let confirmTap,unlocked=false;
+   const ok=document.getElementById('passenger-sound-ok');
+   ok.addEventListener('click',e=>{confirmTap=e;},true);
+   const synth=window.speechSynthesis;
+   synth.speak=utterance=>{
+     if(confirmTap?.isTrusted&&confirmTap.eventPhase!==Event.NONE)unlocked=true;
+     if(unlocked)window.__audibleGuidance=utterance.text;
+   };
+   synth.cancel=()=>{window.__audibleGuidance=null;};
+ });
+ await menu.click();await page.locator('#passenger-voice').click();
+ await page.getByRole('radio',{name:'Full guidance'}).check();
+ await page.locator('#passenger-sound-ok').click();
+ assert.equal(await page.evaluate(()=>window.__audibleGuidance),'Full guidance');
+ await page.locator('#jalan-home-menu-close').click();
+ await page.evaluate(()=>window.__offlineGPSWatch({timestamp:Date.now(),coords:{
+   latitude:3.139,longitude:101.6869,accuracy:5,speed:0,heading:0
+ }}));
+ assert.match(await page.evaluate(()=>window.__audibleGuidance),/turn left onto Jalan Ampang/i);
+ await select('ms');
  assert.match(await instruction.textContent(),/Belok kiri ke Jalan Ampang/);
  assert.equal(await page.locator('#passenger-turn-arrow').textContent(),'↰');
  await page.locator('#passenger-turn-toggle').click();
@@ -63,6 +89,11 @@ module.exports=async function passengerLanguage(page){
  assert.equal(await instruction.textContent(),original);
  assert.equal(await page.evaluate(()=>JalanGPS.getState().active&&JalanGPS.getState().route===__languageJourney.route&&
    window.__offlineGPSWatch===__languageJourney.watch&&destination===__languageJourney.destination),true);
+ await menu.click();await page.locator('#passenger-voice').click();
+ await page.getByRole('radio',{name:'Mute',exact:true}).check();
+ await page.locator('#passenger-sound-ok').click();
+ await page.locator('#jalan-home-menu-close').click();
+ assert.equal(await page.evaluate(()=>window.__audibleGuidance),null);
  assert.deepEqual(errors,[]);
  console.log('PASS English first launch, BM persistence, recorded fallback and switching during an active GPS journey');
 };

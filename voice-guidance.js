@@ -57,6 +57,7 @@
     if(['interrupted','canceled'].includes(e?.error)){result('done');return;}
     if(!fallback())result('error');
    };
+   if(speechSynthesis.paused)speechSynthesis.resume();
    speechSynthesis.speak(utterance);return true;
   }catch{return fallback();}
  }
@@ -65,9 +66,22 @@
     'In 200 meters, turn left. Then continue straight. This is your JALAN navigation voice.';
   return speak(text,(audio,done)=>audio.preview(done),true,id);
  }
- function setMode(value){if(!['full','alerts','mute'].includes(value))return false;
-  if(value!==mode)cancel();mode=value;
-  try{localStorage.setItem('jalan-voice-mode-v1',value);}catch{}return true;}
+ function setMode(value){
+  if(!['full','alerts','mute'].includes(value))return false;
+  const changed=mode!==value;
+  mode=value;
+  try{localStorage.setItem('jalan-voice-mode-v1',value);}catch{}
+  if(mode==='mute'||document.hidden){cancel();return true;}
+  if(changed){
+   // Start audio in the tap that confirms Sound. Later GPS fixes have no tap.
+   // The confirmation must not consume a turn milestone or delay the first turn.
+   if(mode==='full')reset();
+   recordings()?.unlock();
+   const text=label(mode);
+   speak(bm()?window.JalanLanguage.translate(text):text,(audio,done)=>audio.alert(text,done));
+  }
+  return true;
+ }
  function reset(){spoken.clear();lastAt=0;}
  function announce(mode,id,distance,action,step){
   if(mode!=='full'||!Number.isFinite(distance)||distance<0||document.hidden)return;
