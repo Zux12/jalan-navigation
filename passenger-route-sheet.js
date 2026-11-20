@@ -20,7 +20,7 @@
  function begin(point,target,kind,id){
   if(panel.classList.contains('hidden')||document.body.classList.contains('passenger-guiding'))return;
   suppressClickUntil=0;
-  if(target.closest('.passenger-route-actions,.jalan-toll-control,button:not(#passenger-route-handle):not(#passenger-route-list button)'))return;
+  if(target.closest('.passenger-route-actions,.jalan-toll-control,.jalan-toll-feedback'))return;
   const peek=parseFloat(getComputedStyle(panel).getPropertyValue('--route-sheet-peek'))||72;
   const limit=Math.max(0,panel.getBoundingClientRect().height-peek);
   gesture={x:point.clientX,y:point.clientY,kind,id,claimed:false,collapsed,limit,
