@@ -15,6 +15,15 @@ module.exports=async function roadDetails(page){
   return route.fulfill({json:{addresses:[{position:point.join(','),address:{speedLimit:'80.00KPH'}}]}});
  });
  assert.equal(await home.isVisible(),false);
+ const sharing=page.locator('#passenger-posted-speed-share');
+ assert.equal(await sharing.isChecked(),false,'fresh session defaults to no extra GPS transmission');
+ await fix(point);
+ assert.equal(lookups,0,'location display alone never triggers precise-coordinate lookup');
+ await page.locator('#jalan-home-menu').click();
+ await page.locator('#passenger-about').click();
+ assert.match(await page.locator('#passenger-posted-speed-share-explain').textContent(),/precise GPS coordinates to TomTom/);
+ await sharing.check();
+ await page.locator('#passenger-about-ok').click();
  await fix(point);await home.waitFor({state:'visible'});
  assert.equal(await home.textContent(),'80');
  assert.deepEqual(await home.evaluate(el=>{
@@ -66,4 +75,11 @@ module.exports=async function roadDetails(page){
  assert.equal(await driving.isVisible(),false);
  assert.equal(lookups,lookupsBeforeGo,'matched route speeds do not need reverse lookups');
  assert.ok(requests>=1);
+ // Revoke the separate opt-in in the actual 390px dialog; the checkbox
+ // does not gate speed data already included in a manually requested route.
+ await page.locator('#jalan-home-menu').click();
+ await page.locator('#passenger-about').click();
+ await sharing.uncheck();
+ await page.locator('#passenger-about-ok').click();
+ assert.equal(await sharing.isChecked(),false);
 };
