@@ -37,3 +37,19 @@ body.passenger-mode .passenger-route-actions .passenger-go{
 #passenger-route-cancel{border:1px solid #cbd5e1;border-radius:16px;background:#edf2f7;
  color:#243b54;font-size:17px;font-weight:800;min-height:48px;padding:11px;cursor:pointer}
 .passenger-route-actions button:focus-visible{outline:3px solid #193b68;outline-offset:2px}
+
+.jalan-toll-control,#jalan-home-menu-panel .jalan-toll-control{display:flex;align-items:center;justify-content:space-between;gap:12px;
+ min-height:44px;flex:none;color:#203349;font:650 16px/1.3 system-ui,sans-serif;cursor:pointer}
+.jalan-toll-control input[role=switch]{appearance:none;-webkit-appearance:none;box-sizing:border-box;
+ width:46px;height:28px;flex:none;position:relative;margin:0;padding:0;border:0;border-radius:20px;background:#85919e;cursor:pointer}
+.jalan-toll-control input:checked{background:#136dec}
+.jalan-toll-control input::after{content:"";position:absolute;top:3px;left:3px;width:22px;height:22px;
+ background:white;border-radius:50%;box-shadow:0 1px 3px #0003}
+.jalan-toll-control input:checked::after{left:21px}
+.jalan-toll-control input:focus-visible,.jalan-toll-feedback button:focus-visible{outline:3px solid #193b68;outline-offset:2px}
+.jalan-toll-feedback p{margin:8px 0 12px;color:#243b54;font:550 16px/1.35 system-ui,sans-serif}
+.jalan-toll-feedback>div{display:flex;flex-wrap:wrap;gap:8px}
+.jalan-toll-feedback button{flex:1 1 auto;min-height:44px;background:#136dec;color:white;border:0;border-radius:12px;
+ padding:8px 12px;font:650 15px/1.3 system-ui,sans-serif;cursor:pointer}
+#passenger-route-list[hidden],#passenger-go[hidden],.jalan-toll-feedback[hidden],#journey-toll-control[hidden]{display:none}
+.passenger-route-actions:has(#passenger-go[hidden]){grid-template-columns:1fr}

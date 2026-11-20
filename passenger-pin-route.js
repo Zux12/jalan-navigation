@@ -19,17 +19,34 @@
    const lastIndex=first.points.length+last.points.length-1;
    const sameStop=first.points[split].latitude===last.points[0].latitude&&
      first.points[split].longitude===last.points[0].longitude;
-   const sectionEnd=(raw.sections||[]).reduce((end,s)=>s.sectionType==='TRAVEL_MODE'&&
-     Number.isInteger(s.endPointIndex)?Math.max(end,s.endPointIndex):end,-1);
+   const allSections=Array.isArray(raw.sections)?raw.sections.filter(Boolean):[];
+   const validRange=(s,max)=>Number.isInteger(s.startPointIndex)&&Number.isInteger(s.endPointIndex)&&
+     s.startPointIndex>=0&&s.startPointIndex<=s.endPointIndex&&s.endPointIndex<=max;
+   const sectionEnd=allSections.reduce((end,s)=>s.sectionType==='TRAVEL_MODE'&&validRange(s,lastIndex)
+     ?Math.max(end,s.endPointIndex):end,-1);
    const mergedBoundary=sameStop&&sectionEnd===lastIndex-1;
    const whole=mergedBoundary?{...raw,legs:[first,{...last,points:last.points.slice(1)}]}:raw;
-   const secondStart=sameStop&&sectionEnd===lastIndex?split+1:split;
+   const secondStart=!sameStop||sectionEnd===lastIndex?split+1:split;
+   const maxIndex=mergedBoundary?lastIndex-1:lastIndex;
+   // Check provider indices before clipping. Clipping can turn a bad section
+   // into apparently complete coverage of either leg.
+   const validSections=allSections.filter(s=>validRange(s,maxIndex));
    const instructions=(raw.guidance?.instructions||[]).filter(i=>i.routeOffsetInMeters>=offset)
      .map(i=>({...i,routeOffsetInMeters:i.routeOffsetInMeters-offset,pointIndex:undefined}));
-   const sections=(raw.sections||[]).filter(s=>s.endPointIndex>split)
+   const sections=validSections.filter(s=>s.endPointIndex>split)
      .map(s=>({...s,startPointIndex:Math.max(0,s.startPointIndex-secondStart),endPointIndex:Math.min(last.points.length-1,s.endPointIndex-secondStart)}));
    const onward=normalize({summary:last.summary,legs:[last],guidance:{instructions},sections});
-   return attach(normalize(whole),point,split,onward);
+   const route=attach(normalize(whole),point,split,onward);
+   const incoming=validSections.filter(s=>s.startPointIndex<split)
+     .map(s=>({...s,endPointIndex:Math.min(split,s.endPointIndex)}));
+   route.pinnedStop.inboundTolls=normalize({summary:first.summary,legs:[first],sections:incoming,guidance:{instructions:[]}}).tolls;
+   // Malformed provider indices cannot certify either leg as free.
+   if(allSections.some(s=>['TOLL','TOLL_ROAD','TOLL_VIGNETTE'].includes(s.sectionType)&&
+     (!validRange(s,maxIndex)||s.startPointIndex===s.endPointIndex))){
+     if(route.pinnedStop.inboundTolls!==true)route.pinnedStop.inboundTolls=null;
+     if(onward.tolls!==true)onward.tolls=null;
+   }
+   return route;
  }
  function osrm(route,point,waypoint){
    if(route.legs?.length!==2||!waypoint)throw Error('Stop missing from route.');

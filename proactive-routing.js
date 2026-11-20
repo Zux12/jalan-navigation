@@ -55,7 +55,9 @@
   const current=()=>id===requestEpoch&&!requestController.signal.aborted&&!document.hidden&&
     (force||enabled)&&el('tt-primary')?.checked&&el('tt-key')?.value.trim()===apiKey&&sameDestination(target);
   try{
-   const available=state.route.pinnedStop
+   const available=state.route.tollPolicy
+     ?await requestDrivingRoutes(sourcePosition,target,{signal:requestController.signal,via:state.route.pinnedStop?.point,tollPolicy:state.route.tollPolicy})
+     :state.route.pinnedStop
      ?await window.JalanTomTom.requestRoutes(sourcePosition,target,{signal:requestController.signal,via:state.route.pinnedStop.point})
      :await directCandidates();
    if(!current()||!available)return;

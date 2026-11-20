@@ -3,6 +3,23 @@
 (() => {
   'use strict';
   const labels = {
+    "Avoid tolls": "Elakkan tol",
+    "Finding toll-free routes…": "Sedang mencari laluan tanpa tol…",
+    "Finding routes…": "Sedang mencari laluan…",
+    "All routes found have tolls.": "Semua laluan yang ditemui mempunyai tol.",
+    "Could not confirm a toll-free route.": "Laluan tanpa tol tidak dapat disahkan.",
+    "Could not load routes.": "Laluan tidak dapat dimuatkan.",
+    "Show routes with tolls": "Lihat laluan bertol",
+    "Show all routes": "Lihat semua laluan",
+    "Continuing on your current route.": "Perjalanan diteruskan mengikut laluan semasa.",
+    "Keep current route": "Kekalkan laluan semasa",
+    "Add this stop?": "Tambah hentian ini?",
+    "The route to this stop has tolls.": "Laluan ke hentian ini mempunyai tol.",
+    "The route from this stop to your destination has tolls.": "Laluan dari hentian ini ke destinasi anda mempunyai tol.",
+    "Allow tolls to this stop": "Benarkan tol ke hentian ini",
+    "Allow tolls after this stop": "Benarkan tol selepas hentian ini",
+    "Don’t allow tolls": "Jangan benarkan tol",
+    "Retry": "Cuba lagi",
     // Launch, map and menu
     'JALAN 4.8.0 — Testing': 'JALAN 4.8.0 — Ujian',
     'JALAN is starting': 'JALAN sedang dimulakan',

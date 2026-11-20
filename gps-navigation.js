@@ -247,7 +247,7 @@
   warn('Recalculating from your current location…');
   rerouteStatus('checking','Recalculating route from your current location…');
   try{
-   const candidates=await requestDrivingRoutes(from,target,{signal:controller.signal,via:oldRoute?.pinnedStop?.point});
+   const candidates=await requestDrivingRoutes(from,target,{signal:controller.signal,via:oldRoute?.pinnedStop?.point,tollPolicy:oldRoute?.tollPolicy});
    if(!currentRequest()||controller.signal.aborted)return;
    if(!freshRerouteFix()||meters(from,rerouteFix.position)>150){
     movedBeyondOrigin=!!freshRerouteFix();

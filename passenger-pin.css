@@ -12,3 +12,7 @@ body.passenger-mode #map, #passenger-map-gestures { -webkit-touch-callout:none; 
 #jalan-pin-bar { position:absolute; bottom:0; left:0; width:100%; height:3px; transform-origin:left; background:#8551d4; }
 #jalan-pin-card input { width:100%; box-sizing:border-box; font-size:16px; }
 #jalan-pin-toast { position:fixed; z-index:1820; left:50%; top:42%; transform:translateX(-50%); width:max-content; max-width:86vw; padding:11px 16px; border-radius:12px; background:#202c3e; color:white; pointer-events:none; font:600 14px system-ui,sans-serif; }
+
+#jalan-pin-card.toll-decision .jalan-pin-actions{flex-direction:column}
+#jalan-pin-card.toll-decision button:first-child{background:#136dec}
+#jalan-pin-card.toll-decision :is(#jalan-pin-time,#jalan-pin-bar){display:none}

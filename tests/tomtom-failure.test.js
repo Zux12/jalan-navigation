@@ -105,6 +105,31 @@ test('a key without speed-section access can still confirm tolls',async()=>{
  assert.deepEqual(calls[1],['traffic','toll','tollVignette','travelMode']);
  assert.equal(api.ctx.window.JalanTomTom.roadDetails(data.routes[0].sections,3).tolls,false);
 });
+test('splitting a stop route never turns invalid provider coverage into toll-free legs',async()=>{
+ const from=[3,101],via=[3,101.01],to=[3,101.02];
+ const point=([latitude,longitude])=>({latitude,longitude});
+ const summary={lengthInMeters:1000,travelTimeInSeconds:60};
+ const legs=[[from,via],[via,to]].map(pair=>({points:pair.map(point),summary}));
+ const policy=require('../passenger-toll-policy.js');
+ async function request(sections){
+  const {ctx}=scene({response:{routes:[{legs,summary,sections}]}});
+  ctx.window.JalanPinnedRoute=require('../passenger-pin-route.js');
+  return ctx.window.JalanTomTom.requestRoutes(from,to,{via,tollPolicy:{}});
+ }
+ const mode=(start,end)=>({sectionType:'TRAVEL_MODE',startPointIndex:start,endPointIndex:end});
+ for(const range of [[0,99],[0,2.5],[-1,3],[0.5,3]]){
+  const choices=await request([mode(...range)]);
+  assert.equal(choices[0].pinnedStop.inboundTolls,null);
+  assert.equal(choices[0].pinnedStop.onward.tolls,null);
+  for(const permission of [{},{toStop:true},{onward:true}]){
+   assert.throws(()=>policy.check(choices,permission),e=>!e.tollConflict);
+  }
+ }
+ for(const validEnd of [2,3]){
+  const choices=await request([mode(0,99),mode(0,validEnd)]);
+  assert.equal(policy.check(choices,{}).length,1);
+ }
+});
 test('toll-free needs a complete response and speed limits apply only to their segments',()=>{
  const {roadDetails}=scene().ctx.window.JalanTomTom;
  const mode={sectionType:'TRAVEL_MODE',startPointIndex:0,endPointIndex:4};

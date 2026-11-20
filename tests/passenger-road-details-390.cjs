@@ -15,6 +15,15 @@ module.exports=async function roadDetails(page){
   return route.fulfill({json:{addresses:[{position:point.join(','),address:{speedLimit:'80.00KPH'}}]}});
  });
  assert.equal(await home.isVisible(),false);
+ const sharing=page.locator('#passenger-posted-speed-share');
+ assert.equal(await sharing.isChecked(),false,'fresh session defaults to no extra GPS transmission');
+ await fix(point);
+ assert.equal(lookups,0,'location display alone never triggers precise-coordinate lookup');
+ await page.locator('#jalan-home-menu').click();
+ await page.locator('#passenger-about').click();
+ assert.match(await page.locator('#passenger-posted-speed-share-explain').textContent(),/precise GPS coordinates to TomTom/);
+ await sharing.check();
+ await page.locator('#passenger-about-ok').click();
  await fix(point);await home.waitFor({state:'visible'});
  assert.equal(await home.textContent(),'80');
  assert.deepEqual(await home.evaluate(el=>{
@@ -46,6 +55,13 @@ module.exports=async function roadDetails(page){
  await page.getByText('Ada Tol',{exact:true}).waitFor();
  assert.equal(await choices.nth(1).locator('small:last-child').textContent(),'Tanpa Tol');
  await page.evaluate(()=>JalanLanguage.set('en',false));
+ // Revoke in the 390px About sheet *before* Go; navigation intentionally
+ // hides menu controls while guiding. Route-provided limits must still work.
+ await page.locator('#jalan-home-menu').click();
+ await page.locator('#passenger-about').click();
+ await sharing.uncheck();
+ await page.locator('#passenger-about-ok').click();
+ assert.equal(await sharing.isChecked(),false);
  // A second free-driving lookup is permitted if the new street fix arrived after the debounce.
  const lookupsBeforeGo=lookups;
  // Use the app's actual guidance watcher and measured GPS updates.
