@@ -7,13 +7,14 @@ body.passenger-mode .jalan-home-sheet{position:fixed!important;
  background:#fff;color:#182735;border-radius:30px 30px 0 0;
  box-shadow:0 -7px 26px #0b203729;display:flex;flex-direction:column;overflow:hidden;
  transition:height .22s ease;touch-action:pan-y}
-/* Vector credits share one reading interval. The basic map keeps its OSM link visible. */
+/* OpenMapTiles uses the vector map banner. Direct OSM raster tiles keep their map link. */
 #jalan-home-credits{display:none;position:fixed;left:50%;transform:translateX(-50%);z-index:1340;
  bottom:calc(var(--jalan-home-height) + 3px);transition:bottom .22s ease;
  max-width:calc(100% - 12px);margin:0;padding:1px 5px;gap:.5em;align-items:center;
  border-radius:3px;background:#fffffff5;color:#33465a;text-align:center;font:12px/1.4 system-ui}
 #jalan-home-credits a{color:inherit;text-decoration:underline}
-body.passenger-mode:not(.passenger-vector-active) #jalan-home-credits .jalan-tiles-credit{display:none}
+body.passenger-mode:not(.passenger-vector-active) #jalan-home-credits .jalan-tiles-credit,
+body.passenger-vector-active #jalan-home-credits .jalan-osm-credit{display:none}
 body.passenger-mode #jalan-home-credits.show-map-credits:not([hidden]),
 body.passenger-mode:not(.passenger-vector-active) #jalan-home-credits:not([hidden]){display:flex}
 body.passenger-mode:not(.passenger-route-search):not(.passenger-guiding):has(.jalan-sheet-route) #jalan-home-credits{
@@ -81,6 +82,7 @@ body.passenger-mode .jalan-home-sheet .results{position:static!important;inset:a
  width:auto;padding:0;border-radius:0;background:transparent}
 .jalan-recent-google>button:focus-visible{outline:2px solid #1764ad;outline-offset:-2px}
 .jalan-recent-empty{font:13px system-ui;line-height:1.5;color:#657488;padding:13px 5px}
+.jalan-recent-credit{display:inline-block;white-space:nowrap;font:inherit;color:inherit}
 body.passenger-mode .jalan-home-sheet[data-state="a"] .jalan-sheet-quick,
 body.passenger-mode .jalan-home-sheet[data-state="a"] .jalan-sheet-recent{display:none}
 body.passenger-mode #jalan-home-menu{position:fixed;z-index:1402;top:calc(15px + env(safe-area-inset-top,0px));left:15px;

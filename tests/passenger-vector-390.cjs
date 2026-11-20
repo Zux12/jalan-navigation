@@ -56,8 +56,6 @@ async function main(){
   await late.clock.pauseAt(new Date(await late.evaluate(()=>Date.now()+1000)));
   await late.clock.fastForward(23000);
   await late.clock.runFor(4100);
-  const hint=()=>late.locator('#jalan-home-menu').evaluate(el=>getComputedStyle(el,'::after').content);
-  assert.equal(await hint(),'"ⓘ"','the existing menu briefly points to map information');
   const stage=()=>late.locator('#jalan-home-sheet').getAttribute('data-state');
   const credits=late.locator('#jalan-home-credits');
   assert.equal(await credits.isVisible(),false,'credits stay hidden until the splash fade finishes');
@@ -69,10 +67,6 @@ async function main(){
   assert.equal(await stage(),'a','the card still rests at A after 499 ms on the main screen');
   await late.clock.runFor(1);
   assert.equal(await stage(),'b','idle startup lifts the card to B at 500 ms');
-  await late.clock.runFor(250);
-  assert.equal(await hint(),'"ⓘ"','hint remains for the first second');
-  await late.clock.runFor(150);
-  assert.equal(await hint(),'none','the icon expires after one second');
   const remaining=await late.evaluate(async()=>Math.ceil((await JalanLaunch.mainScreenReady)+5000-performance.now()));
   await late.evaluate(()=>{
     Object.defineProperty(document,'hidden',{configurable:true,value:true});
@@ -93,7 +87,8 @@ async function main(){
   await late.clock.resume();
   assert.equal(await late.locator('#map .leaflet-control-attribution').count(),0);
   await late.locator('#jalan-home-menu').tap();
-  assert.equal(await late.locator('#jalan-map-sources .leaflet-control-attribution a[href*="openstreetmap.org/copyright"]').isVisible(),true);
+  assert.equal(await late.locator('#jalan-home-menu-panel').isVisible(),true);
+  assert.equal(await late.locator('#jalan-home-menu-panel a[href*="openstreetmap.org"]').count(),0,'basic map credits are outside the menu');
   await late.locator('#jalan-home-menu-close').tap();
   assert.equal(await late.locator('#jalan-launch').count(),0,'watchdog reveals usable basic map after stalled local bundle');
   releaseBundle();await lateNavigation;
@@ -147,11 +142,33 @@ async function main(){
   });
   await page.locator('#jalan-launch').waitFor({state:'hidden'});
   await page.waitForTimeout(550);
-  assert.deepEqual(await page.evaluate(()=>window.__creditStages),[['a',true,true],['b',true,true],['c',true,true],['b',true,true],['a',true,true]],
-    'main map shows both credit links in every sheet stage during the same reading window');
+  assert.deepEqual(await page.evaluate(()=>window.__creditStages),[['a',true,false],['b',true,false],['c',true,false],['b',true,false],['a',true,false]],
+    'the separate OpenMapTiles credit is the only link on the vector map');
   assert.equal(await page.locator('#jalan-home-sheet').getAttribute('data-state'),'a','an early map touch cancels the opening lift');
   assert.equal(await page.locator('#map').evaluate(x=>getComputedStyle(x).visibility),'visible','reveal only after native renderer ready');
   assert.equal(await page.locator('#map').evaluate(x=>getComputedStyle(x).transform),'none');
+  const recentCredit=page.locator('.jalan-recent-credit'),handle=page.locator('#jalan-sheet-handle');
+  await page.waitForTimeout(5100);
+  assert.equal(await recentCredit.count(),1,'a collapsed Recent section spends none of the reading time');
+  await handle.press('ArrowUp');
+  await recentCredit.waitFor({state:'visible'});
+  const emptyRow=page.locator('.jalan-recent-empty');
+  assert.equal(await emptyRow.textContent(),'Your recently selected destinations will appear here during this session. © OpenStreetMap');
+  assert.equal(await recentCredit.evaluate(el=>el.tagName==='SPAN'&&!el.closest('a')&&getComputedStyle(el).font===getComputedStyle(el.parentElement).font),true);
+  await page.evaluate(()=>JalanLanguage.set('ms'));
+  assert.match(await emptyRow.textContent(),/di sini\. © OpenStreetMap$/);
+  await page.evaluate(()=>window.dispatchEvent(new CustomEvent('jalan:destination-selected',{
+    detail:{name:'Fixture stop',label:'Fixture stop',point:[3.14,101.68]}
+  })));
+  assert.equal(await page.locator('.jalan-sheet-recent h2 .jalan-recent-credit').isVisible(),true);
+  await page.evaluate(()=>JalanLanguage.set('en'));
+  assert.equal(await page.locator('.jalan-sheet-recent h2').textContent(),'Recent © OpenStreetMap');
+  await page.waitForTimeout(4100);
+  assert.equal(await recentCredit.isVisible(),true,'still present before five visible seconds');
+  await recentCredit.waitFor({state:'detached',timeout:2200});
+  assert.equal((await page.locator('.jalan-sheet-recent h2').textContent()).trim(),'Recent');
+  assert.equal(await page.locator('#jalan-recent-list li').innerText(),'Fixture stop');
+  await handle.press('ArrowDown');
   await require('./passenger-pin-390.cjs')(page);
   await page.evaluate(()=>{window.__mapClicks=0;map.on('click',()=>{window.__mapClicks++;});});
   await page.locator('#jalan-vector-map canvas').click({position:{x:60,y:340}});
@@ -654,7 +671,6 @@ async function main(){
   await live.waitForTimeout(550);
   assert.equal(await live.locator('#jalan-home-sheet').getAttribute('data-state'),'a');
   const mapCredits=live.locator('#map .maplibregl-ctrl-attrib, #map .leaflet-control-attribution');
-  const sourceLink=live.locator('#jalan-map-sources .maplibregl-ctrl-attrib a[href*="openstreetmap.org/copyright"]');
   assert.equal(await mapCredits.count(),0,'no credit strip over the initial map');
   await live.evaluate(routeFixture);
   await live.locator('#passenger-route-list button').nth(1).tap();
@@ -704,15 +720,13 @@ async function main(){
   assert.match(await live.locator('#passenger-next').textContent(),/Arrival approx/);
   assert.doesNotMatch(await live.locator('#passenger-next').textContent(),/GPS matched to selected route/);
   await live.locator('#jalan-home-menu').click();
-  assert.equal(await sourceLink.isVisible(),true,'source links remain available when the menu is opened');
+  assert.equal(await live.locator('#jalan-home-menu-panel').isVisible(),true);
+  assert.equal(await live.locator('#jalan-home-menu-panel a[href*="openstreetmap.org"],#jalan-home-menu-panel a[href*="openmaptiles.org"],#jalan-home-menu-panel a[href*="openfreemap.org"]').count(),0,'the open guidance menu contains no map credits');
   await live.locator('#passenger-about').click();
   assert.equal(await live.locator('#passenger-policy').isVisible(),true);
   assert.equal(await live.evaluate(()=>JalanGPS.getState().active),true,'guidance stays active under About');
   await live.locator('#passenger-about-ok').click();
   assert.equal(await live.locator('#jalan-home-menu-panel').isVisible(),false);
-  assert.equal(await sourceLink.isVisible(),false);
-  assert.equal(await live.locator('#jalan-home-menu').evaluate(el=>getComputedStyle(el,'::after').content),'none',
-    'closing About does not restart the one-second hint');
   await live.screenshot({path:path.join(artifacts,'vector-live-kl-mobile.png')});
   await live.evaluate(()=>{window.__journeyVectorBefore={route:JalanGPS.getState().route,bearing:JalanVectorMap.getBearing()};});
   await live.locator('#passenger-journey-handle').click();

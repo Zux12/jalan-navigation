@@ -24,6 +24,41 @@
  const recent=document.createElement('section');recent.className='jalan-sheet-recent';
  recent.innerHTML='<h2>Recent</h2><ol id="jalan-recent-list"><li class="jalan-recent-empty">Your recently selected destinations will appear here during this session.</li></ol>';
  sheet.append(handle,searchTrigger,header,results,quick,recent);document.body.append(sheet);
+ const recentHeading=recent.querySelector('h2');
+ const recentCredit=document.createElement('span');
+ recentCredit.className='jalan-recent-credit';
+ recentCredit.translate=false;
+ recentCredit.textContent='© OpenStreetMap';
+ window.JalanLaunch.mainScreenReady.then(()=>{
+   const host=recent.querySelector('.jalan-recent-empty')||recentHeading;
+   host.append(' ',recentCredit);
+   // Count only the time the full label is in view on the foreground sheet.
+   let remaining=5000,startedAt=null,timer,inView=false;
+   const observer=new IntersectionObserver(entries=>{
+     const entry=entries[entries.length-1];
+     inView=entry.isIntersecting&&entry.intersectionRatio>=0.99;
+     sync();
+   },{threshold:[0,0.99]});
+   function sync(){
+     clearTimeout(timer);
+     const now=performance.now();
+     if(startedAt!==null)remaining-=now-startedAt;
+     startedAt=null;
+     if(remaining<=0){
+       observer.disconnect();
+       document.removeEventListener('visibilitychange',sync);
+       recentCredit.remove();
+       return;
+     }
+     if(!inView||document.hidden)return;
+     // A menu or dialog can cover the credit without changing its intersection.
+     const rect=recentCredit.getBoundingClientRect();
+     if(document.elementFromPoint(rect.x+rect.width/2,rect.y+rect.height/2)===recentCredit)startedAt=now;
+     timer=setTimeout(sync,startedAt===null?200:Math.min(remaining,200));
+   }
+   document.addEventListener('visibilitychange',sync);
+   observer.observe(recentCredit);
+ });
  const menu=document.createElement('button');menu.id='jalan-home-menu';menu.type='button';
  menu.setAttribute('aria-label','Open JALAN menu');menu.setAttribute('aria-controls','jalan-home-menu-panel');
  menu.setAttribute('aria-expanded','false');menu.textContent='☰';
@@ -49,10 +84,7 @@
   '<input id="passenger-nav-tilt" type="range" min="0" max="100" step="5" value="100"></div>'+
   '<label class="passenger-nearby-consent"><input id="passenger-nearby-consent" type="checkbox"> Share my location for nearby community reports during this journey</label></details>'+
   '<button type="button" id="passenger-about" aria-haspopup="dialog" aria-controls="passenger-about-dialog">About JALAN</button>'+
-  '<div id="jalan-map-sources" translate="no"></div>'+
   '<button type="button" id="jalan-home-menu-close">Close</button>';
- // Keep the renderer's own links live whenever the map menu is opened.
- menuPanel.querySelector('#jalan-map-sources').append(map.attributionControl.getContainer());
  $('passenger-voice').setAttribute('aria-haspopup','dialog');
  $('passenger-voice').setAttribute('aria-controls','passenger-sound-dialog');
  menuPanel.querySelector('#jalan-menu-sound').append($('passenger-voice'));
@@ -123,7 +155,9 @@
    entry.place={...place,point:[...place.point]};
    if(google)entry.button.setAttribute('aria-label','Route to '+place.name);
    else {entry.button.translate=place.name==='Pinned location';entry.button.textContent=place.label;}
-   list.querySelector('.jalan-recent-empty')?.remove();
+   const empty=list.querySelector('.jalan-recent-empty');
+   if(empty?.contains(recentCredit))recentHeading.append(' ',recentCredit);
+   empty?.remove();
    if(list.firstElementChild!==entry.row)list.prepend(entry.row);
    if(recentRows.size>7){
      const last=list.lastElementChild,old=recentRows.get(last.dataset.recentKey);
