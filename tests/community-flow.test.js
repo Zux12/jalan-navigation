@@ -83,6 +83,25 @@ test('partial storage denial during notice initialization or activation disables
   assert.equal(notice.hidden,true,'the now-invalid notice must be hidden');
  }
 });
+test('denial of observation token storage prevents uploading even after reliable route-matched travel',async()=>{
+ const src=fs.readFileSync(path.join(__dirname,'../passenger-community-flow.js'),'utf8'),w=new EventTarget(),d=new EventTarget(),box=new EventTarget(),button={},notice={querySelector:()=>button};
+ d.getElementById=()=>box;d.createElement=()=>notice;d.body={append(){}};
+ const road={key:'vector-abba',level:'0:surface'};
+ w.JalanVectorMap={getReportRoad:()=>road};w.JalanGPS={getState:()=>({active:true,route})};
+ w.JalanRouteTraffic={freeFlowAt:()=>60};w.JalanFlowModel=M;w.JalanReportModel=P;
+ const storage=new Map([['jalan-traffic-sharing-v1','on'],['jalan-traffic-notice-v1','1']]);let deniedSeedReads=0,observes=0;
+ const localStorage={getItem:k=>{if(k==='jalan-traffic-seed-v1'){deniedSeedReads++;throw Error('token storage denied');}return storage.get(k)??null;},setItem:(k,v)=>storage.set(k,v)};
+ const crypto={getRandomValues:b=>b.fill(1),subtle:{importKey:async()=>1,sign:async()=>new Uint8Array(32)}};
+ vm.runInNewContext(src,{window:w,document:d,location:{search:'?mode=passenger'},URLSearchParams,localStorage,crypto,TextEncoder,Uint8Array,Date,Event,AbortController,
+  setTimeout:()=>1,clearTimeout(){},setInterval(){},fetch:async url=>{if(url.endsWith('observe'))observes++;return {ok:true,json:async()=>({sections:[]})};}});
+ assert.equal(box.checked,true);
+ const fix=(lon,age)=>w.dispatchEvent(new CustomEvent('jalan:gps-fix',{detail:{matched:true,gpsReliable:true,gpsAccuracy:5,gpsFixAgeMs:age,gpsPosition:[0,lon],heading:90,speedMps:5,speedLimitIndex:0}}));
+ w.dispatchEvent(new Event('jalan:journey-start'));fix(101,5000);fix(101.0002,1000);
+ await new Promise(resolve=>setImmediate(resolve));await new Promise(resolve=>setImmediate(resolve));
+ assert.ok(deniedSeedReads>0,'test reached observation token storage');
+ assert.equal(box.checked,false,'denied token storage must turn sharing off');
+ assert.equal(observes,0,'no passive traffic observation may leave the browser');
+});
 test('coincident surface, bridge and tunnel cells have distinct identities; ambiguous grade cannot affect ETA',()=>{
  const cell=shape.cells[0],surface={key:'vector-abba',level:'0:surface'};
  const bridge={...surface,level:'1:bridge'},tunnel={...surface,level:'-1:tunnel'};
