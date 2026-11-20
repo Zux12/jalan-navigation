@@ -46,6 +46,8 @@ module.exports=async function roadDetails(page){
  await page.getByText('Ada Tol',{exact:true}).waitFor();
  assert.equal(await choices.nth(1).locator('small:last-child').textContent(),'Tanpa Tol');
  await page.evaluate(()=>JalanLanguage.set('en',false));
+ // A second free-driving lookup is permitted if the new street fix arrived after the debounce.
+ const lookupsBeforeGo=lookups;
  // Use the app's actual guidance watcher and measured GPS updates.
  await page.evaluate(()=>{
   navigator.geolocation.watchPosition=ok=>{window.__roadDetailsFix=ok;return 990;};
@@ -62,6 +64,6 @@ module.exports=async function roadDetails(page){
  await page.waitForFunction(()=>document.querySelector('#passenger-speed-floating .passenger-speed-limit').textContent==='50');
  await page.evaluate(()=>dispatchEvent(new CustomEvent('jalan:location-quality',{detail:{error:true}})));
  assert.equal(await driving.isVisible(),false);
- assert.equal(lookups,1,'matched route speeds do not need reverse lookups');
+ assert.equal(lookups,lookupsBeforeGo,'matched route speeds do not need reverse lookups');
  assert.ok(requests>=1);
 };
