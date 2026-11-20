@@ -111,3 +111,33 @@ test('coincident surface, bridge and tunnel cells have distinct identities; ambi
  let n=0;assert.equal(M.readRoad(shape,cell,()=>++n===2?bridge:surface),null);
  assert.equal(M.roadSegment(cell,M.readRoad(shape,cell,()=>bridge)),ids[1]);
 });
+
+test('storage revoked silently while HMAC signing prevents a late observation upload',async()=>{
+ const src=fs.readFileSync(path.join(__dirname,'../passenger-community-flow.js'),'utf8');
+ const w=new EventTarget(),d=new EventTarget(),box=new EventTarget(),button={},notice={querySelector:()=>button};
+ d.getElementById=()=>box;d.createElement=()=>notice;d.body={append(){}};
+ const road={key:'vector-abba',level:'0:surface'};
+ w.JalanVectorMap={getReportRoad:()=>road};w.JalanGPS={getState:()=>({active:true,route})};
+ w.JalanRouteTraffic={freeFlowAt:()=>60};w.JalanFlowModel=M;w.JalanReportModel=P;
+ const data=new Map([['jalan-traffic-sharing-v1','on'],['jalan-traffic-notice-v1','1']]);
+ let readable=true,completeSignature,observations=0;
+ const localStorage={getItem:k=>{if(!readable)throw Error('storage revoked');return data.get(k)??null;},
+  setItem:(k,v)=>{if(!readable)throw Error('storage revoked');data.set(k,v);}};
+ const crypto={getRandomValues:b=>b.fill(1),subtle:{importKey:async()=>1,
+  sign:()=>new Promise(resolve=>{completeSignature=()=>resolve(new Uint8Array(32));})}};
+ vm.runInNewContext(src,{window:w,document:d,location:{search:'?mode=passenger'},URLSearchParams,localStorage,
+  crypto,TextEncoder,Uint8Array,Date,Event,AbortController,setTimeout:()=>1,clearTimeout(){},setInterval(){},
+  fetch:async url=>{if(url.endsWith('observe'))observations++;return {ok:true,json:async()=>({sections:[]})};}});
+ w.dispatchEvent(new Event('jalan:journey-start'));
+ const fix=(lon,age)=>w.dispatchEvent(new CustomEvent('jalan:gps-fix',{detail:{
+  matched:true,gpsReliable:true,gpsAccuracy:5,gpsFixAgeMs:age,gpsPosition:[0,lon],
+  heading:90,speedMps:5,speedLimitIndex:0}}));
+ fix(101,5000);fix(101.0002,1000);
+ await new Promise(resolve=>setImmediate(resolve));
+ assert.equal(typeof completeSignature,'function','test reached pending asynchronous HMAC');
+ // No storage event is delivered; storage becomes inaccessible during await sign().
+ readable=false;completeSignature();
+ await new Promise(resolve=>setImmediate(resolve));
+ assert.equal(observations,0,'revocation before POST must prevent the upload');
+ assert.equal(box.checked,false,'unreadable live preference must fail closed');
+});

@@ -99,6 +99,10 @@
   lastSent.set(cell.segment,{at,passed});
   const c=new AbortController();writes.add(c);
   try{seedKey=await secret();const driver=hex(new Uint8Array(await crypto.subtle.sign('HMAC',seedKey,new TextEncoder().encode(segment))));
+   // Storage can be revoked while the asynchronous HMAC signature is pending.
+   // Re-read the preference immediately before the POST, not only before sign().
+   const preferenceAfterSign=get(pref);
+   if(!storageAvailable||preferenceAfterSign==='off'){setting(false,false);return;}
    if(before!==epoch||!storageAvailable||!active||!enabled||document.hidden||!window.JalanGPS.getState().active)return;
    await post('observe',{segment,region:cell.region,driver,road,speed:Math.round(speed),normal:Number.isFinite(normal)&&normal>=15&&normal<=180?Math.round(normal):null,passAgeMs},c);
   }catch{}finally{writes.delete(c);}
