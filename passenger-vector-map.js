@@ -306,8 +306,9 @@
      if(!rasters.has(id)){
        gl.addSource(id,{type:'raster',tiles:[layer._url],tileSize:256,maxzoom:layer.options.maxNativeZoom||18,
          attribution:'Traffic © TomTom'});
+       const firstLabel=gl.getStyle().layers.find(entry=>entry.type==='symbol');
        gl.addLayer({id,source:id,type:'raster',paint:{'raster-opacity':layer.options.opacity??.82,
-         'raster-fade-duration':0}},'jalan-route-casing');
+         'raster-fade-duration':0}},firstLabel?.id||'jalan-route-casing');
        rasters.set(id,{layer,url:layer._url});
      }else if(rasters.get(id).url!==layer._url){
        gl.getSource(id).setTiles([layer._url]);rasters.get(id).url=layer._url;
@@ -404,7 +405,7 @@
        maxTileCacheSize:96,pixelRatio:Math.min(window.devicePixelRatio||1,2),
        attributionControl:false,canvasContextAttributes:{antialias:true}});
      gl.on('error',event=>{
-       if(event.sourceId&&rasters.has(event.sourceId))rasters.get(event.sourceId).layer.fire('tileerror');
+       if(event.sourceId?.startsWith('jalan-traffic-'))rasters.get(event.sourceId)?.layer.fire('tileerror');
        else if(active){
          // A style can load successfully before later tile/glyph requests fail.
          // Keep an accessible escape from the native canvas for that outage.

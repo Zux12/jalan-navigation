@@ -996,7 +996,28 @@ async function main(){
         {pointIndex:1,street:'Fixture second road',roadNumbers:['E2']}]}
     }]})});
   });
+  const trafficConfig=route=>route.fulfill({contentType:'application/javascript',
+    body:"window.JalanPublicConfig={tomtomBrowserKey:'TEST_RESTRICTED_KEY_1234'};"});
+  await page.route('**/jalan-config.js*',trafficConfig);
   await page.goto(base+'/index.html?mode=passenger',{waitUntil:'load'});
+  const trafficLayers=()=>page.evaluate(()=>{
+    let n=0;map.eachLayer(layer=>{if(String(layer._url||'').includes('/traffic/map/'))n++;});return n;
+  });
+  const openNavigation=async()=>{
+    await page.locator('#jalan-home-menu').click();
+    await page.locator('#passenger-navigation-settings>summary').click();
+  };
+  const nearbySwitch=page.getByRole('switch',{name:'Show nearby traffic'});
+  await openNavigation();
+  assert.equal(await nearbySwitch.isChecked(),true);
+  assert.equal(await trafficLayers(),1,'nearby traffic appears before choosing a route');
+  await nearbySwitch.uncheck();
+  assert.equal(await trafficLayers(),0);
+  await page.reload();
+  await openNavigation();
+  assert.equal(await nearbySwitch.isChecked(),false,'choice survives reload');
+  assert.equal(await trafficLayers(),0,'no nearby layer is loaded when saved off');
+  await page.locator('#jalan-home-menu-close').click();
   const setupTrafficRoute=()=>page.evaluate(()=>{
     document.getElementById('tt-primary').checked=true;
     document.getElementById('tt-key').value='TEST_RESTRICTED_KEY_1234';
@@ -1027,11 +1048,22 @@ async function main(){
   assert.equal(await page.locator('.report-marker').count(),2,
     'two provider-defined route sections, not nearby unlinked incidents');
   assert.equal(await page.locator('#passenger-traffic-toggle').getAttribute('aria-pressed'),'true');
-  const trafficLayers=()=>page.evaluate(()=>{
-    let n=0;map.eachLayer(layer=>{if(String(layer._url||'').includes('/traffic/map/'))n++;});return n;
-  });
-  assert.equal(await trafficLayers(),0,
-    'Passenger Preview hides all-road TomTom traffic tiles; coloured route lines remain separate');
+  assert.equal(await trafficLayers(),0,'starting guidance respects the saved map setting');
+  const routeTrafficSnapshot=()=>page.evaluate(()=>({
+    eta:document.getElementById('passenger-eta').textContent,
+    route:routes[selectedRoute].duration,sections:JalanRouteTraffic.getJourneySnapshot().segments,
+    markers:document.querySelectorAll('.report-marker').length
+  }));
+  const beforeToggle=await routeTrafficSnapshot();
+  await openNavigation();
+  await nearbySwitch.check();
+  assert.equal(await trafficLayers(),1);
+  await nearbySwitch.uncheck();
+  assert.equal(await trafficLayers(),0);
+  await nearbySwitch.check();
+  await page.locator('#jalan-home-menu-close').click();
+  assert.deepEqual(await routeTrafficSnapshot(),beforeToggle,'nearby colours leave route ETA, section colours and reports intact');
+  assert.equal(trafficRouteRequests,0,'map switch does not recalculate the route');
   await page.locator('#passenger-turn-toggle').click();
   const roadWork=page.getByRole('button',{name:/Fixture second road/});
   const jam=page.locator('#passenger-report-list [data-category=moderate]');
@@ -1060,7 +1092,7 @@ async function main(){
   await page.locator('#passenger-turn-toggle').click();
   await menuClick('#passenger-traffic-details summary');
   await menuClick('#passenger-traffic-toggle');
-  assert.equal(await trafficLayers(),0,'Off removes traffic colour overlay');
+  assert.equal(await trafficLayers(),1,'trip traffic checks do not control nearby map colours');
   assert.equal(await page.locator('.jalan-report-focus-marker').count(),0);
   assert.equal(await page.evaluate(()=>window.__trafficLayerStatus?.state),'off');
   await page.locator('#passenger-turn-toggle').click();
@@ -1072,7 +1104,7 @@ async function main(){
   assert.equal(await page.locator('.report-marker').count(),0,
     'expired route snapshot must not display stale reports');
   await menuClick('#passenger-stop');
-  assert.equal(await trafficLayers(),0,'End preview removes automatic traffic layers');
+  assert.equal(await trafficLayers(),1,'nearby map colours remain available after the trip');
   assert.equal(await page.locator('#proactive-toggle').getAttribute('aria-pressed'),'false');
   await setupTrafficRoute();
   await page.evaluate(()=>{document.getElementById('tt-key').value='';});
@@ -1083,6 +1115,7 @@ async function main(){
   assert.equal(await trafficLayers(),0);
   await page.locator('#jalan-home-menu').click();
   await menuClick('#passenger-stop');
+  await page.unroute('**/jalan-config.js*',trafficConfig);
   // Real browser integration of Go -> sustained detour -> provider response.
   // GPS, routes and time are controlled fixtures; every external request is intercepted.
   await page.goto(base+'/index.html?mode=passenger',{waitUntil:'load'});

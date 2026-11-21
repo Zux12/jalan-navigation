@@ -81,9 +81,10 @@
   '<input id="passenger-nav-zoom" type="range" min="0" max="100" step="5" value="80">'+
   '<label for="passenger-nav-tilt">3D tilt <output id="passenger-nav-tilt-value" for="passenger-nav-tilt">100%</output></label>'+
   '<input id="passenger-nav-tilt" type="range" min="0" max="100" step="5" value="100"></div>'+
+  '<label class="jalan-map-switch"><span>Show nearby traffic</span><input id="passenger-nearby-traffic" type="checkbox" role="switch"></label>'+
   '<label class="jalan-share-speed"><input id="passenger-share-speed" type="checkbox" checked> Share my speed to help detect traffic</label>'+
   '<label class="passenger-nearby-consent"><input id="passenger-nearby-consent" type="checkbox"> Share my location for nearby community reports during this journey</label></details>'+
-  '<div id="journey-toll-control" hidden><label class="jalan-toll-control"><span>Avoid tolls</span><input type="checkbox" role="switch" id="journey-avoid-tolls"></label><div id="journey-toll-feedback" class="jalan-toll-feedback" hidden><p role="status"></p><div></div></div></div>'+
+  '<div id="journey-toll-control" hidden><label class="jalan-toll-control jalan-map-switch"><span>Avoid tolls</span><input type="checkbox" role="switch" id="journey-avoid-tolls"></label><div id="journey-toll-feedback" class="jalan-toll-feedback" hidden><p role="status"></p><div></div></div></div>'+
   '<button type="button" id="passenger-about" aria-haspopup="dialog" aria-controls="passenger-about-dialog">About JALAN</button>'+
   '<button type="button" id="jalan-home-menu-close">Close</button>';
  $('passenger-voice').setAttribute('aria-haspopup','dialog');
@@ -92,6 +93,9 @@
  // Retain internal status/action hooks for the navigation engine, outside the menu.
  $('passenger-journey-options').classList.add('hidden');
  document.body.append(menu,speed,report,notice,menuPanel);
+ const nearbyTraffic=$('passenger-nearby-traffic');
+ nearbyTraffic.checked=window.JalanTomTom.getNearbyTraffic();
+ nearbyTraffic.addEventListener('change',()=>window.JalanTomTom.setNearbyTraffic(nearbyTraffic.checked));
  const language=$('passenger-language');
  language.value=window.JalanLanguage.code;
  language.addEventListener('change',()=>{
