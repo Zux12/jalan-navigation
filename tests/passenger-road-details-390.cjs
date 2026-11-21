@@ -62,6 +62,11 @@ module.exports=async function roadDetails(page){
   const css=getComputedStyle(el),box=el.getBoundingClientRect(),parent=el.parentElement.getBoundingClientRect();
   return [css.backgroundColor,css.color,css.borderColor,box.right>parent.right&&box.left<parent.right,box.bottom>parent.bottom&&box.top<parent.bottom];
  }),['rgb(255, 255, 255)','rgb(17, 17, 17)','rgb(232, 120, 10)',true,true]);
+ const unitGap=await driving.evaluate(badge=>{
+  const unit=badge.parentElement.querySelector('small');
+  return badge.getBoundingClientRect().left-unit.getBoundingClientRect().right;
+ });
+ assert.ok(unitGap>=4,'leave at least 4px between km/h and the speed-limit circle');
  // Use adjacent fixes straddling the sign to avoid a synthetic GPS jump.
  await drive([next[0],next[1]+0.0001]);
  await page.waitForFunction(()=>document.querySelector('#passenger-speed-floating .passenger-speed-limit').textContent==='50');
