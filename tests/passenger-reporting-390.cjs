@@ -17,6 +17,17 @@ module.exports=async(browser,base,root)=>{
  assert.equal(await preference.isChecked(),true,'first trip shares by default');
  await preference.evaluate(el=>{el.click();});await page.reload();
  assert.equal(await preference.isChecked(),false,'switching sharing off survives reload');
+ // Simulate browser storage becoming unavailable AFTER a first-trip opt-in.
+ await preference.evaluate(el=>el.click());assert.equal(await preference.isChecked(),true);
+ await page.evaluate(()=>{
+  const original=Storage.prototype.getItem;
+  Storage.prototype.getItem=()=>{throw Error('storage denied after launch');};
+  try{window.dispatchEvent(new StorageEvent('storage',{key:'jalan-traffic-sharing-v1'}));}
+  finally{Storage.prototype.getItem=original;}
+ });
+ assert.equal(await preference.isChecked(),false,'late storage denial cannot re-enable observation');
+ await preference.evaluate(el=>el.click());
+ assert.equal(await preference.isChecked(),false,'failed storage preference save leaves sharing disabled');
  const restricted=await browser.newContext({viewport:{width:390,height:844},isMobile:true,hasTouch:true});
  try{
   await restricted.addInitScript(()=>{Storage.prototype.getItem=()=>{throw Error('blocked');};});
