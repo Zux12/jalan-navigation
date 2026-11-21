@@ -141,3 +141,52 @@ test('storage revoked silently while HMAC signing prevents a late observation up
  assert.equal(observations,0,'revocation before POST must prevent the upload');
  assert.equal(box.checked,false,'unreadable live preference must fail closed');
 });
+
+test('cross-tab removal, clear or malformed sharing preference cannot silently re-enable uploads',()=>{
+ const src=fs.readFileSync(path.join(__dirname,'../passenger-community-flow.js'),'utf8');
+ for(const action of ['remove','clear','malformed']){
+  const w=new EventTarget(),d=new EventTarget(),box=new EventTarget(),button={},notice={querySelector:()=>button};
+  d.getElementById=()=>box;d.createElement=()=>notice;d.body={append(){}};
+  w.JalanFlowModel=M;w.JalanReportModel=P;w.JalanGPS={getState:()=>({active:false,route:null})};
+  const values=new Map([['jalan-traffic-sharing-v1','off'],['jalan-traffic-notice-v1','1']]);
+  const localStorage={getItem:k=>values.get(k)??null,setItem:(k,v)=>values.set(k,v)};
+  vm.runInNewContext(src,{window:w,document:d,location:{search:'?mode=passenger'},URLSearchParams,localStorage,Date,Event,AbortController,
+   setTimeout:()=>1,clearTimeout(){},setInterval(){}});
+  assert.equal(box.checked,false,'saved opt-out starts disabled');
+  if(action==='remove')values.delete('jalan-traffic-sharing-v1');
+  if(action==='clear')values.clear();
+  if(action==='malformed')values.set('jalan-traffic-sharing-v1','invalid');
+  const changed=new Event('storage');changed.key=action==='clear'?null:'jalan-traffic-sharing-v1';w.dispatchEvent(changed);
+  assert.equal(box.checked,false,action+' must not re-enable sharing');
+  values.set('jalan-traffic-sharing-v1','on');
+  const explicitOn=new Event('storage');explicitOn.key='jalan-traffic-sharing-v1';w.dispatchEvent(explicitOn);
+  assert.equal(box.checked,true,'only an explicitly persisted ON may re-enable sharing');
+ }
+});
+test('silent deletion of persisted preference while HMAC awaits prevents a traffic observation',async()=>{
+ const src=fs.readFileSync(path.join(__dirname,'../passenger-community-flow.js'),'utf8');
+ const w=new EventTarget(),d=new EventTarget(),box=new EventTarget(),button={},notice={querySelector:()=>button};
+ d.getElementById=()=>box;d.createElement=()=>notice;d.body={append(){}};
+ const road={key:'vector-abba',level:'0:surface'};
+ w.JalanVectorMap={getReportRoad:()=>road};w.JalanGPS={getState:()=>({active:true,route})};
+ w.JalanRouteTraffic={freeFlowAt:()=>60};w.JalanFlowModel=M;w.JalanReportModel=P;
+ const values=new Map([['jalan-traffic-sharing-v1','on'],['jalan-traffic-notice-v1','1']]);
+ const localStorage={getItem:k=>values.get(k)??null,setItem:(k,v)=>values.set(k,v)};
+ let finishSignature,observations=0;
+ const crypto={getRandomValues:b=>b.fill(1),subtle:{importKey:async()=>1,
+  sign:()=>new Promise(resolve=>{finishSignature=()=>resolve(new Uint8Array(32));})}};
+ vm.runInNewContext(src,{window:w,document:d,location:{search:'?mode=passenger'},URLSearchParams,localStorage,
+  crypto,TextEncoder,Uint8Array,Date,Event,AbortController,setTimeout:()=>1,clearTimeout(){},setInterval(){},
+  fetch:async url=>{if(url.endsWith('observe'))observations++;return {ok:true,json:async()=>({sections:[]})};}});
+ w.dispatchEvent(new Event('jalan:journey-start'));
+ const fix=(lon,age)=>w.dispatchEvent(new CustomEvent('jalan:gps-fix',{detail:{
+  matched:true,gpsReliable:true,gpsAccuracy:5,gpsFixAgeMs:age,gpsPosition:[0,lon],
+  heading:90,speedMps:5,speedLimitIndex:0}}));
+ fix(101,5000);fix(101.0002,1000);
+ await new Promise(resolve=>setImmediate(resolve));
+ assert.equal(typeof finishSignature,'function','test reached asynchronous HMAC');
+ values.delete('jalan-traffic-sharing-v1'); // no storage event, still-readable storage
+ finishSignature();await new Promise(resolve=>setImmediate(resolve));
+ assert.equal(observations,0,'missing saved preference must not permit the upload');
+ assert.equal(box.checked,false,'silent preference deletion fails closed');
+});

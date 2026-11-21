@@ -13,7 +13,7 @@
  document.body.append(notice);
  const saved=get(pref);if(storageAvailable&&saved===null){set(pref,'on');}
  const noticeSeen=get(noticeKey);
- let enabled=storageAvailable&&saved!=='off',seen=noticeSeen==='1',active=false,route=null,sections=[],lookup=new Map(),cacheUntil=0,previous=null,matched=null,readCell=null;
+ let enabled=storageAvailable&&(saved==='on'||saved===null),seen=noticeSeen==='1',active=false,route=null,sections=[],lookup=new Map(),cacheUntil=0,previous=null,matched=null,readCell=null;
  let seedKey=null,seedPromise=null,epoch=0,noticeTimer,reader=null,lastRead=0,regionOffset=0;
  const writes=new Set(),lastSent=new Map(),verifiedRoads=new Map();
  box.checked=enabled;
@@ -29,7 +29,8 @@
  window.addEventListener('storage',e=>{
   if(e.key!==pref&&e.key!==null)return;
   const stored=get(pref);
-  setting(storageAvailable&&stored!=='off',false);
+  // A removed/cleared or malformed preference must not re-enable sharing mid-trip.
+  setting(storageAvailable&&stored==='on',false);
  });
  function announce(){
   if(!enabled||seen||document.hidden)return;
@@ -91,7 +92,7 @@
  async function send(cell,road,speed,normal,passAgeMs=null){
   // Check the saved opt-out and detect revoked storage at the final upload boundary.
   const livePreference=get(pref);
-  if(!storageAvailable||livePreference==='off'){setting(false,false);return;}
+  if(!storageAvailable||livePreference!=='on'){setting(false,false);return;}
   const segment=model.roadSegment(cell,road);if(!segment)return;
   const passed=passAgeMs!==null;
   const before=epoch,at=Date.now(),last=lastSent.get(cell.segment);
@@ -102,7 +103,7 @@
    // Storage can be revoked while the asynchronous HMAC signature is pending.
    // Re-read the preference immediately before the POST, not only before sign().
    const preferenceAfterSign=get(pref);
-   if(!storageAvailable||preferenceAfterSign==='off'){setting(false,false);return;}
+   if(!storageAvailable||preferenceAfterSign!=='on'){setting(false,false);return;}
    if(before!==epoch||!storageAvailable||!active||!enabled||document.hidden||!window.JalanGPS.getState().active)return;
    await post('observe',{segment,region:cell.region,driver,road,speed:Math.round(speed),normal:Number.isFinite(normal)&&normal>=15&&normal<=180?Math.round(normal):null,passAgeMs},c);
   }catch{}finally{writes.delete(c);}
