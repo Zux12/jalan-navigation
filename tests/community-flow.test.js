@@ -29,7 +29,7 @@ test('first-trip sharing needs measured travel on a matched road, an opt-out abo
  w.JalanVectorMap={getReportRoad:()=>readerRoad};w.JalanGPS={getState:()=>({active,route})};
  w.JalanRouteTraffic={freeFlowAt:()=>60};w.JalanFlowModel=M;w.JalanReportModel=P;
  let storageReadable=true;
- const localStorage={getItem:k=>{if(!storageReadable)throw Error('blocked storage');return storage.get(k);},
+ const localStorage={getItem:k=>{if(!storageReadable)throw Error('blocked storage');return storage.get(k)??null;},
   setItem:(k,v)=>{if(!storageReadable)throw Error('blocked storage');storage.set(k,v);}};
  const src=fs.readFileSync(path.join(__dirname,'../passenger-community-flow.js'),'utf8');
  const setPref=on=>{box.checked=on;box.dispatchEvent(new Event('change'));};
