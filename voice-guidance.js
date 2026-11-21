@@ -102,9 +102,11 @@
   if(speak(phrase,record)){spoken.add(token);lastAt=Date.now();}
  }
  function alert(mode,text){
-  if(mode==='mute'||Date.now()-lastAt<3500)return;
+  if(mode==='mute'||Date.now()-lastAt<3500)return false;
   const phrase=bm()?window.JalanLanguage.translate(text):text;
-  if(speak(phrase,(audio,done)=>audio.alert(text,done)))lastAt=Date.now();
+  if(!speak(phrase,(audio,done)=>audio.alert(text,done)))return false;
+  lastAt=Date.now();
+  return true;
  }
  const nextMode=mode=>mode==='mute'?'full':mode==='full'?'alerts':'mute';
  const label=mode=>mode==='full'?'Full guidance':mode==='alerts'?'Alerts only':'Mute';

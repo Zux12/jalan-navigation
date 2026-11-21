@@ -458,7 +458,7 @@
    focusedReport={route,source:item.source};
    const label=document.createElement('span');
    label.textContent=item.title;
-   L.circleMarker([item.lat,item.lng],{radius:12,color:'#fff',weight:3,
+   if(item.source!=='camera')L.circleMarker([item.lat,item.lng],{radius:12,color:'#fff',weight:3,
      fillColor:'#d85800',fillOpacity:1,interactive:false,
      className:'jalan-report-focus-marker'}).addTo(reportFocus)
      .bindTooltip(label,{permanent:true,direction:'top',offset:[0,-14],
@@ -474,6 +474,7 @@
    window.JalanTomTom?.projectReportPoint([position[1],position[0]],coords):null;
  const renderReports=()=>{
    reportList.replaceChildren();
+   const cameraCredit=el('passenger-camera-credit');cameraCredit.hidden=true;
    const state=window.JalanGPS?.getState?.(),route=state?.route,
          coords=route?.geometry?.coordinates;
    if(!state?.active||!Array.isArray(coords)){
@@ -482,7 +483,8 @@
    }
    const current=state.matched&&state.fixAgeMs<=10000&&state.accuracy<=75&&Array.isArray(state.position)?
      pointOnRoute(state.position,coords):null;
-   const items=[];
+   const items=window.JalanSpeedCameras?.routeItems(route)||[];
+   cameraCredit.hidden=!items.length;
    // Local community reports are demo records, NOT verified incidents.
    for(const report of (typeof getReports==='function'?getReports():[])){
      if(!report||!['accident','flood','hazard','rain'].includes(report.type))continue;
@@ -516,6 +518,11 @@
      const projected=item.source!=='demo'?
        {along:item.routeAlong,total:item.routeTotal,offset:0}:
        pointOnRoute([item.lat,item.lng],coords);
+     if(item.source==='camera'){
+       const progress=window.JalanSpeedCameras.currentProgress(route);
+       positioned.push({...item,ahead:progress===null?null:Math.max(0,item.routeAlong-progress)});
+       continue;
+     }
      if(!projected||(item.source==='demo'&&
         projected.offset>window.JalanTomTom.reportRouteTolerance)||
         (current&&projected.along<current.along-30))continue;
@@ -672,6 +679,7 @@
    el('passenger-eta').textContent=el('gps-eta').textContent||'—';
    el('passenger-next').textContent=(el('gps-detail').textContent||'Route preview').replace(/\s*·\s*GPS matched to selected route\s*$/,'');
  });
+ window.addEventListener('jalan:camera-reports',()=>{if(!turnList.classList.contains('hidden')&&activeInfoTab==='reports')renderReports();});
  window.addEventListener('jalan:community-reports',()=>{if(!turnList.classList.contains('hidden')&&activeInfoTab==='reports')renderReports();});
  window.addEventListener('jalan:reroute-status',event=>{
    if(!document.body.classList.contains('passenger-guiding'))return;

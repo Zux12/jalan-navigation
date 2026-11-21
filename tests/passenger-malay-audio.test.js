@@ -25,7 +25,7 @@ test('Malay fallback primes one local audio bank and schedules a distance and tu
  s.events.get('click')();await flush();
  assert.equal(s.tracks.length,1);assert.deepEqual(s.tracks[0].args,[]);
  assert.equal(s.audio.speak('left',300,state=>status.push(state)),true);await flush();
- assert.deepEqual(s.requests,['https://example.test/jalan/audio/ms-guidance.mp3?v=1']);
+ assert.deepEqual(s.requests,['https://example.test/jalan/audio/ms-guidance.mp3?v=2']);
  const [a,b]=s.tracks.slice(-2);assert.ok(a.args[2]>0&&b.args[2]>0);
  assert.ok(b.args[0]>=a.args[0]+a.args[2]);b.onended();assert.deepEqual(status,['done']);
 });
@@ -44,4 +44,12 @@ test('failed Malay audio download reports failure and can retry in the same sess
  assert.deepEqual(statuses,['error']);s.fail(false);
  s.audio.preview(status=>statuses.push(status));await flush();s.tracks.at(-1).onended();
  assert.deepEqual(statuses,['error','done']);assert.equal(s.requests.length,2);
+});
+test('the bundled Malay camera warning has its own recording and optional distance',async()=>{
+ const s=scenario();
+ s.audio.alert('Speed camera ahead in 300 metres.');await flush();
+ const [distance,camera]=s.tracks;
+ assert.equal(distance.args[1],110.413);assert.equal(camera.args[1],117.103);
+ s.audio.alert('Speed camera ahead.');await flush();
+ assert.equal(s.tracks.at(-1).args[1],camera.args[1]);
 });
