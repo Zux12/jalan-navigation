@@ -1341,6 +1341,7 @@ async function main(){
    await pinPage.reload();
    await pinPage.locator('#jalan-launch').waitFor({state:'hidden'});
    await require('./passenger-avoid-tolls-390.cjs')(pinPage);
+   await require('./passenger-speed-cameras-390.cjs')(pinPage);
   }finally{await pinPage.close();}
 
   assert.deepEqual(errors,[],'no uncaught JS errors in either UI');

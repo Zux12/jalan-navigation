@@ -54,10 +54,11 @@
    'in-300': [110.413, 1.5643],
    'in-500': [112.1273, 1.4742],
    'in-1000': [113.7515, 1.5546],
-   'in-2000': [115.4561, 1.4484]
+   'in-2000': [115.4561, 1.4484],
+   'speed-camera': [117.103, 1.858]
  };
  const aliases = {continue:'straight',arrive:'arrival',stop:'stop-arrival',generic:'follow'};
- const file = new URL('audio/ms-guidance.mp3?v=1', document.currentScript?.src || document.baseURI).href;
+ const file = new URL('audio/ms-guidance.mp3?v=2', document.currentScript?.src || document.baseURI).href;
  const AudioEngine = window.AudioContext || window.webkitAudioContext;
  let context = null, loading = null, active = null;
 
@@ -160,6 +161,8 @@
  ]);
  function alert(text,done){
    const value=String(text||'').trim().toLowerCase().replace(/[.!…]+$/,'');
+   if(value==='speed camera ahead in 300 metres')return play(['in-300','speed-camera'],done);
+   if(value==='speed camera ahead')return play(['speed-camera'],done);
    return play([known(value)?value:(alertKeys.get(value)||'follow')],done);
  }
  function primeIfNeeded(){

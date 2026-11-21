@@ -1,0 +1,40 @@
+{
+  "licence": "ODbL-1.0",
+  "licenceURL": "https://opendatacommons.org/licenses/odbl/1-0/",
+  "attribution": "© OpenStreetMap contributors. Fixed speed camera selection from Tachwire, based on JPJ AwAS locations. Road names and local carriageway geometry from OpenStreetMap. Modified by JALAN.",
+  "sources": [
+    "https://tachwire.app/data/cameras/my.json",
+    "https://www.jpj.gov.my/pusat-media-3/informasi-perkhidmatan-jpj/penguatkuasaan/lokasipenguatkuasaankameraawas/",
+    "https://download.geofabrik.de/asia/malaysia-singapore-brunei.html"
+  ],
+  "cameraSourceVersion": "2026-10-04.1",
+  "osmTimestamp": "2026-11-20T21:21:21Z",
+  "cameras": [
+    {"id": "my-osm-n12383713955", "ref": "E2", "road": "Lebuhraya Utara–Selatan", "approach": [102.6593881, 2.1580729], "position": [102.6590445, 2.1582863], "exit": [102.6587026, 2.1585024], "aliases": ["North–South Expressway"]},
+    {"id": "my-osm-n36360549", "ref": "E2", "road": "Lebuhraya Utara–Selatan", "approach": [102.696163, 2.1506875], "position": [102.6965294, 2.1505162], "exit": [102.6968943, 2.1503418], "aliases": ["North–South Expressway"]},
+    {"id": "my-osm-n10738516098", "ref": "E2", "road": "Lebuhraya Utara–Selatan", "approach": [103.7541935, 1.5272982], "position": [103.7538332, 1.5274817], "exit": [103.7534758, 1.5276709], "aliases": ["North–South Expressway"]},
+    {"id": "my-osm-n12109692963", "ref": "E2", "road": "Lebuhraya Utara–Selatan", "approach": [103.753645, 1.5277209], "position": [103.7540044, 1.5275357], "exit": [103.7543624, 1.5273477], "aliases": ["North–South Expressway"]},
+    {"id": "my-osm-n6120175280", "ref": "E2", "road": "Lebuhraya Utara–Selatan", "approach": [102.2050898, 2.4333406], "position": [102.2053318, 2.4330167], "exit": [102.2055838, 2.4327004], "aliases": ["North–South Expressway"]},
+    {"id": "my-osm-n6120175279", "ref": "E2", "road": "Lebuhraya Utara–Selatan", "approach": [102.2051561, 2.4330044], "position": [102.2049056, 2.4333218], "exit": [102.204657, 2.4336408], "aliases": ["North–South Expressway"]},
+    {"id": "my-osm-n36363022", "ref": "E2", "road": "Lebuhraya Utara–Selatan", "approach": [102.4092391, 2.2840742], "position": [102.4088355, 2.284102], "exit": [102.4084313, 2.2841182], "aliases": ["North–South Expressway"]},
+    {"id": "my-osm-n6110021790", "ref": "E2", "road": "Lebuhraya Utara–Selatan", "approach": [102.4022409, 2.2845071], "position": [102.4026451, 2.2844898], "exit": [102.4030494, 2.2844745], "aliases": ["North–South Expressway"]},
+    {"id": "my-osm-n12389474320", "ref": "E35", "road": "Lebuhraya Koridor Guthrie", "approach": [101.5191211, 3.2309761], "position": [101.5194786, 3.2311659], "exit": [101.519836, 3.2313558], "aliases": ["Guthrie Corridor Expressway", "GCE"]},
+    {"id": "my-osm-n12389474319", "ref": "E35", "road": "Lebuhraya Koridor Guthrie", "approach": [101.5199195, 3.23122], "position": [101.5195615, 3.2310311], "exit": [101.5192035, 3.2308422], "aliases": ["Guthrie Corridor Expressway", "GCE"]},
+    {"id": "my-osm-n33504292", "ref": "E6", "road": "Lebuhraya Utara–Selatan Hubungan Tengah", "approach": [101.6388438, 2.8676803], "position": [101.6386222, 2.8680186], "exit": [101.6384027, 2.8683582], "aliases": ["North–South Expressway Central Link", "Expressway Lingkaran Tengah"]},
+    {"id": "my-osm-n12252412840", "ref": "E6", "road": "Lebuhraya Utara–Selatan Hubungan Tengah", "approach": [101.5848433, 2.95601], "position": [101.5850645, 2.9556715], "exit": [101.5852882, 2.9553346], "aliases": ["North–South Expressway Central Link", "Expressway Lingkaran Tengah"]},
+    {"id": "my-osm-n13110085647", "ref": "E1", "road": "Lebuhraya Utara–Selatan", "approach": [101.5485564, 3.3981555], "position": [101.5487998, 3.3978324], "exit": [101.5490434, 3.3975095], "aliases": ["North–South Expressway"]},
+    {"id": "my-osm-n3096723692", "ref": "E1", "road": "Lebuhraya Utara–Selatan", "approach": [100.5230327, 5.6987107], "position": [100.5229156, 5.6983236], "exit": [100.522794, 5.6979379], "aliases": ["North–South Expressway"]},
+    {"id": "my-osm-n5487831322", "ref": "E1", "road": "Lebuhraya Utara–Selatan", "approach": [100.5205715, 5.690977], "position": [100.5206907, 5.6913635], "exit": [100.5208124, 5.6917492], "aliases": ["North–South Expressway"]},
+    {"id": "my-osm-n10694135234", "ref": "E1", "road": "Lebuhraya Utara–Selatan", "approach": [100.5464436, 5.1135081], "position": [100.5460392, 5.113542], "exit": [100.5456345, 5.1135707], "aliases": ["North–South Expressway"]},
+    {"id": "my-osm-n13110063586", "ref": "E1", "road": "Lebuhraya Utara–Selatan", "approach": [100.5069747, 5.1650727], "position": [100.5071246, 5.164697], "exit": [100.5072745, 5.1643213], "aliases": ["North–South Expressway"]},
+    {"id": "my-osm-n12383760728", "ref": "E1", "road": "Lebuhraya Utara–Selatan", "approach": [101.4219642, 3.8357387], "position": [101.4217219, 3.8360627], "exit": [101.4214796, 3.8363867], "aliases": ["North–South Expressway"]},
+    {"id": "my-osm-n9626165816", "ref": "E1", "road": "Lebuhraya Utara–Selatan", "approach": [100.6680603, 4.9049302], "position": [100.6681468, 4.9053251], "exit": [100.6682364, 4.9057194], "aliases": ["North–South Expressway"]},
+    {"id": "my-osm-n6274234495", "ref": "E1", "road": "Lebuhraya Utara–Selatan", "approach": [101.1898026, 4.4343903], "position": [101.18947, 4.4346215], "exit": [101.1891358, 4.4348504], "aliases": ["North–South Expressway"]},
+    {"id": "my-osm-n1754781964", "ref": "E1", "road": "Lebuhraya Utara–Selatan", "approach": [101.4458737, 3.7829183], "position": [101.4461448, 3.7826179], "exit": [101.4464193, 3.7823206], "aliases": ["North–South Expressway"]},
+    {"id": "my-osm-n12389516612", "ref": "E21", "road": "Lebuhraya Kajang-Seremban", "approach": [101.8689332, 2.819951], "position": [101.8690288, 2.8198785], "exit": [101.8693511, 2.8196341], "aliases": ["Kajang–Seremban Highway", "LEKAS"]},
+    {"id": "my-osm-n12389516613", "ref": "E21", "road": "Lebuhraya Kajang-Seremban", "approach": [101.868717, 2.8199025], "position": [101.8686983, 2.8199167], "exit": [101.8683761, 2.8201613], "aliases": ["Kajang–Seremban Highway", "LEKAS"]},
+    {"id": "my-osm-n12389499112", "ref": "E8", "road": "Lebuhraya Pantai Timur", "approach": [103.3028795, 3.9891471], "position": [103.3026472, 3.9888159], "exit": [103.3024149, 3.9884847], "aliases": ["East Coast Expressway"]},
+    {"id": "my-osm-n2913745536", "ref": "E8", "road": "Lebuhraya Pantai Timur", "approach": [103.3086009, 4.2589101], "position": [103.3084022, 4.2592624], "exit": [103.3081989, 4.2596122], "aliases": ["East Coast Expressway", "LPT2"]},
+    {"id": "my-osm-n7558328324", "ref": "8", "road": "Jalan Kota Bharu – Gua Musang", "approach": [102.074458, 4.958672], "position": [102.0748614, 4.9587156], "exit": [102.0752658, 4.9587482], "aliases": ["Jln Kota Bharu – Gua Musang"]}
+  ]
+}
