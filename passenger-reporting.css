@@ -51,6 +51,3 @@ body.passenger-guiding #smart-prompt {
 
 .jalan-share-speed{display:flex;align-items:center;gap:9px;min-height:44px;padding:6px 10px;color:#193d65;font:600 13px/1.4 system-ui}
 .jalan-share-speed input{width:19px;height:19px;accent-color:#136dec}
-#jalan-traffic-sharing-notice:not([hidden]){position:fixed;z-index:1800;left:12px;right:12px;top:calc(100px + env(safe-area-inset-top,0px));max-width:400px;margin:auto;padding:10px 12px;background:white;color:#183354;border:1px solid #a5b9ce;border-radius:12px;box-shadow:0 2px 10px #0002;font:500 13px/1.4 system-ui}
-#jalan-traffic-sharing-notice button{min-height:40px;background:transparent;color:#064c98;border:0;text-decoration:underline;font-weight:650}
-body.passenger-modal-open #jalan-traffic-sharing-notice,body.passenger-menu-open #jalan-traffic-sharing-notice{display:none}

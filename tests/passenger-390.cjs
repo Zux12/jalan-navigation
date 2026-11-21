@@ -398,6 +398,7 @@ async function main(){
     reports.forEach(showReport);
   });
   await page.locator('#passenger-go').click();
+  assert.equal(await page.locator('#jalan-traffic-sharing-notice').count(),0,'Go starts guidance without the speed-sharing note');
   assert.equal(await page.evaluate(()=>map.hasLayer(reportLayer)),false,
     'Go hides the unrestricted area-wide demo marker layer');
   assert.equal(await page.locator('.passenger-demo-report-marker').count(),1,
