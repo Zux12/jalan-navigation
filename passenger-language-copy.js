@@ -164,7 +164,6 @@
     'Speed camera ahead': 'Kamera had laju di hadapan',
     'Speed camera ahead.': 'Kamera had laju di hadapan.',
     'Speed camera ahead in 300 metres.': 'Dalam 300 meter, kamera had laju di hadapan.',
-    'Camera data': 'Data kamera',
     'Along your route': 'Sepanjang laluan anda',
     'Route information': 'Maklumat laluan',
     'Reports': 'Laporan',
