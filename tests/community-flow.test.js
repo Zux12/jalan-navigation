@@ -23,8 +23,8 @@ test('1 km at 15 instead of 60 adds three minutes; remaining, provider delay and
  assert.equal(M.remainingDelay(route,rows('smooth'),0),0);assert.equal(M.remainingDelay(route,sections,0,Date.now()+310000),0);
 });
 test('first-trip sharing needs measured travel on a matched road, an opt-out aborts uploads and leaves area reads enabled',async()=>{
- const w=new EventTarget(),d=new EventTarget(),box=new EventTarget(),button={},notice={},storage=new Map(),calls=[];
- notice.querySelector=()=>button;d.getElementById=()=>box;d.createElement=()=>notice;d.body={append(){}};
+ const w=new EventTarget(),d=new EventTarget(),box=new EventTarget(),storage=new Map(),calls=[];
+ d.getElementById=()=>box;
  const road={key:'vector-abba',level:'0:surface'};let active=true,resolveSignature,readerRoad=road;
  w.JalanVectorMap={getReportRoad:()=>readerRoad};w.JalanGPS={getState:()=>({active,route})};
  w.JalanRouteTraffic={freeFlowAt:()=>60};w.JalanFlowModel=M;w.JalanReportModel=P;
@@ -37,12 +37,12 @@ test('first-trip sharing needs measured travel on a matched road, an opt-out abo
   fetch:async(url,options)=>{calls.push([url,JSON.parse(options.body),options.signal]);return {ok:true,json:async()=>({sections:[{segment:M.roadSegment(shape.cells[0],road),expiresAt:Date.now()+60000,type:'heavy',speed:15,normal:60}]})};}});
  const fix=(lon,age=0)=>w.dispatchEvent(new CustomEvent('jalan:gps-fix',{detail:{matched:true,gpsReliable:true,gpsAccuracy:5,gpsFixAgeMs:age,gpsPosition:[0,lon],heading:90,speedMps:5,speedLimitIndex:0}}));
  assert.equal(box.checked,true);fix(101);assert.equal(calls.length,0);
- w.dispatchEvent(new Event('jalan:journey-start'));assert.equal(notice.hidden,false);await next();
+ w.dispatchEvent(new Event('jalan:journey-start'));await next();
  assert.equal(w.JalanCommunityFlow.sections(route).length,1);
  fix(101,5000);fix(101.0002,1000);await next();assert.ok(resolveSignature);
  setPref(false);resolveSignature();await next();assert.equal(calls.filter(([u])=>u.endsWith('observe')).length,0);
  w.dispatchEvent(new Event('jalan:journey-stop'));w.dispatchEvent(new Event('jalan:journey-start'));await next();
- assert.equal(box.checked,false);assert.equal(notice.hidden,true);assert.ok(calls.filter(([u])=>u.endsWith('read')).length>=2);
+ assert.equal(box.checked,false);assert.ok(calls.filter(([u])=>u.endsWith('read')).length>=2);
  for(const other of [null,{...road,level:'1:bridge'},{...road,level:'-1:tunnel'}]){
   readerRoad=other;w.dispatchEvent(new Event('jalan:journey-stop'));w.dispatchEvent(new Event('jalan:journey-start'));await next();
   assert.equal(w.JalanCommunityFlow.sections(route).length,0);assert.equal(w.JalanCommunityFlow.eta(route,0),0);

@@ -4,28 +4,20 @@
  if(new URLSearchParams(location.search).get('mode')!=='passenger')return;
  const model=window.JalanFlowModel,P=window.JalanReportModel;
  const base='https://mterm2026-559f9bf571b5.herokuapp.com/api/jalan/reports/flow/';
- const box=document.getElementById('passenger-share-speed'),pref='jalan-traffic-sharing-v1',noticeKey='jalan-traffic-notice-v1';
+ const box=document.getElementById('passenger-share-speed'),pref='jalan-traffic-sharing-v1';
  let storageAvailable=true;
  const get=k=>{try{return localStorage.getItem(k);}catch{storageAvailable=false;return null;}};
  const set=(k,v)=>{try{localStorage.setItem(k,v);}catch{storageAvailable=false;}};
- const notice=document.createElement('aside');notice.id='jalan-traffic-sharing-notice';notice.hidden=true;
- notice.innerHTML='<span role="status">JALAN shares your speed, road segment and direction during navigation to detect traffic. You can turn this off anytime.</span> <button type="button">Turn off sharing</button>';
- document.body.append(notice);
  const saved=get(pref);if(storageAvailable&&saved===null){set(pref,'on');}
- let enabled=storageAvailable&&saved!=='off',seen=get(noticeKey)==='1',active=false,route=null,sections=[],lookup=new Map(),cacheUntil=0,previous=null,matched=null,readCell=null;
- let seedKey=null,seedPromise=null,epoch=0,noticeTimer,reader=null,lastRead=0,regionOffset=0;
+ let enabled=storageAvailable&&saved!=='off',active=false,route=null,sections=[],lookup=new Map(),cacheUntil=0,previous=null,matched=null,readCell=null;
+ let seedKey=null,seedPromise=null,epoch=0,reader=null,lastRead=0,regionOffset=0;
  const writes=new Set(),lastSent=new Map(),verifiedRoads=new Map();
  box.checked=enabled;
  function resetWrites(){epoch++;for(const c of writes)c.abort();writes.clear();previous=null;matched=null;readCell=null;lastSent.clear();}
- function setting(on,persist){enabled=on;box.checked=on;if(persist)set(pref,on?'on':'off');if(!on){resetWrites();notice.hidden=true;}}
+ function setting(on,persist){enabled=on;box.checked=on;if(persist)set(pref,on?'on':'off');if(!on)resetWrites();}
  box.addEventListener('change',()=>setting(box.checked,true));
- notice.querySelector('button').onclick=()=>setting(false,true);
  window.addEventListener('storage',e=>{if(e.key===pref||e.key===null)setting(get(pref)!=='off',false);});
- function announce(){
-  if(!enabled||seen||document.hidden)return;
-  notice.hidden=false;seen=true;set(noticeKey,'1');clearTimeout(noticeTimer);noticeTimer=setTimeout(()=>notice.hidden=true,12000);
- }
- function stop(){active=false;resetWrites();reader?.abort();reader=null;route=null;sections=[];lookup.clear();verifiedRoads.clear();cacheUntil=0;notice.hidden=true;clearTimeout(noticeTimer);changed();}
+ function stop(){active=false;resetWrites();reader?.abort();reader=null;route=null;sections=[];lookup.clear();verifiedRoads.clear();cacheUntil=0;changed();}
  function changed(){window.dispatchEvent(new Event('jalan:community-flow'));}
  function useRoute(r){if(r===route)return;resetWrites();reader?.abort();reader=null;route=r;sections=[];lookup=new Map();verifiedRoads.clear();cacheUntil=0;lastRead=0;regionOffset=0;changed();}
  async function post(name,body,controller){
@@ -130,11 +122,11 @@
   }
   for(const [k,v]of lastSent)if(at-v.at>300000)lastSent.delete(k);
  }
- window.addEventListener('jalan:journey-start',()=>{active=true;announce();read();});
+ window.addEventListener('jalan:journey-start',()=>{active=true;read();});
  window.addEventListener('jalan:journey-stop',stop);window.addEventListener('pagehide',stop);
  window.addEventListener('jalan:route-cleared',stop);
  window.addEventListener('jalan:gps-fix',e=>fix(e.detail||{}),{capture:true});
- document.addEventListener('visibilitychange',()=>{resetWrites();if(document.hidden){reader?.abort();}else if(active){announce();read();}});
+ document.addEventListener('visibilitychange',()=>{resetWrites();if(document.hidden){reader?.abort();}else if(active)read();});
  setInterval(()=>{if(!active||document.hidden)return;if(cacheUntil&&cacheUntil<=Date.now())refresh();read();},5000);
  window.JalanCommunityFlow={sections:current,eta:(r,f)=>model.remainingDelay(r,current(r),f),
   match:(point,road)=>{
