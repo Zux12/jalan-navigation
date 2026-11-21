@@ -34,6 +34,7 @@ module.exports=async function cameraTrip(page){
  const row=page.locator('#passenger-report-list [data-category="speed-camera"]');
  await drive(-360);await tab.click();await row.waitFor();
  assert.match(await row.innerText(),/Speed camera/);assert.match(await row.innerText(),/Guthrie/);
+ assert.doesNotMatch(await page.locator('#passenger-reports-panel').innerText(),/Camera data|Tachwire|JPJ|OpenStreetMap/i);
  await page.evaluate(({lon,lat})=>{
    const state=JalanGPS.getState(),total=JalanRouteDisplay.shape(state.route).total;
    const incident=(at,title)=>({lat,lng:lon,routeAlong:at,routeTotal:total,issue:title});

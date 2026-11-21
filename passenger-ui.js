@@ -474,7 +474,6 @@
    window.JalanTomTom?.projectReportPoint([position[1],position[0]],coords):null;
  const renderReports=()=>{
    reportList.replaceChildren();
-   const cameraCredit=el('passenger-camera-credit');cameraCredit.hidden=true;
    const state=window.JalanGPS?.getState?.(),route=state?.route,
          coords=route?.geometry?.coordinates;
    if(!state?.active||!Array.isArray(coords)){
@@ -484,7 +483,6 @@
    const current=state.matched&&state.fixAgeMs<=10000&&state.accuracy<=75&&Array.isArray(state.position)?
      pointOnRoute(state.position,coords):null;
    const items=window.JalanSpeedCameras?.routeItems(route)||[];
-   cameraCredit.hidden=!items.length;
    // Local community reports are demo records, NOT verified incidents.
    for(const report of (typeof getReports==='function'?getReports():[])){
      if(!report||!['accident','flood','hazard','rain'].includes(report.type))continue;

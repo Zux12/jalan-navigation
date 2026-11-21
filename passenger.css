@@ -257,7 +257,7 @@ body.passenger-guiding .passenger-turn-chevron{position:absolute;right:28px;bott
 .maplibregl-ctrl-attrib-inner a[href="https://openfreemap.org/"]{display:none}
 
 .passenger-speed-reading{display:flex;flex-direction:column;align-items:center}
-.passenger-speed-limit{position:absolute;right:-8px;bottom:-6px;box-sizing:border-box;
+.passenger-speed-limit{position:absolute;right:-19px;bottom:-6px;box-sizing:border-box;
  width:30px;height:30px;display:grid;place-items:center;border:3px solid #e8780a;border-radius:50%;
  background:#fff;color:#111;font:700 13px/1 system-ui;font-variant-numeric:tabular-nums;pointer-events:none}
 .passenger-speed-limit[hidden]{display:none}
@@ -266,4 +266,3 @@ body.passenger-guiding .passenger-turn-chevron{position:absolute;right:28px;bott
 #passenger-camera-distance{margin-left:auto;font-weight:700;font-variant-numeric:tabular-nums}
 .passenger-camera-pin{display:grid;place-items:center;background:#ffe9a6;border:2px solid #81570c;border-radius:50%;box-sizing:border-box;font-size:16px;line-height:1}
 #passenger-turn-toggle[aria-expanded="true"]+.passenger-camera-alert{display:none}
-#passenger-camera-credit a{color:#b8dcff}
