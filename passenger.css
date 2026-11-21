@@ -266,4 +266,3 @@ body.passenger-guiding .passenger-turn-chevron{position:absolute;right:28px;bott
 #passenger-camera-distance{margin-left:auto;font-weight:700;font-variant-numeric:tabular-nums}
 .passenger-camera-pin{display:grid;place-items:center;background:#ffe9a6;border:2px solid #81570c;border-radius:50%;box-sizing:border-box;font-size:16px;line-height:1}
 #passenger-turn-toggle[aria-expanded="true"]+.passenger-camera-alert{display:none}
-#passenger-camera-credit a{color:#b8dcff}
