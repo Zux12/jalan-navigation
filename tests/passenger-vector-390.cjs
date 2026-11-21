@@ -470,17 +470,23 @@ async function main(){
   assert.equal(await page.evaluate(()=>JalanVectorMap.getPitch()),0);
   assert.ok(await page.evaluate(()=>Math.abs(map.getCenter().lat-3.145)<.00001));
   assert.equal(await page.locator('.jalan-vector-report-label').isVisible(),true);
-  // Existing flow tiles are mirrored, updated and removable without fetching
-  // a second Leaflet copy or exposing a real API key.
-  await page.evaluate(()=>{
-   window.__tile=L.tileLayer('https://api.tomtom.com/traffic/map/4/tile/flow/relative0/{z}/{x}/{y}.png?key=FIXTURE',
-     {opacity:.82,maxNativeZoom:18}).addTo(map);
-  });
+  // Exercise the Navigation switch through the native vector adapter.
+  await page.route('https://api.tomtom.com/traffic/map/**',r=>r.fulfill({contentType:'image/png',
+    body:Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=','base64')}));
+  await page.evaluate(()=>{document.getElementById('tt-key').value='TEST_RESTRICTED_KEY_1234';});
+  await page.locator('#jalan-home-menu').click();
+  await page.locator('#passenger-navigation-settings>summary').click();
+  const nearbySwitch=page.getByRole('switch',{name:'Show nearby traffic'});
+  await nearbySwitch.uncheck();
+  await nearbySwitch.check();
   await page.waitForFunction(()=>JalanVectorMap.getState().trafficLayers===1);
-  assert.equal(await page.evaluate(()=>!!window.__tile._map),false,'no duplicate hidden raster downloads');
-  assert.equal(await page.evaluate(()=>map.hasLayer(window.__tile)),true);
-  await page.evaluate(()=>map.removeLayer(window.__tile));
+  assert.equal(await page.evaluate(()=>{
+    let traffic;map.eachLayer(layer=>{if(layer._url?.includes('/traffic/map/'))traffic=layer;});
+    return !!traffic&&!traffic._map&&map.hasLayer(traffic);
+  }),true,'no duplicate hidden Leaflet layer');
+  await nearbySwitch.uncheck();
   await page.waitForFunction(()=>JalanVectorMap.getState().trafficLayers===0);
+  await page.locator('#jalan-home-menu-close').click();
   // Native resource loss restores current route/markers and existing raster path.
   await page.evaluate(()=>document.querySelector('#jalan-vector-map canvas').dispatchEvent(new Event('webglcontextlost')));
   await page.waitForFunction(()=>!JalanVectorMap.active);

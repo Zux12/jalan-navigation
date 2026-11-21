@@ -50,6 +50,7 @@
     'User menu': 'Menu pengguna',
     'JALAN menu': 'Menu JALAN',
     'Navigation': 'Navigasi',
+    'Show nearby traffic': 'Paparkan trafik berhampiran',
     'Zoom': 'Zum',
     '3D tilt': 'Kecondongan 3D',
     'Share my location for nearby community reports during this journey': 'Kongsi lokasi saya untuk laporan komuniti berhampiran sepanjang perjalanan ini',

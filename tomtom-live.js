@@ -26,14 +26,24 @@ el('tt-remember').checked=!managed&&validKey(rememberedKey);
 window.JalanTomTomKeyStorage=Object.freeze({remember:keyStorage.remember,forget:keyStorage.forget,
  configured:!!usableConfiguredKey});
 const enabled=()=>el('tt-primary').checked && !!input.value.trim();
+const passenger=/(?:[?&])mode=passenger(?:&|$)/.test(window.location?.search||'');
+const nearbyPreference='jalan-show-nearby-traffic-v1';
+let nearbyTraffic=true;
+if(passenger){
+ try{nearbyTraffic=localStorage.getItem(nearbyPreference)!=='off';}catch{}
+}
 let keyEdited=false;
 function key(){const k=input.value.trim();if(!/^[\w-]{8,160}$/.test(k))throw Error('Enter a valid TomTom key.');if(el('tt-remember').checked){
  if(!keyStorage.remember(k)){
   el('tt-remember').checked=false;
   status('Browser storage blocked. Key remains available on this page only.');
  }
-}else keyStorage.forget();keyEdited=false;return k;}
-let tiles=null,active=false,timer=null,routeAbort=null,incidentAbort=null,token=0,lastIncidents=0,debounce=null,incidentEpoch=0;
+}else keyStorage.forget();
+ keyEdited=false;
+ if(passenger)syncFlowTiles();
+ return k;
+}
+let active=false,timer=null,routeAbort=null,incidentAbort=null,token=0,lastIncidents=0,debounce=null,incidentEpoch=0;
 const incidentLayer=L.layerGroup().addTo(map);
 const publishIncidents=detail=>window.dispatchEvent?.(new CustomEvent('jalan:incidents-updated',{detail}));
 const trafficState=(state,message,route=routes[selectedRoute]||null)=>{
@@ -41,7 +51,7 @@ const trafficState=(state,message,route=routes[selectedRoute]||null)=>{
 };
 function invalidateIncidents(){incidentEpoch++;incidentAbort?.abort();incidentAbort=null;incidentLayer.clearLayers();publishIncidents({route:null,incidents:[],checkedAt:0});}
 function routeCleared(){token++;routeAbort?.abort();routeAbort=null;invalidateIncidents();}
-function hide(){active=false;clearInterval(timer);clearTimeout(debounce);invalidateIncidents();if(tiles)map.removeLayer(tiles);tiles=null;trafficState('off','Traffic off');}
+function hide(){active=false;clearInterval(timer);clearTimeout(debounce);invalidateIncidents();syncFlowTiles();trafficState('off','Traffic off');}
 // Request travel mode as well: a complete route section is evidence that
 // TomTom processed the requested sections even when no toll is present.
 async function fetchRouteData(base,signal,legs){
@@ -315,7 +325,53 @@ function incidents(force=false){
    ' affected section(s) from the selected route. No 25m incident corridor applied.');
 }
 function refreshRouteIncidents(force=false){if(!active)return;clearTimeout(debounce);debounce=setTimeout(()=>incidents(force),400);}
-function connect(){try{const k=key();hide();active=true;trafficState('loading','Loading route traffic…');const passenger=/(?:[?&])mode=passenger(?:&|$)/.test(window.location?.search||'');if(!passenger)tiles=L.tileLayer('https://api.tomtom.com/traffic/map/4/tile/flow/relative0/{z}/{x}/{y}.png?key='+encodeURIComponent(k),{opacity:.82,maxZoom:19,maxNativeZoom:18,attribution:'Traffic © TomTom',updateWhenIdle:true}).addTo(map);let errors=0;tiles?.on('tileerror',()=>{if(++errors===3){status('Traffic tiles failed. Check key, domain restriction and quota.');trafficState('error','Traffic map unavailable · check connection or key');}});status(passenger?'Selected-route TomTom traffic enabled. General traffic tiles hidden to avoid off-route colour confusion.':'Live traffic enabled. Route reports use provider-linked TRAFFIC sections.');refreshRouteIncidents(true);timer=setInterval(()=>{if(!active||document.hidden)return;tiles?.setUrl('https://api.tomtom.com/traffic/map/4/tile/flow/relative0/{z}/{x}/{y}.png?key='+encodeURIComponent(k)+'&v='+Math.floor(Date.now()/300000));incidents();},300000);return true;}catch(e){status(e.message);trafficState('error','Traffic unavailable · check TomTom key');return false;}}
+// Nearby traffic is a map layer. Its lifetime is independent of trip reports and ETA.
+const flowRefreshMs=5*60*1000;
+let tiles=null,tilesKey='',tileTimer=null,lastTileRefresh=0;
+function flowTileUrl(){
+ return 'https://api.tomtom.com/traffic/map/4/tile/flow/relative0/{z}/{x}/{y}.png?key='+
+  encodeURIComponent(tilesKey)+'&v='+Math.floor(Date.now()/flowRefreshMs);
+}
+function refreshFlowTiles(){
+ if(!tiles||document.hidden||Date.now()-lastTileRefresh<flowRefreshMs)return;
+ lastTileRefresh=Date.now();
+ tiles.setUrl(flowTileUrl());
+}
+function syncFlowTiles(){
+ const wanted=passenger?nearbyTraffic:active;
+ const value=input.value.trim();
+ const nextKey=wanted&&!keyEdited&&validKey(value)?value:'';
+ if(nextKey===tilesKey)return;
+ clearInterval(tileTimer);
+ if(tiles)map.removeLayer(tiles);
+ tiles=null;tilesKey=nextKey;
+ if(!nextKey)return;
+ lastTileRefresh=Date.now();
+ tiles=L.tileLayer(flowTileUrl(),{opacity:passenger ? 0.65 : 0.82,zIndex:2,maxZoom:19,maxNativeZoom:18,
+  attribution:'Traffic © TomTom',updateWhenIdle:true});
+ let errors=0;
+ tiles.on('tileerror',event=>{
+  if(event.target!==tiles||++errors!==3)return;
+  status('Traffic tiles failed. Check key, domain restriction and quota.');
+  if(!passenger)trafficState('error','Traffic map unavailable · check connection or key');
+ });
+ tiles.addTo(map);
+ tileTimer=setInterval(refreshFlowTiles,flowRefreshMs);
+}
+function setNearbyTraffic(on){
+ nearbyTraffic=on;
+ try{localStorage.setItem(nearbyPreference,on?'on':'off');}catch{}
+ syncFlowTiles();
+}
+function connect(){
+ try{
+  key();hide();active=true;syncFlowTiles();trafficState('loading','Loading route traffic…');
+  status('Live traffic enabled. Route reports use provider-linked TRAFFIC sections.');
+  refreshRouteIncidents(true);
+  timer=setInterval(()=>{if(active&&!document.hidden)incidents();},flowRefreshMs);
+  return true;
+ }catch(e){status(e.message);trafficState('error','Traffic unavailable · check TomTom key');return false;}
+}
 /* Replacing a browser key revokes previously remembered credentials and
    cancels pending traffic/route work before any further Connect/Calculate. */
 input.addEventListener('input',()=>{
@@ -327,8 +383,9 @@ input.addEventListener('input',()=>{
  status('Key changed. Old stored key removed; reconnect to use live traffic.');
 });
 el('tt-remember').onchange=()=>{if(!el('tt-remember').checked){keyStorage.forget();status('Key will be kept only for this open page.');}};
-el('tt-connect').onclick=connect;el('tt-hide').onclick=()=>{hide();status('Traffic overlay hidden.');};el('tt-route').onclick=calculate;el('tt-primary').onchange=()=>{routeCleared();clearRoute(false);status(enabled()?'TomTom routing selected. Search again to apply.':'OSRM routing selected. Search again to apply.');};el('tt-incident-toggle').onchange=()=>{if(!el('tt-incident-toggle').checked)invalidateIncidents();else refreshRouteIncidents(true);};el('tt-toggle-key').onclick=()=>{const show=input.type==='password';input.type=show?'text':'password';el('tt-toggle-key').textContent=show?'Hide':'Show';};el('tt-remove-key').onclick=()=>{routeCleared();hide();clearRoute(false);input.value='';keyStorage.forget();const disabled=keyStorage.disableConfigured();el('tt-remember').checked=false;status(disabled?'Key cleared from browser. Site key disabled here; pending TomTom requests cancelled.':'Key cleared for this page. Browser storage blocked; a configured site key may return on reload.');};
+el('tt-connect').onclick=connect;el('tt-hide').onclick=()=>{hide();status('Traffic overlay hidden.');};el('tt-route').onclick=calculate;el('tt-primary').onchange=()=>{routeCleared();clearRoute(false);status(enabled()?'TomTom routing selected. Search again to apply.':'OSRM routing selected. Search again to apply.');};el('tt-incident-toggle').onchange=()=>{if(!el('tt-incident-toggle').checked)invalidateIncidents();else refreshRouteIncidents(true);};el('tt-toggle-key').onclick=()=>{const show=input.type==='password';input.type=show?'text':'password';el('tt-toggle-key').textContent=show?'Hide':'Show';};el('tt-remove-key').onclick=()=>{input.value='';routeCleared();hide();clearRoute(false);keyStorage.forget();const disabled=keyStorage.disableConfigured();el('tt-remember').checked=false;status(disabled?'Key cleared from browser. Site key disabled here; pending TomTom requests cancelled.':'Key cleared for this page. Browser storage blocked; a configured site key may return on reload.');};
 function startPassengerTraffic(){
+ syncFlowTiles();
  if(!el('tt-primary').checked||routes[selectedRoute]?.provider!=='tomtom'){
   trafficState('error','Live traffic unavailable · OSRM route');return false;
  }
@@ -338,6 +395,10 @@ function startPassengerTraffic(){
  el('tt-incident-toggle').checked=true;
  return connect();
 }
-window.JalanTomTom={enabled,calculate,requestRoutes,fetchRouteData,roadDetails,routeCleared,refreshRouteIncidents,
+if(passenger){
+ syncFlowTiles();
+ document.addEventListener('visibilitychange',refreshFlowTiles);
+}
+window.JalanTomTom={getNearbyTraffic:()=>nearbyTraffic,setNearbyTraffic,enabled,calculate,requestRoutes,fetchRouteData,roadDetails,routeCleared,refreshRouteIncidents,
  startPassengerTraffic,stopPassengerTraffic:hide,reportRouteTolerance,projectReportPoint,matchReportGeometry,trafficSectionsForRoute};
 })();
