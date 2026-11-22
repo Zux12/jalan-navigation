@@ -71,7 +71,10 @@
    pin.on('click',()=>expand(site));return pin;
  }
  function paint(rows){
-   rows=data.withGoogle(rows,googleRows);paintZoom=Math.floor(map.getZoom());if(paintZoom<11)rows=overview(rows,paintZoom);
+   rows=data.withGoogle(rows,googleRows);paintZoom=Math.floor(map.getZoom());
+   // Keep nearby forecourts separate at street zoom. At city scale their
+   // text plates can cover several blocks, so group adjacent stations first.
+   if(paintZoom<15)rows=overview(rows,paintZoom);
    const keep=new Set(rows.map(s=>s.id));
    pins.forEach(({pin},id)=>{if(!keep.has(id)){map.removeLayer(pin);pins.delete(id);}});
    for(const site of rows)if(!pins.has(site.id)||pins.get(site.id).site!==site){

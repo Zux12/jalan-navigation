@@ -24,6 +24,9 @@ module.exports=async function stations(page){
    return [color('.station-ev-fill'),color('.station-petrol-fill'),rect.height>rect.width,label.right>rect.right];
  });
  assert.deepEqual(art,['rgb(17, 131, 28)','rgb(245, 188, 55)',true,true]);
+ await page.evaluate(()=>map.setZoom(12,{animate:false}));
+ await page.locator('#map .jalan-station-count').first().waitFor({state:'attached'});
+ await page.evaluate(()=>map.setZoom(16,{animate:false}));await pin.waitFor({state:'attached'});
  const toggle=()=>input.evaluate(n=>n.click());
  await toggle();assert.equal(await pin.count(),0);await toggle();await pin.waitFor({state:'attached'});
  await page.evaluate(()=>{
