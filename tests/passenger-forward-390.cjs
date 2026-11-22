@@ -12,7 +12,7 @@ module.exports=async function forwardMotion(page,base){
        await new Promise(requestAnimationFrame);
        const p=marker(name).getLatLng(),center=map.getCenter();
        frames.push([p.lat,p.lng,center.lat,center.lng]);
-       if(p.distanceTo(endpoint)<.01)break;
+       if(p.lat===endpoint[0]&&p.lng===endpoint[1])break;
      }while(performance.now()-started<3500);
      return frames;
    }

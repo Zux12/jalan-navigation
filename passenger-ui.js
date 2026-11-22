@@ -120,7 +120,11 @@
  const freeMotion=viewModel.positionFollower((point,settled)=>{
    if(!startupMarker||!freeActive()||document.hidden)return;
    startupMarker.setLatLng(point);
-   if(!freeExploring&&!document.body.classList.contains('passenger-pin-open'))positionFreeCamera(freeTurn.bearing,point,settled);
+   if(!freeExploring&&!document.body.classList.contains('passenger-pin-open')){
+     const vector=window.JalanVectorMap;
+     if(vector?.active)vector.setFollowCamera({center:[point[1],point[0]]},settled);
+     else positionFreeCamera(freeTurn.bearing,point);
+   }
    scheduleScreenVehicle();
  });
  const freeTurn=viewModel.bearingFollower(bearing=>{
@@ -152,14 +156,14 @@
    host.classList.toggle('jalan-free-raster',on);
    map.invalidateSize({animate:false,pan:false});
  }
- function positionFreeCamera(bearing,point=freeMotion.point||freeLast.point,settled=true){
+ function positionFreeCamera(bearing,point=freeMotion.point||freeLast.point){
    const sheet=el('jalan-home-sheet'),top=sheet?.getBoundingClientRect().top??innerHeight;
    const anchor=viewModel.anchor({height:innerHeight,barTop:top});
    const vector=window.JalanVectorMap;
    const rotateRaster=!vector?.active&&!freeExploring&&freeHeading!==null;
    rasterFreeLayout(rotateRaster,anchor.y);
    if(vector?.active){
-     vector.setFollowCamera({center:[point[1],point[0]],bearing,pitch:0,padding:anchor.padding},settled);
+     vector.setCamera({center:[point[1],point[0]],bearing,pitch:0,padding:anchor.padding});
    }else if(rotateRaster){
      host.style.setProperty('--jalan-free-turn',-bearing+'deg');
      map.setView(point,map.getZoom(),{animate:false});
@@ -1051,7 +1055,7 @@
          dy=(camera.lat-center[0])*111320;
    const vector=window.JalanVectorMap;
    if(vector?.active&&frame){
-     vector.setFollowCamera({center:[center[1],center[0]],zoom:targetZoom-1},settled);return;
+     vector.setFollowCamera({center:[center[1],center[0]]},settled);return;
    }
    if(!Number.isFinite(zoom)||Math.abs(zoom-targetZoom)>.01)map.setView(center,targetZoom,{animate:false});
    else if(Math.hypot(dx,dy)>(frame ? .04 : 8))map.panTo(center,{animate:false});
