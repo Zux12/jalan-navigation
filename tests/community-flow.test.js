@@ -22,8 +22,8 @@ test('1 km at 15 instead of 60 adds three minutes; remaining, provider delay and
  assert.equal(eta({trafficSections:[{...traffic,simpleCategory:'ROAD_CLOSURE'}]}),0);
  assert.equal(M.remainingDelay(route,rows('smooth'),0),0);assert.equal(M.remainingDelay(route,sections,0,Date.now()+310000),0);
 });
-test('first-trip sharing needs measured travel on a matched road, an opt-out aborts uploads and leaves area reads enabled',async()=>{
- const w=new EventTarget(),d=new EventTarget(),box=new EventTarget(),button={},notice={},storage=new Map(),calls=[];
+test('first trip ignores legacy auto-on sharing, requires explicit consent, and opt-out aborts uploads while reads remain enabled',async()=>{
+ const w=new EventTarget(),d=new EventTarget(),box=new EventTarget(),button={},notice={},storage=new Map([['jalan-traffic-sharing-v1','on']]),calls=[];
  notice.querySelector=()=>button;d.getElementById=()=>box;d.createElement=()=>notice;d.body={append(){}};
  const road={key:'vector-abba',level:'0:surface'};let active=true,resolveSignature,readerRoad=road;
  w.JalanVectorMap={getReportRoad:()=>readerRoad};w.JalanGPS={getState:()=>({active,route})};
@@ -38,10 +38,13 @@ test('first-trip sharing needs measured travel on a matched road, an opt-out abo
  vm.runInNewContext(src,{window:w,document:d,location:{search:'?mode=passenger'},URLSearchParams,localStorage,crypto,TextEncoder,Uint8Array,Date,Event,AbortController,setTimeout:()=>1,clearTimeout(){},setInterval(){},
   fetch:async(url,options)=>{calls.push([url,JSON.parse(options.body),options.signal]);return {ok:true,json:async()=>({sections:[{segment:M.roadSegment(shape.cells[0],road),expiresAt:Date.now()+60000,type:'heavy',speed:15,normal:60}]})};}});
  const fix=(lon,age=0)=>w.dispatchEvent(new CustomEvent('jalan:gps-fix',{detail:{matched:true,gpsReliable:true,gpsAccuracy:5,gpsFixAgeMs:age,gpsPosition:[0,lon],heading:90,speedMps:5,speedLimitIndex:0}}));
- assert.equal(box.checked,true);fix(101);assert.equal(calls.length,0);
+ assert.equal(box.checked,false,'legacy v1 ON must not grant v2 sharing permission');
+ fix(101);assert.equal(calls.length,0);
  w.dispatchEvent(new Event('jalan:journey-start'));await next();
  assert.equal(w.JalanCommunityFlow.sections(route).length,1);
- fix(101,5000);fix(101.0002,1000);await next();assert.ok(resolveSignature);
+ fix(101,5000);fix(101.0002,1000);await next();
+ assert.equal(resolveSignature,undefined,'pre-consent matched driving cannot start observation');
+ setPref(true);fix(101,5000);fix(101.0002,1000);await next();assert.ok(resolveSignature);
  setPref(false);resolveSignature();await next();assert.equal(calls.filter(([u])=>u.endsWith('observe')).length,0);
  w.dispatchEvent(new Event('jalan:journey-stop'));w.dispatchEvent(new Event('jalan:journey-start'));await next();
  assert.equal(box.checked,false);assert.ok(calls.filter(([u])=>u.endsWith('read')).length>=2);
@@ -55,7 +58,7 @@ test('first-trip sharing needs measured travel on a matched road, an opt-out abo
  // A browser that loses storage access while active must fail closed even if a
  // preference synchronization event arrives with no readable preference.
  storageReadable=false;
- const lost=new Event('storage');lost.key='jalan-traffic-sharing-v1';w.dispatchEvent(lost);
+ const lost=new Event('storage');lost.key='jalan-traffic-sharing-v2';w.dispatchEvent(lost);
  assert.equal(box.checked,false,'blocked preference reads cannot silently enable sharing');
  const sent=calls.filter(([u])=>u.endsWith('observe')).length;
  fix(101.0004);await next();
@@ -69,7 +72,7 @@ test('denial of observation token storage prevents uploading even after reliable
  const road={key:'vector-abba',level:'0:surface'};
  w.JalanVectorMap={getReportRoad:()=>road};w.JalanGPS={getState:()=>({active:true,route})};
  w.JalanRouteTraffic={freeFlowAt:()=>60};w.JalanFlowModel=M;w.JalanReportModel=P;
- const storage=new Map([['jalan-traffic-sharing-v1','on'],['jalan-traffic-notice-v1','1']]);let deniedSeedReads=0,observes=0;
+ const storage=new Map([['jalan-traffic-sharing-v2','on'],['jalan-traffic-notice-v1','1']]);let deniedSeedReads=0,observes=0;
  const localStorage={getItem:k=>{if(k==='jalan-traffic-seed-v1'){deniedSeedReads++;throw Error('token storage denied');}return storage.get(k)??null;},setItem:(k,v)=>storage.set(k,v)};
  const crypto={getRandomValues:b=>b.fill(1),subtle:{importKey:async()=>1,sign:async()=>new Uint8Array(32)}};
  vm.runInNewContext(src,{window:w,document:d,location:{search:'?mode=passenger'},URLSearchParams,localStorage,crypto,TextEncoder,Uint8Array,Date,Event,AbortController,
@@ -99,7 +102,7 @@ test('storage revoked silently while HMAC signing prevents a late observation up
  const road={key:'vector-abba',level:'0:surface'};
  w.JalanVectorMap={getReportRoad:()=>road};w.JalanGPS={getState:()=>({active:true,route})};
  w.JalanRouteTraffic={freeFlowAt:()=>60};w.JalanFlowModel=M;w.JalanReportModel=P;
- const data=new Map([['jalan-traffic-sharing-v1','on'],['jalan-traffic-notice-v1','1']]);
+ const data=new Map([['jalan-traffic-sharing-v2','on'],['jalan-traffic-notice-v1','1']]);
  let readable=true,completeSignature,observations=0;
  const localStorage={getItem:k=>{if(!readable)throw Error('storage revoked');return data.get(k)??null;},
   setItem:(k,v)=>{if(!readable)throw Error('storage revoked');data.set(k,v);}};
@@ -128,18 +131,18 @@ test('cross-tab removal, clear or malformed sharing preference cannot silently r
   const w=new EventTarget(),d=new EventTarget(),box=new EventTarget(),button={},notice={querySelector:()=>button};
   d.getElementById=()=>box;d.createElement=()=>notice;d.body={append(){}};
   w.JalanFlowModel=M;w.JalanReportModel=P;w.JalanGPS={getState:()=>({active:false,route:null})};
-  const values=new Map([['jalan-traffic-sharing-v1','off'],['jalan-traffic-notice-v1','1']]);
+  const values=new Map([['jalan-traffic-sharing-v2','off'],['jalan-traffic-notice-v1','1']]);
   const localStorage={getItem:k=>values.get(k)??null,setItem:(k,v)=>values.set(k,v)};
   vm.runInNewContext(src,{window:w,document:d,location:{search:'?mode=passenger'},URLSearchParams,localStorage,Date,Event,AbortController,
    setTimeout:()=>1,clearTimeout(){},setInterval(){}});
   assert.equal(box.checked,false,'saved opt-out starts disabled');
-  if(action==='remove')values.delete('jalan-traffic-sharing-v1');
+  if(action==='remove')values.delete('jalan-traffic-sharing-v2');
   if(action==='clear')values.clear();
-  if(action==='malformed')values.set('jalan-traffic-sharing-v1','invalid');
-  const changed=new Event('storage');changed.key=action==='clear'?null:'jalan-traffic-sharing-v1';w.dispatchEvent(changed);
+  if(action==='malformed')values.set('jalan-traffic-sharing-v2','invalid');
+  const changed=new Event('storage');changed.key=action==='clear'?null:'jalan-traffic-sharing-v2';w.dispatchEvent(changed);
   assert.equal(box.checked,false,action+' must not re-enable sharing');
-  values.set('jalan-traffic-sharing-v1','on');
-  const explicitOn=new Event('storage');explicitOn.key='jalan-traffic-sharing-v1';w.dispatchEvent(explicitOn);
+  values.set('jalan-traffic-sharing-v2','on');
+  const explicitOn=new Event('storage');explicitOn.key='jalan-traffic-sharing-v2';w.dispatchEvent(explicitOn);
   assert.equal(box.checked,true,'only an explicitly persisted ON may re-enable sharing');
  }
 });
@@ -150,7 +153,7 @@ test('silent deletion of persisted preference while HMAC awaits prevents a traff
  const road={key:'vector-abba',level:'0:surface'};
  w.JalanVectorMap={getReportRoad:()=>road};w.JalanGPS={getState:()=>({active:true,route})};
  w.JalanRouteTraffic={freeFlowAt:()=>60};w.JalanFlowModel=M;w.JalanReportModel=P;
- const values=new Map([['jalan-traffic-sharing-v1','on'],['jalan-traffic-notice-v1','1']]);
+ const values=new Map([['jalan-traffic-sharing-v2','on'],['jalan-traffic-notice-v1','1']]);
  const localStorage={getItem:k=>values.get(k)??null,setItem:(k,v)=>values.set(k,v)};
  let finishSignature,observations=0;
  const crypto={getRandomValues:b=>b.fill(1),subtle:{importKey:async()=>1,
@@ -165,7 +168,7 @@ test('silent deletion of persisted preference while HMAC awaits prevents a traff
  fix(101,5000);fix(101.0002,1000);
  await new Promise(resolve=>setImmediate(resolve));
  assert.equal(typeof finishSignature,'function','test reached asynchronous HMAC');
- values.delete('jalan-traffic-sharing-v1'); // no storage event, still-readable storage
+ values.delete('jalan-traffic-sharing-v2'); // no storage event, still-readable storage
  finishSignature();await new Promise(resolve=>setImmediate(resolve));
  assert.equal(observations,0,'missing saved preference must not permit the upload');
  assert.equal(box.checked,false,'silent preference deletion fails closed');

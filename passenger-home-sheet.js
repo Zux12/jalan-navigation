@@ -82,7 +82,7 @@
   '<label for="passenger-nav-tilt">3D tilt <output id="passenger-nav-tilt-value" for="passenger-nav-tilt">100%</output></label>'+
   '<input id="passenger-nav-tilt" type="range" min="0" max="100" step="5" value="100"></div>'+
   '<label class="jalan-map-switch"><span>Show nearby traffic</span><input id="passenger-nearby-traffic" type="checkbox" role="switch"></label>'+
-  '<label class="jalan-share-speed"><input id="passenger-share-speed" type="checkbox" checked> Share my speed to help detect traffic</label>'+
+  '<label class="jalan-share-speed"><input id="passenger-share-speed" type="checkbox"> Share my speed to help detect traffic (optional)</label>'+
   '<label class="passenger-nearby-consent"><input id="passenger-nearby-consent" type="checkbox"> Share my location for nearby community reports during this journey</label></details>'+
   '<div id="journey-toll-control" hidden><label class="jalan-toll-control jalan-map-switch"><span>Avoid tolls</span><input type="checkbox" role="switch" id="journey-avoid-tolls"></label><div id="journey-toll-feedback" class="jalan-toll-feedback" hidden><p role="status"></p><div></div></div></div>'+
   '<button type="button" id="passenger-about" aria-haspopup="dialog" aria-controls="passenger-about-dialog">About JALAN</button>'+

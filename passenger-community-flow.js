@@ -4,12 +4,13 @@
  if(new URLSearchParams(location.search).get('mode')!=='passenger')return;
  const model=window.JalanFlowModel,P=window.JalanReportModel;
  const base='https://mterm2026-559f9bf571b5.herokuapp.com/api/jalan/reports/flow/';
- const box=document.getElementById('passenger-share-speed'),pref='jalan-traffic-sharing-v1';
+ const box=document.getElementById('passenger-share-speed'),pref='jalan-traffic-sharing-v2';
  let storageAvailable=true;
  const get=k=>{try{return localStorage.getItem(k);}catch{storageAvailable=false;return null;}};
  const set=(k,v)=>{try{localStorage.setItem(k,v);}catch{storageAvailable=false;}};
- const saved=get(pref);if(storageAvailable&&saved===null){set(pref,'on');}
- let enabled=storageAvailable&&(saved==='on'||saved===null),active=false,route=null,sections=[],lookup=new Map(),cacheUntil=0,previous=null,matched=null,readCell=null;
+ // v1 could have been set ON without a deliberate user choice. Never treat it as consent.
+ const saved=get(pref);
+ let enabled=storageAvailable&&saved==='on',active=false,route=null,sections=[],lookup=new Map(),cacheUntil=0,previous=null,matched=null,readCell=null;
  let seedKey=null,seedPromise=null,epoch=0,reader=null,lastRead=0,regionOffset=0;
  const writes=new Set(),lastSent=new Map(),verifiedRoads=new Map();
  box.checked=enabled;

@@ -14,9 +14,11 @@ module.exports=async(browser,base,root)=>{
  await r.fulfill({status,contentType:'application/json',headers:{'access-control-allow-origin':'*'},body:JSON.stringify(data)});});
  await page.goto(base+'/index.html?mode=passenger');
  const preference=page.locator('#passenger-share-speed');
- assert.equal(await preference.isChecked(),true,'first trip shares by default');
+ assert.equal(await preference.isChecked(),false,'new visitor must explicitly opt in to speed observations');
  await preference.evaluate(el=>{el.click();});await page.reload();
- assert.equal(await preference.isChecked(),false,'switching sharing off survives reload');
+ assert.equal(await preference.isChecked(),true,'explicit opt-in survives reload');
+ await preference.evaluate(el=>{el.click();});await page.reload();
+ assert.equal(await preference.isChecked(),false,'opt-out survives reload');
  // Simulate browser storage becoming unavailable AFTER a first-trip opt-in.
  await preference.evaluate(el=>el.click());assert.equal(await preference.isChecked(),true);
  await page.evaluate(()=>{
