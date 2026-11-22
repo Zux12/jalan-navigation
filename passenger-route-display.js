@@ -60,7 +60,7 @@
    return points;
  }
  // Shared by the basic and detailed maps. Widths are CSS pixels at Leaflet zoom.
- const widthStops=[[0,2],[12,5],[16,8],[20,14]];
+ const widthStops=[[0,3],[12,7.5],[16,12],[20,21]];
  function widthAtZoom(zoom){
    for(let i=1;i<widthStops.length;i++){
      const [lo,a]=widthStops[i-1],[hi,b]=widthStops[i];

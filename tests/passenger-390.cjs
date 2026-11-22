@@ -785,11 +785,24 @@ async function main(){
   assert.ok(Math.abs(visibleTriangle.x+visibleTriangle.width/2-
     (anchorTriangle.x+anchorTriangle.width/2))<6,
     'upright triangle stays screen-aligned with georeferenced marker');
-  await page.evaluate(()=>{
+  const turningFrames=await page.evaluate(async()=>{
+    const host=document.getElementById('map'),marker=document.getElementById('passenger-vehicle-screen');
+    const sheet=document.getElementById('passenger-journey-sheet'),frames=[];
     window.__offlineGPSWatch({timestamp:Date.now()+2500,coords:{
       latitude:3.1391,longitude:101.6870,accuracy:8,speed:5,heading:90}});
+    for(let n=0;n<180;n++){
+      await new Promise(resolve=>requestAnimationFrame(resolve));
+      const angle=-parseFloat(host.style.getPropertyValue('--jalan-camera-turn'));
+      const heading=Number(marker.querySelector('svg').dataset.heading),box=marker.getBoundingClientRect();
+      frames.push({angle,heading,anchorError:Math.abs(sheet.getBoundingClientRect().top-box.bottom-12)});
+      if(angle===90)break;
+    }
+    return frames;
   });
-  await page.waitForTimeout(80);
+  const intermediate=turningFrames.filter(f=>f.angle>50&&f.angle<89);
+  assert.ok(new Set(intermediate.map(f=>f.angle)).size>=2,'on-route turns span multiple frames');
+  assert.ok(intermediate.every(f=>Math.min(f.heading,360-f.heading)<.02&&f.anchorError<4),
+    'triangle stays upright and anchored during raster rotation: '+JSON.stringify(intermediate));
   assert.equal(await page.locator('.jalan-vehicle-symbol').getAttribute('data-heading'),
     'gps','moving GPS uses direction of movement');
   assert.equal(await page.locator('.jalan-vehicle-symbol').textContent(),'▲',

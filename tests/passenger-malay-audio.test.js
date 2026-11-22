@@ -22,7 +22,7 @@ function scenario(){
 }
 test('Malay fallback primes one local audio bank and schedules a distance and turn in sequence',async()=>{
  const s=scenario(),status=[];
- s.events.get('click')();await flush();
+ s.audio.unlock();await flush();
  assert.equal(s.tracks.length,1);assert.deepEqual(s.tracks[0].args,[]);
  assert.equal(s.audio.speak('left',300,state=>status.push(state)),true);await flush();
  assert.deepEqual(s.requests,['https://example.test/jalan/audio/ms-guidance.mp3?v=2']);
@@ -35,7 +35,7 @@ test('a new prompt, mute, or hidden page prevents pending/stale recorded playbac
  assert.equal(s.tracks.length,0);assert.deepEqual(statuses,['done']);
  s.audio.speak('roundabout-2',50);await flush();assert.equal(s.tracks.length,1);
  s.audio.alert('You are near your destination.');await flush();
- assert.equal(s.tracks[0].stopped,true);s.document.hidden=true;s.events.get('visibilitychange')();
+ assert.equal(s.tracks[0].stopped,true);s.document.hidden=true;s.audio.cancel();
  assert.equal(s.tracks[1].stopped,true);assert.equal(s.audio.preview(),false);
 });
 test('failed Malay audio download reports failure and can retry in the same session',async()=>{

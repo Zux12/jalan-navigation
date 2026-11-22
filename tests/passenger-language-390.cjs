@@ -42,13 +42,17 @@ module.exports=async function passengerLanguage(page){
  assert.match(await placeholder(),/^Hendak ke mana/);
  await select('en');
  assert.match(await placeholder(),/^Where to/);
- await page.evaluate(()=>{
+ const showRoute=()=>page.evaluate(()=>{
    setStart([3.139,101.6869],'Fixture start');destination=[3.1478,101.6953];destinationName='Q Bistro Taman Melati';
    routes=[{duration:240,distance:1400,provider:'tomtom',
      geometry:{type:'LineString',coordinates:[[101.6869,3.139],[101.6953,3.1478]]},
      legs:[{steps:[{street:'Jalan Ampang',message:'Turn left onto Jalan Ampang',routeOffsetInMeters:180,
        maneuver:{type:'TURN_LEFT'}}]}]}];
-   selectedRoute=0;renderRoutes();document.getElementById('passenger-go').click();
+   selectedRoute=0;renderRoutes();
+ });
+ await showRoute();
+ await page.locator('#passenger-go').click();
+ await page.evaluate(()=>{
    window.__offlineGPSWatch({timestamp:Date.now(),coords:{latitude:3.139,longitude:101.6869,accuracy:5,speed:0,heading:0}});
    window.__languageJourney={route:JalanGPS.getState().route,watch:window.__offlineGPSWatch,destination};
  });
@@ -59,19 +63,18 @@ module.exports=async function passengerLanguage(page){
  // is spoken in the user's tap. A subsequent cancel would cut that speech off.
  await page.evaluate(()=>{
    let confirmTap,unlocked=false;
-   const ok=document.getElementById('passenger-sound-ok');
-   ok.addEventListener('click',e=>{confirmTap=e;},true);
+   document.addEventListener('click',e=>{confirmTap=e;},true);
    const synth=window.speechSynthesis;
    synth.speak=utterance=>{
      if(confirmTap?.isTrusted&&confirmTap.eventPhase!==Event.NONE)unlocked=true;
-     if(unlocked)window.__audibleGuidance=utterance.text;
+     if(unlocked&&utterance.volume!==0)window.__audibleGuidance=utterance.text;
    };
    synth.cancel=()=>{window.__audibleGuidance=null;};
  });
  await menu.click();await page.locator('#passenger-voice').click();
  await page.getByRole('radio',{name:'Full guidance'}).check();
  await page.locator('#passenger-sound-ok').click();
- assert.equal(await page.evaluate(()=>window.__audibleGuidance),'Full guidance');
+ assert.equal(await page.evaluate(()=>window.__audibleGuidance??null),null,'armed and quiet until a turn is due');
  await page.locator('#jalan-home-menu-close').click();
  await page.evaluate(()=>window.__offlineGPSWatch({timestamp:Date.now(),coords:{
    latitude:3.139,longitude:101.6869,accuracy:5,speed:0,heading:0
@@ -94,6 +97,28 @@ module.exports=async function passengerLanguage(page){
  await page.locator('#passenger-sound-ok').click();
  await page.locator('#jalan-home-menu-close').click();
  assert.equal(await page.evaluate(()=>window.__audibleGuidance),null);
+ // A saved voice mode must work on a fresh launch for manual and automatic Go.
+ for(const automatic of [false,true]){
+   await page.evaluate(()=>localStorage.setItem('jalan-voice-mode-v1','full'));
+   await reload();
+   await page.evaluate(()=>{
+     let tap,unlocked=false;
+     window.addEventListener('click',event=>{tap=event;},true);
+     window.__spokenTurns=[];
+     speechSynthesis.speak=utterance=>{
+       if(tap?.isTrusted&&tap.eventPhase!==Event.NONE)unlocked=true;
+       if(unlocked&&utterance.volume!==0)window.__spokenTurns.push(utterance.text);
+       if(unlocked){utterance.onstart?.();utterance.onend?.();}
+     };
+   });
+   await showRoute();
+   await page.locator(automatic?'#passenger-route-list button':'#passenger-go').first().click();
+   await page.waitForFunction(()=>JalanGPS.getState().active,null,{timeout:13000});
+   await page.evaluate(()=>window.__offlineGPSWatch({timestamp:Date.now(),coords:{
+     latitude:3.139,longitude:101.6869,accuracy:5,speed:0,heading:0
+   }}));
+   assert.match(await page.evaluate(()=>window.__spokenTurns.at(-1)),/turn left onto Jalan Ampang/i);
+ }
  assert.deepEqual(errors,[]);
  console.log('PASS English first launch, BM persistence, recorded fallback and switching during an active GPS journey');
 };

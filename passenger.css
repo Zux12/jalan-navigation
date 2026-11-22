@@ -216,6 +216,11 @@ body.passenger-vector-active .passenger-map-gestures{display:none!important}
 #jalan-map-status:enabled{z-index:1602;top:calc(175px + env(safe-area-inset-top,0px));bottom:auto;left:12px;right:12px;min-height:44px;padding:10px 14px;border:1px solid #d39a44;border-radius:12px;background:#fff5e6;color:#70470e;font:700 13px system-ui;cursor:pointer;pointer-events:auto;box-shadow:0 3px 12px #263b4b30}
 #jalan-map-status:focus-visible{outline:3px solid #087af5;outline-offset:2px}
 #jalan-map-status:empty{display:none}
+/* A rotating basic map needs enough tile coverage at every bearing. */
+body.passenger-mode:not(.passenger-vector-active) #map.jalan-free-raster{
+ position:fixed;left:calc((100vw - var(--jalan-free-size))/2);top:calc(var(--jalan-free-anchor) - var(--jalan-free-size)/2);
+ width:var(--jalan-free-size);height:var(--jalan-free-size);transform:rotate(var(--jalan-free-turn,0deg));transform-origin:center}
+#map.jalan-free-raster .passenger-startup-pin svg{transform:rotate(calc(0deg - var(--jalan-free-turn,0deg)))}
 /* The pre-route GPS halo surrounds the same vehicle used during guidance. */
 .leaflet-marker-icon.passenger-startup-pin{display:grid;place-items:center;pointer-events:none;
  border:3px solid #fff;border-radius:50%;box-sizing:border-box;

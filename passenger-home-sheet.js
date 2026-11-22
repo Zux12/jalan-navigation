@@ -100,7 +100,6 @@
  language.value=window.JalanLanguage.code;
  language.addEventListener('change',()=>{
    window.JalanLanguage.set(language.value);
-   if(window.JalanVoice.getState().recorded)window.JalanMalayAudio.unlock();
  });
  window.addEventListener('jalan:language-change',()=>{language.value=window.JalanLanguage.code;});
  const paintNavigation=()=>{

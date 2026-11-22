@@ -33,12 +33,14 @@
  const choice=el('passenger-voice-choice'),status=el('passenger-voice-status');
  const paintVoices=()=>{
   const state=window.JalanVoice.getState(),pending=sound.open?choice.value:state.selected;
-  choice.replaceChildren(new Option(state.recorded?'Rakaman Bahasa Melayu':'Automatic · device default',''));
+  const recordedMalay=state.recorded&&window.JalanLanguage.code==='ms';
+  choice.replaceChildren(new Option(state.recorded?(recordedMalay?'Rakaman Bahasa Melayu':'Recorded English'):'Automatic · device default',''));
   for(const voice of state.voices)choice.add(new Option(voice.name+' · '+voice.lang,voice.id));
   choice.value=Array.from(choice.options).some(x=>x.value===pending)?pending:state.selected;
   choice.disabled=!state.supported||state.recorded;el('passenger-voice-preview').disabled=!state.supported;
   status.textContent=!state.supported?'Voice playback is unavailable in this browser.':
-   state.recorded?'Panduan menggunakan rakaman Bahasa Melayu. Nama jalan dipaparkan pada skrin.':
+   recordedMalay?'Panduan menggunakan rakaman Bahasa Melayu. Nama jalan dipaparkan pada skrin.':
+   state.recorded?'Guidance uses recorded English turns. Street names appear on screen.':
    state.unavailable?'Saved voice is unavailable on this device. Using the device default.':
    'Choose an available device voice and play a sample.';
  };
@@ -52,6 +54,13 @@
   sound.querySelector('input:checked').focus();
  };
  window.JalanPassengerSound={open:openSound};
+ function activateSoundMode(event){
+  const control=event.target;
+  if(control.name==='passenger-sound-mode'&&control.checked&&control.value!==window.JalanGPS.getVoiceMode())
+    window.JalanGPS.setVoiceMode(control.value);
+ }
+ sound.addEventListener('click',activateSoundMode);
+ sound.addEventListener('change',activateSoundMode);
  el('passenger-sound-ok').addEventListener('click',()=>{
   window.JalanVoice.choose(choice.value);
   window.JalanGPS.setVoiceMode(sound.querySelector('input:checked').value);

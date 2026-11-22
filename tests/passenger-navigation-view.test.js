@@ -22,3 +22,40 @@ test('raster inverse preserves the same on-road anchor under heading and perspec
   assert.ok(Math.abs(x)<1e-8);assert.ok(Math.abs(actualY-(y-height/2))<1e-8);
  }
 });
+
+function simulatedTurn(start=0){
+ let now=0,next=null,id=0;
+ const samples=[],clock={
+  performance:{now:()=>now},
+  requestAnimationFrame:fn=>{assert.equal(next,null);next=fn;return ++id;},
+  cancelAnimationFrame:()=>{next=null;}
+ };
+ const turn=V.bearingFollower(value=>samples.push(value),clock);
+ turn.reset(start);
+ return {turn,samples,frame(ms){now+=ms;const callback=next;next=null;callback?.(now);},active:()=>!!next};
+}
+test('GPS turns advance smoothly on the shortest arc at different refresh rates',()=>{
+ for(const hz of [30,60,120]){
+  const s=simulatedTurn(350);
+  s.turn.aim(80);
+  for(let frame=0;frame<hz/2;frame++)s.frame(1000/hz);
+  assert.ok(s.samples[0]>350&&s.samples[0]<360);
+  assert.ok(s.turn.bearing>436&&s.turn.bearing<440);
+  for(let frame=0;frame<hz;frame++)s.frame(1000/hz);
+  assert.equal(s.turn.bearing,440);assert.equal(s.active(),false);
+  assert.ok(s.samples.every((v,i)=>i===0||v>s.samples[i-1]));
+ }
+});
+test('new GPS readings retarget an ongoing turn and stationary jitter stays quiet',()=>{
+ const s=simulatedTurn();s.turn.aim(30);
+ for(let n=0;n<8;n++)s.frame(16);
+ const before=s.turn.bearing,previous=s.samples.at(-2);
+ s.turn.aim(60);assert.equal(s.turn.bearing,before);
+ s.frame(16);assert.ok(s.turn.bearing-before>=(before-previous)*.8);
+ for(let n=0;n<120;n++)s.frame(16);
+ assert.equal(s.turn.bearing,60);
+ for(const noisy of [60.8,59.1,61,60]){s.turn.aim(noisy);s.frame(16);}
+ assert.equal(s.turn.bearing,60);assert.equal(s.active(),false);
+ s.turn.aim(120);s.frame(16);s.turn.reset();const held=s.turn.bearing;
+ s.frame(1000);assert.equal(s.turn.bearing,held);assert.equal(s.active(),false);
+});

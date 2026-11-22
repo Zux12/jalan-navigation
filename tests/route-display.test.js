@@ -13,9 +13,9 @@ test('gentle bends curve locally, preserve endpoints and share colour boundaries
  assert.ok(shape(route([{pointIndex:1}])).points.includes(coords[1]));
 });
 test('route thickness changes continuously with zoom',()=>{
- assert.equal(widthAtZoom(12),5);
- assert.equal(widthAtZoom(16),8);
- assert.equal(widthAtZoom(18),11);
- assert.equal(widthAtZoom(18.5),11.75);
- assert.equal(widthAtZoom(20),14);
+ assert.equal(widthAtZoom(12),7.5);
+ assert.equal(widthAtZoom(16),12);
+ assert.equal(widthAtZoom(18),16.5);
+ assert.equal(widthAtZoom(18.5),17.625);
+ assert.equal(widthAtZoom(20),21);
 });
