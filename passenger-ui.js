@@ -704,9 +704,32 @@
  document.addEventListener('keydown',event=>{
    if(event.key==='Escape'&&closeDirections()){event.preventDefault();turnToggle.focus({preventScroll:true});}
  });
-  const syncGPS=(fix=null)=>{
+ const refreshJunction=()=>{
+   const state=window.JalanGPS.getState();
+   const fresh=state.active&&state.matched&&state.gpsReliable&&state.gpsAccuracy<=35&&state.gpsFixAgeMs<10000;
+   const message=el('gps-instruction').textContent;
+   window.JalanLaneGuidance.render(fresh&&!document.hidden?window.JalanGPS.visualInstruction(message):null);
+ };
+ window.addEventListener('jalan:language-change',refreshJunction);
+ for(const event of ['jalan:journey-stop','jalan:route-cleared','jalan:routes-rendered','pagehide'])
+   window.addEventListener(event,window.JalanLaneGuidance.clear);
+ window.addEventListener('jalan:reroute-status',event=>{
+   if(event.detail?.state==='checking')window.JalanLaneGuidance.clear();
+ });
+ document.addEventListener('visibilitychange',window.JalanLaneGuidance.clear);
+ // Long signposts and the extra graphic both change the height of the banner.
+ const cameraAlert=el('passenger-camera-alert');
+ const resizeBanner=new ResizeObserver(()=>{
+   const bottom=turnToggle.getBoundingClientRect().bottom;
+   if(!bottom)return;
+   turnList.style.top=bottom+'px';
+   document.body.style.setProperty('--passenger-guidance-bottom',(bottom+cameraAlert.getBoundingClientRect().height)+'px');
+ });
+ resizeBanner.observe(turnToggle);resizeBanner.observe(cameraAlert);
+ const syncGPS=(fix=null)=>{
    if(!document.body.classList.contains('passenger-guiding'))return;
    const message=el('gps-instruction').textContent||'Acquiring GPS…';
+   refreshJunction();
    const malay=window.JalanGPS?.malayInstruction?.(message);
    window.JalanLanguage.write(el('passenger-instruction'),message,malay);
    el('passenger-next').textContent=(el('gps-detail').textContent||'Route preview')
@@ -1003,6 +1026,7 @@
    const state=window.JalanGPS?.getState();
    if(state?.active&&lastGPSDetail?.gpsReliable&&
       Number.isFinite(state.gpsFixAgeMs)&&state.gpsFixAgeMs<=10000&&!document.hidden)return;
+   window.JalanLaneGuidance.clear();
    markVehicleUncertain();
    el('passenger-fix').textContent=document.hidden?
      'Safari in background · last-known position only':

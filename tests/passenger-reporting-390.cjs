@@ -24,7 +24,7 @@ module.exports=async(browser,base,root)=>{
  await page.evaluate(()=>{
   const original=Storage.prototype.getItem;
   Storage.prototype.getItem=()=>{throw Error('storage denied after launch');};
-  try{window.dispatchEvent(new StorageEvent('storage',{key:'jalan-traffic-sharing-v1'}));}
+  try{window.dispatchEvent(new StorageEvent('storage',{key:'jalan-traffic-sharing-v2'}));}
   finally{Storage.prototype.getItem=original;}
  });
  assert.equal(await preference.isChecked(),false,'late storage denial cannot re-enable observation');

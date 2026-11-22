@@ -58,7 +58,7 @@ async function fetchRouteData(base,signal,legs){
  const options={signal,cache:'no-store'};
  if(legs)Object.assign(options,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({legs})});
  const tollSections=['toll','tollVignette','travelMode'];
- let fields=['speedLimit',...tollSections],response;
+ let fields=['speedLimit',...tollSections,'lanes'],response;
  for(;;){
   const url=new URL(base);
   for(const type of fields)url.searchParams.append('sectionType',type);
@@ -68,9 +68,12 @@ async function fetchRouteData(base,signal,legs){
   if(!fields.length||signal?.aborted||![400,403].includes(response.status))throw httpError;
   const error=await response.json().catch(()=>null);
   const reason=error?.detailedError?.message||error?.error?.description||'';
-  if(!/section.?type|speed.?limit|toll.?road|toll section/i.test(reason))throw httpError;
-  // A key that cannot request speed sections can still confirm tolls.
-  fields=fields.includes('speedLimit')&&/speed.?limit/i.test(reason)?tollSections:[];
+  if(!/section.?type|speed.?limit|toll.?road|toll section|\blanes?\b/i.test(reason))throw httpError;
+  if(fields.includes('speedLimit')&&/speed.?limit/i.test(reason))
+   fields=fields.filter(field=>field!=='speedLimit');
+  else if(fields.includes('lanes'))
+   fields=fields.filter(field=>field!=='lanes');
+  else fields=[];
  }
  const data=await response.json();
  if(!fields.length)for(const route of data.routes||[]){
@@ -104,7 +107,31 @@ function roadDetails(sections,pointCount){
  }
  return {tolls,speedLimits:speeds};
 }
-function normal(r){const coords=[];for(const leg of r.legs||[])for(const p of leg.points||[]){if(Number.isFinite(p.latitude)&&Number.isFinite(p.longitude))coords.push([p.longitude,p.latitude]);}if(coords.length<2)throw Error('TomTom returned no usable route geometry.');if(!Number.isFinite(r.summary?.travelTimeInSeconds)||r.summary.travelTimeInSeconds<0||!Number.isFinite(r.summary?.lengthInMeters)||r.summary.lengthInMeters<=0||!Number.isFinite(r.summary?.trafficDelayInSeconds??0)||r.summary.trafficDelayInSeconds<0)throw Error('TomTom returned invalid route measurements.');const steps=(r.guidance?.instructions||[]).slice(0,120).map(x=>({name:x.street||x.roadNumbers?.[0]||x.message||'road',street:x.street||'',roadNumbers:Array.isArray(x.roadNumbers)?x.roadNumbers.filter(v=>typeof v==='string').slice(0,6):[],pointIndex:Number.isInteger(x.pointIndex)?x.pointIndex:null,roundaboutExitNumber:x.roundaboutExitNumber,exitNumber:x.exitNumber,signpostText:x.signpostText,distance:0,location:x.point&&Number.isFinite(x.point.latitude)&&Number.isFinite(x.point.longitude)?[x.point.longitude,x.point.latitude]:null,routeOffsetInMeters:Number.isFinite(x.routeOffsetInMeters)?x.routeOffsetInMeters:null,message:x.message||'',maneuver:{type:x.maneuver||'continue',modifier:x.message||''}}));return {provider:'tomtom',...roadDetails(r.sections,coords.length),roadGuidance:(r.guidance?.instructions||[]).map(x=>({street:x.street||'',roadNumbers:Array.isArray(x.roadNumbers)?x.roadNumbers.filter(v=>typeof v==='string').slice(0,6):[],routeOffsetInMeters:x.routeOffsetInMeters,maneuver:x.maneuver})),geometry:{type:'LineString',coordinates:coords},duration:r.summary.travelTimeInSeconds,distance:r.summary.lengthInMeters,knownTrafficDelay:r.summary.trafficDelayInSeconds??null,delay:r.summary.trafficDelayInSeconds||0,trafficSections:Array.isArray(r.sections)?r.sections.filter(s=>s.sectionType==='TRAFFIC').slice(0,120):null,trafficSectionsCheckedAt:Date.now(),legs:[{steps}]};}
+// The approach layout belongs to the instruction at its downstream endpoint.
+function guidanceSteps(raw,coordinates){
+ const byEnd=new Map();
+ for(const section of raw.sections||[]){
+  if(section?.sectionType!=='LANES')continue;
+  const {startPointIndex:start,endPointIndex:end}=section;
+  if(!Number.isInteger(start)||!Number.isInteger(end)||start<0||start>=end||end>=coordinates.length)continue;
+  byEnd.set(end,byEnd.has(end)?null:section.lanes);
+ }
+ return (raw.guidance?.instructions||[]).slice(0,120).map(i=>{
+  const index=Number.isInteger(i.pointIndex)?i.pointIndex:null;
+  const location=Number.isFinite(i.point?.latitude)&&Number.isFinite(i.point?.longitude)?
+   [i.point.longitude,i.point.latitude]:null;
+  const vertex=coordinates[index];
+  const atVertex=!!(location&&vertex&&location[0]===vertex[0]&&location[1]===vertex[1]);
+  return {name:i.street||i.roadNumbers?.[0]||i.roadNumber||i.message||'road',street:i.street||'',
+   roadNumbers:Array.isArray(i.roadNumbers)?i.roadNumbers.filter(v=>typeof v==='string').slice(0,6):[],
+   pointIndex:index,location,lanes:atVertex?byEnd.get(index):undefined,
+   junctionType:i.junctionType,turnAngleInDecimalDegrees:i.turnAngleInDecimalDegrees,
+   roundaboutExitNumber:i.roundaboutExitNumber,exitNumber:i.exitNumber,signpostText:i.signpostText,
+   distance:0,routeOffsetInMeters:Number.isFinite(i.routeOffsetInMeters)?i.routeOffsetInMeters:null,
+   message:i.message||'',maneuver:{type:i.maneuver||'continue',modifier:i.message||''}};
+ });
+}
+function normal(r){const coords=[];for(const leg of r.legs||[])for(const p of leg.points||[]){if(Number.isFinite(p.latitude)&&Number.isFinite(p.longitude))coords.push([p.longitude,p.latitude]);}if(coords.length<2)throw Error('TomTom returned no usable route geometry.');if(!Number.isFinite(r.summary?.travelTimeInSeconds)||r.summary.travelTimeInSeconds<0||!Number.isFinite(r.summary?.lengthInMeters)||r.summary.lengthInMeters<=0||!Number.isFinite(r.summary?.trafficDelayInSeconds??0)||r.summary.trafficDelayInSeconds<0)throw Error('TomTom returned invalid route measurements.');const steps=guidanceSteps(r,coords);return {provider:'tomtom',...roadDetails(r.sections,coords.length),roadGuidance:(r.guidance?.instructions||[]).map(x=>({street:x.street||'',roadNumbers:Array.isArray(x.roadNumbers)?x.roadNumbers.filter(v=>typeof v==='string').slice(0,6):[],routeOffsetInMeters:x.routeOffsetInMeters,maneuver:x.maneuver})),geometry:{type:'LineString',coordinates:coords},duration:r.summary.travelTimeInSeconds,distance:r.summary.lengthInMeters,knownTrafficDelay:r.summary.trafficDelayInSeconds??null,delay:r.summary.trafficDelayInSeconds||0,trafficSections:Array.isArray(r.sections)?r.sections.filter(s=>s.sectionType==='TRAFFIC').slice(0,120):null,trafficSectionsCheckedAt:Date.now(),legs:[{steps}]};}
 // Request candidates without clearing the active journey. Both initial route
 // selection and off-route recovery use the same provider normalization/options.
 async function requestRoutes(from,to,{signal,via,tollPolicy}={}){
@@ -399,6 +426,6 @@ if(passenger){
  syncFlowTiles();
  document.addEventListener('visibilitychange',refreshFlowTiles);
 }
-window.JalanTomTom={getNearbyTraffic:()=>nearbyTraffic,setNearbyTraffic,enabled,calculate,requestRoutes,fetchRouteData,roadDetails,routeCleared,refreshRouteIncidents,
+window.JalanTomTom={getNearbyTraffic:()=>nearbyTraffic,setNearbyTraffic,enabled,calculate,requestRoutes,fetchRouteData,guidanceSteps,roadDetails,routeCleared,refreshRouteIncidents,
  startPassengerTraffic,stopPassengerTraffic:hide,reportRouteTolerance,projectReportPoint,matchReportGeometry,trafficSectionsForRoute};
 })();

@@ -152,8 +152,8 @@ body.passenger-mode.passenger-route-search .jalan-home-sheet .results:not(.hidde
 #jalan-home-menu-panel .passenger-fix{margin:0 0 7px}
 #jalan-home-menu-panel .passenger-traffic-details{margin:10px 0}
 body.passenger-mode:not(.passenger-guiding) .passenger-journey-options{display:none}
-body.passenger-guiding #jalan-home-menu{z-index:1601;top:calc(125px + env(safe-area-inset-top,0px));left:14px;width:48px;height:48px;font-size:27px}
-body.passenger-guiding #jalan-home-menu-panel{z-index:1602;top:calc(181px + env(safe-area-inset-top,0px));max-height:calc(100dvh - 205px - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px))}
+body.passenger-guiding #jalan-home-menu{z-index:1601;top:calc(var(--passenger-guidance-bottom,112px) + 13px);left:14px;width:48px;height:48px;font-size:27px}
+body.passenger-guiding #jalan-home-menu-panel{z-index:1602;top:calc(var(--passenger-guidance-bottom,112px) + 69px);max-height:calc(100dvh - var(--passenger-guidance-bottom,112px) - 93px - env(safe-area-inset-bottom,0px))}
 body.passenger-guiding:has(#passenger-turn-list:not(.hidden)) #jalan-home-menu,
 body.passenger-route-search #jalan-home-menu,
 body.passenger-route-search #jalan-home-menu-panel{display:none!important}

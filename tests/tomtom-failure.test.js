@@ -78,21 +78,22 @@ test('invalid TomTom summary fails closed rather than drawing NaN distance',asyn
  assert.match(n['tt-status'].textContent,/Uncheck TomTom primary routing to use OSRM/);
  assert.equal(s.calls.length,1,'manual fallback must not silently fetch OSRM');
 });
-test('route calculation requests TomTom-native route TRAFFIC sections',async()=>{
+test('route calculation requests TomTom traffic, road and lane sections',async()=>{
  const s=scene();
  await s.nodes['tt-route'].onclick();await s.tick();
  assert.equal(s.calls.length,1);
- assert.deepEqual(new URL(s.calls[0].url).searchParams.getAll('sectionType'),['traffic','speedLimit','toll','tollVignette','travelMode']);
+ assert.deepEqual(new URL(s.calls[0].url).searchParams.getAll('sectionType'),['traffic','speedLimit','toll','tollVignette','travelMode','lanes']);
 });
 test('a rejected optional field preserves the base TomTom route and keeps toll status unknown',async()=>{
  const s=scene(),calls=[];
  s.ctx.fetch=async url=>{
   calls.push(new URL(url).searchParams.getAll('sectionType'));
-  if(calls.length===1)return {ok:false,status:400,json:async()=>({detailedError:{message:'Unsupported sectionType'}})};
+  if(calls.length<=2)return {ok:false,status:400,json:async()=>({detailedError:{message:'Unsupported sectionType'}})};
   return {ok:true,json:async()=>({routes:[{sections:[{sectionType:'TRAVEL_MODE'}]}]})};
  };
  const data=await s.ctx.window.JalanTomTom.fetchRouteData(new URL('https://example.test/?sectionType=traffic'));
- assert.deepEqual(calls[1],['traffic']);assert.equal(data.routes[0].sections.length,0);
+ assert.deepEqual(calls[1],['traffic','speedLimit','toll','tollVignette','travelMode']);
+ assert.deepEqual(calls[2],['traffic']);assert.equal(data.routes[0].sections.length,0);
 });
 test('a key without speed-section access can still confirm tolls',async()=>{
  const api=scene(),calls=[],sections=[{sectionType:'TRAVEL_MODE',startPointIndex:0,endPointIndex:2}];
@@ -102,8 +103,44 @@ test('a key without speed-section access can still confirm tolls',async()=>{
   return {ok:true,json:async()=>({routes:[{sections}]})};
  };
  const data=await api.ctx.window.JalanTomTom.fetchRouteData('https://example.test/?sectionType=traffic');
- assert.deepEqual(calls[1],['traffic','toll','tollVignette','travelMode']);
+ assert.deepEqual(calls[1],['traffic','toll','tollVignette','travelMode','lanes']);
  assert.equal(api.ctx.window.JalanTomTom.roadDetails(data.routes[0].sections,3).tolls,false);
+});
+test('lane permission failure retains the previous road, speed, traffic and toll fields',async()=>{
+ const api=scene(),calls=[];
+ api.ctx.fetch=async url=>{
+  const fields=url.searchParams.getAll('sectionType');calls.push(fields);
+  if(fields.includes('lanes'))return {ok:false,status:403,json:async()=>({detailedError:{message:'lanes not allowed'}})};
+  return {ok:true,json:async()=>({routes:[{sections:[{sectionType:'SPEED_LIMIT'}]}]})};
+ };
+ const data=await api.ctx.window.JalanTomTom.fetchRouteData('https://example.test/?sectionType=traffic');
+ assert.equal(calls.length,2);
+ assert.deepEqual(calls[1],['traffic','speedLimit','toll','tollVignette','travelMode']);
+ assert.equal(data.routes[0].sections[0].sectionType,'SPEED_LIMIT');
+});
+test('lane layouts match the exact maneuver vertex, including after a pinned stop',()=>{
+ const normalize=scene().ctx.window.JalanTomTom.guidanceSteps;
+ const split=require('../passenger-pin-route.js').tomtom;
+ const points=[0,1,2,3,4].map(i=>({latitude:3,longitude:101+i/1000}));
+ const lanes=[{directions:['LEFT'],follow:'LEFT'},{directions:['STRAIGHT']}];
+ const section={sectionType:'LANES',startPointIndex:2,endPointIndex:3,lanes};
+ const summary={lengthInMeters:220,travelTimeInSeconds:30};
+ const raw={summary,legs:[{points:points.slice(0,3),summary},{points:points.slice(2),summary}],
+  sections:[section,{sectionType:'TRAVEL_MODE',startPointIndex:0,endPointIndex:4}],
+  guidance:{instructions:[1,3].map((i,n)=>({pointIndex:i,point:points[i],routeOffsetInMeters:n?330:110,
+   maneuver:'TAKE_EXIT',junctionType:'REGULAR',turnAngleInDecimalDegrees:-45}))}};
+ const adapt=r=>{
+  const coordinates=r.legs.flatMap(l=>l.points.map(p=>[p.longitude,p.latitude]));
+  return {distance:r.summary.lengthInMeters,geometry:{coordinates},legs:[{steps:normalize(r,coordinates)}]};
+ };
+ const full=split(raw,[3,101.002],adapt);
+ assert.equal(full.legs[0].steps[0].lanes,undefined);
+ assert.deepEqual(full.legs[0].steps[1].lanes,lanes);
+ const onward=full.pinnedStop.onward.legs[0].steps[0];
+ assert.equal(onward.pointIndex,1);assert.equal(onward.turnAngleInDecimalDegrees,-45);
+ assert.deepEqual(onward.lanes,lanes);
+ raw.sections.push({...section,lanes:[]});
+ assert.equal(adapt({...raw,legs:[{points}]}).legs[0].steps[1].lanes,null);
 });
 test('splitting a stop route never turns invalid provider coverage into toll-free legs',async()=>{
  const from=[3,101],via=[3,101.01],to=[3,101.02];
