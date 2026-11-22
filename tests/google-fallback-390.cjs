@@ -243,6 +243,20 @@ module.exports=async function({context,base,root}){
  assert.equal(routeCalls,beforeRecentRoute+1,'Recent routes directly to the selected point');
  assert.equal(await recent.locator('li').first().getAttribute('data-recent-key'),'google:FIXTURE_AYER_South');
  assert.equal(await recent.locator('li').count(),2,'reselection reorders the existing branch');
+ const stationTypes=await page.evaluate(async()=>{
+   const host=document.createElement('div');document.body.append(host);
+   const controller=new AbortController();let all,selected;
+   await JalanGooglePlaceSearch.nearby({center:[3.14,101.69],radius:1400,container:host,signal:controller.signal,
+    onError:()=>{},onSelect:s=>{selected=s;},onPlaces:s=>{all=s;}});
+   const widgets=[...host.children],types=widgets.map(w=>w.querySelector('gmp-place-nearby-search-request').includedTypes);
+   for(const w of widgets){
+    w.places=[{id:'SHARED_FORECOURT',location:{lat:()=>3.14,lng:()=>101.69}}];w.dispatchEvent(new Event('gmp-load'));
+   }
+   const event=new Event('gmp-select');event.place=widgets[1].places[0];widgets[1].dispatchEvent(event);
+   const result={types,markers:all.length,combined:all[0].ev&&all[0].petrol,picked:selected.id,credited:widgets.every(w=>!!w.querySelector('gmp-place-attribution'))};
+   controller.abort();host.remove();return result;
+ });
+ assert.deepEqual(stationTypes,{types:[['gas_station'],['electric_vehicle_charging_station']],markers:1,combined:true,picked:'SHARED_FORECOURT',credited:true});
  console.log('PASS exact Google branch names and addresses in Recent, shared entrance, provider failure and reuse');
  assert.deepEqual(errors,[]);await page.close();
  console.log('PASS synthetic Google UI Kit fallback: multiple branches and both providers, narrowed and zero-match queries, original single input, lazy SDK, attribution host intact, exact point to TomTom routes, keyboard, stale/clear/collapse, empty/error and submit');

@@ -60,7 +60,8 @@ const fmtDist=m=>m>=1000?(m/1000).toFixed(1)+' km':Math.round(m)+' m';
 const fmtTime=s=>{const min=Math.max(1,Math.round(s/60));return min>=60?`${Math.floor(min/60)} hr ${min%60} min`:`${min} min`};
 // Fetch replacements without discarding the route/GPS session. The caller
 // decides whether a response still belongs to the current journey.
-async function requestDrivingRoutes(from,to,{signal,via,tollPolicy}={}){
+async function requestDrivingRoutes(from,to,{signal,via,stops,tollPolicy}={}){
+ if(stops?.length)return window.JalanStationRoute.plan(from,to,stops,{signal,tollPolicy},requestDrivingRoutes);
  if($('tt-primary').checked){
   if(!window.JalanTomTom?.enabled())throw Error('TomTom key unavailable');
   const choices=await window.JalanTomTom.requestRoutes(from,to,{signal,via,tollPolicy});
