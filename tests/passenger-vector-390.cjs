@@ -580,6 +580,17 @@ async function main(){
   await startup.evaluate(()=>window.dispatchEvent(new CustomEvent('jalan:free-location',{detail:{
     point:[3.1394,101.6873],accuracy:8,timestamp:Date.now()+2,heading:180,speed:0}})));
   assert.equal(await startup.evaluate(()=>JalanVectorMap.getBearing()),90,'stationary fixes hold the last course');
+  await startup.evaluate(()=>{
+    const fix=(lat,heading,speed,ms)=>window.dispatchEvent(new CustomEvent('jalan:free-location',{
+      detail:{point:[lat,101.6873],accuracy:8,timestamp:Date.now()+ms,heading,speed}}));
+    // Each northward movement is smaller than the reported accuracy.
+    fix(3.13943,null,null,3);fix(3.13946,null,null,4);fix(3.13949,null,null,5);
+  });
+  await startup.waitForFunction(()=>Math.abs(JalanVectorMap.getBearing())<.01);
+  assert.ok(await anchored(),'the map turns under the same marker when heading is inferred from movement');
+  await startup.evaluate(()=>window.dispatchEvent(new CustomEvent('jalan:free-location',{detail:{
+    point:[3.1394,101.6873],accuracy:8,timestamp:Date.now()+6,heading:90,speed:5}})));
+  await startup.waitForFunction(()=>Math.abs(JalanVectorMap.getBearing()-90)<.01);
   const pinSelector=vectorHalo+' svg';
   await startup.evaluate(selector=>{
     window.__startupShape=document.querySelector(selector);
@@ -606,6 +617,14 @@ async function main(){
   const basicHalo='#map .leaflet-marker-pane .passenger-startup-pin';
   await startup.locator(basicHalo).waitFor({state:'visible'});
   await assertTriangleCentered(basicHalo);
+  await startup.evaluate(()=>window.dispatchEvent(new CustomEvent('jalan:free-location',{detail:{
+    point:[3.1394,101.6873],accuracy:8,timestamp:Date.now()+8,heading:90,speed:5}})));
+  await startup.waitForFunction(()=>{
+    const host=map.getContainer(),box=host.querySelector('.passenger-startup-pin').getBoundingClientRect();
+    const top=document.getElementById('jalan-home-sheet').getBoundingClientRect().top;
+    return host.classList.contains('jalan-free-raster')&&host.style.getPropertyValue('--jalan-free-turn')==='-90deg'&&
+      Math.abs(box.left+box.width/2-innerWidth/2)<3&&Math.abs(top-box.bottom-12)<3;
+  });
   await startup.close();await startupContext.close();
   // Inaccurate geolocation must not display a false current-position arrow or
   // auto-zoom, and browser permission denial must remain usable.

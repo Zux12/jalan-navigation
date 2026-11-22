@@ -116,7 +116,7 @@
  window.JalanPassengerStartup=startupPosition;
  let startupMarker=null,locationPending=true;
  let startupTimestamp=-Infinity;
- let freeLast=null,freeHeading=null,freeExploring=false,freeReturn=null;
+ let freeLast=null,courseOrigin=null,freeHeading=null,freeExploring=false,freeReturn=null;
  const drawFreeVehicle=svg=>{
    const vector=window.JalanVectorMap;
    if(svg)drawVehicleShape(svg,(freeHeading||0)-(vector?.active?vector.getBearing():0),
@@ -169,7 +169,14 @@
  host.addEventListener('touchstart',event=>{
    if(event.touches.length>1&&!window.JalanVectorMap?.active)exploreFree();
  },{passive:true});
- const releaseFree=()=>{if(freeActive()&&freeExploring){clearTimeout(freeReturn);freeReturn=setTimeout(centerFree,3000);}};
+ const releaseFree=()=>{
+   if(!freeActive()||!freeExploring)return;
+   clearTimeout(freeReturn);
+   freeReturn=setTimeout(()=>{
+     freeExploring=false;
+     centerFree(); // A fresh fix can resume following if the last one expired.
+   },3000);
+ };
  map.on('dragstart',exploreFree);map.on('dragend',releaseFree);
  window.addEventListener('jalan:vector-gesture',exploreFree);
  window.addEventListener('jalan:vector-gesture-end',releaseFree);
@@ -189,7 +196,7 @@
    locationPending=false;
    clearStartupMarker();
    startupPosition.ready=locationConfidence(detail);
-   if(startupPosition.ready){startupTimestamp=detail.timestamp;freeLast=detail;}
+   if(startupPosition.ready){startupTimestamp=detail.timestamp;freeLast=detail;courseOrigin=detail;}
    // The original public location circle cannot masquerade as a trusted fix.
    if(locationMarker){pointLayer.removeLayer(locationMarker);locationMarker=null;}
    if(!startupPosition.ready){
@@ -211,7 +218,7 @@
    const detail=event.detail;
    if(document.body.classList.contains('passenger-guiding')||destination||routes.length||
       !locationConfidence(detail)||detail.timestamp<startupTimestamp)return;
-   const previous=freeLast;
+   const previous=courseOrigin;
    let heading=null;
    if(Number.isFinite(detail.heading)&&detail.heading>=0&&detail.heading<360&&detail.speed>=1)
      heading=detail.heading;
@@ -223,6 +230,8 @@
      }
    }
    if(heading!==null)freeHeading=heading;
+   // On phones without course data, accumulate enough movement to exceed GPS noise.
+   if(!previous||heading!==null||detail.speed!=null&&detail.speed<1||detail.timestamp-previous.timestamp>30000)courseOrigin=detail;
    freeLast=detail;
    startupTimestamp=detail.timestamp;
    if(!startupMarker){
@@ -235,7 +244,7 @@
  });
  function leaveFreeCamera(){
    if(!startupMarker)return;
-   clearTimeout(freeReturn);freeExploring=false;freeHeading=null;freeLast=null;
+   clearTimeout(freeReturn);freeExploring=false;freeHeading=null;freeLast=null;courseOrigin=null;
    clearStartupMarker();
    rasterFreeLayout(false);
    window.JalanVectorMap?.setCamera({bearing:0,pitch:0,padding:{top:0,bottom:0,left:0,right:0}});
