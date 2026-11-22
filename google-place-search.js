@@ -79,14 +79,45 @@
   visibility.observe(widget);
   request.textQuery=query;
  }
+ async function nearby({center,radius,container,signal,onSelect,onError,onPlaces}){
+  await load();if(signal.aborted)return;
+  // The UI Kit exposes IDs and coordinates. Its visible category requests
+  // supply the category even when the SDK omits names and types from events.
+  const results=new Map(),widgets=[],failed=new Set();container.replaceChildren();
+  for(const [type,flag] of [['gas_station','petrol'],['electric_vehicle_charging_station','ev']]){
+   const widget=document.createElement('gmp-place-search');widgets.push(widget);
+   widget.lang=window.JalanLanguage?.code||'en';widget.setAttribute('selectable','');widget.setAttribute('attribution-position','top');
+   const request=document.createElement('gmp-place-nearby-search-request');
+   request.includedTypes=[type];request.maxResultCount=20;
+   request.locationRestriction={center:{lat:center[0],lng:center[1]},radius:Math.min(50000,radius)};
+   const template=document.createElement('template');template.slot='details-item';
+   template.content.append(document.createElement('gmp-place-name'),document.createElement('gmp-place-address'));
+   widget.append(template,request,document.createElement('gmp-place-attribution'));
+   function site(p){
+    const lat=p?.location?.lat?.(),lng=p?.location?.lng?.();
+    if(!p?.id||!Number.isFinite(lat)||!Number.isFinite(lng))return null;
+    const entry=results.get(p.id)||{id:p.id,googleId:p.id,name:p.displayName||'',point:[lat,lng],access:[lat,lng],details:[]};
+    entry[flag]=true;results.set(p.id,entry);return entry;
+   }
+   widget.addEventListener('gmp-error',()=>{failed.add(type);if(!signal.aborted&&failed.size===2)onError();});
+   widget.addEventListener('gmp-load',()=>{
+    if(signal.aborted)return;
+    (widget.places||[]).forEach(site);onPlaces([...results.values()]);
+   });
+   widget.addEventListener('gmp-select',e=>{const selected=site(e.place);if(selected&&!signal.aborted)onSelect(selected);});
+   container.append(widget);
+  }
+  signal.addEventListener('abort',()=>widgets.forEach(widget=>widget.remove()),{once:true});
+ }
  // Mount an attributed place by its exact ID, without repeating the search.
- async function showDetails(id,container,signal){
+ async function showDetails(id,container,signal,station=false){
   await load();if(signal.aborted)throw Error('Place lookup cancelled');
   return new Promise((done,fail)=>{
-   const widget=document.createElement('gmp-place-details-compact');
+   const widget=document.createElement(station?'gmp-place-details':'gmp-place-details-compact');
    widget.lang=window.JalanLanguage?.code||'en';widget.setAttribute('orientation','horizontal');
    const request=document.createElement('gmp-place-details-place-request');
    widget.append(request,document.createElement('gmp-place-name'),document.createElement('gmp-place-address'),document.createElement('gmp-place-attribution'));
+   if(station)widget.insertBefore(document.createElement('gmp-place-type-specific-highlights'),widget.lastElementChild);
    function finish(){
     clearTimeout(timer);signal.removeEventListener('abort',failed);
     widget.removeEventListener('gmp-error',failed);widget.removeEventListener('gmp-load',ready);
@@ -113,5 +144,5 @@
  window.addEventListener('jalan:language-change',()=>{
   document.querySelectorAll('gmp-place-search,gmp-place-details-compact').forEach(widget=>{widget.lang=window.JalanLanguage.code;});
  });
- window.JalanGooglePlaceSearch=Object.freeze({configured,mount,resolve,showDetails});
+ window.JalanGooglePlaceSearch=Object.freeze({configured,mount,nearby,resolve,showDetails});
 })();

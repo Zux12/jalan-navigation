@@ -265,7 +265,7 @@
   warn('Recalculating from your current location…');
   rerouteStatus('checking','Recalculating route from your current location…');
   try{
-   const candidates=await requestDrivingRoutes(from,target,{signal:controller.signal,via:oldRoute?.pinnedStop?.point,tollPolicy:oldRoute?.tollPolicy});
+   const candidates=await requestDrivingRoutes(from,target,{signal:controller.signal,via:oldRoute?.pinnedStop?.point,stops:window.JalanStationRoute?.managed(oldRoute),tollPolicy:oldRoute?.tollPolicy});
    if(!currentRequest()||controller.signal.aborted)return;
    if(!freshRerouteFix()||meters(from,rerouteFix.position)>150){
     movedBeyondOrigin=!!freshRerouteFix();
@@ -363,6 +363,7 @@
    return replaceGuidanceRoute([candidate],from,reason);
   },
   applyTrafficRoute(newRoute){
+   if(route?.stationItinerary&&window.JalanStationRoute.signature(route)!==window.JalanStationRoute.signature(newRoute))return false;
    if(route?.pinnedStop&&!samePoint(route.pinnedStop.point,newRoute?.pinnedStop?.point))return false;
    if(!active||!freshRerouteFix()||!usableRoute(newRoute,rerouteFix.position,destination))return false;
    cancelReroute();
