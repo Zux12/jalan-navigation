@@ -1,15 +1,29 @@
 'use strict';
 const assert=require('node:assert/strict');
 module.exports=async function stations(page){
- await page.route('**/nearbySearch/**',route=>route.fulfill({json:{summary:{totalResults:2},results:[
+ await page.route('**/nearbySearch/**',route=>route.fulfill({json:{summary:{totalResults:4},results:[
    {id:'pump',position:{lat:3.139,lon:101.686},poi:{name:'Shell Test',categorySet:[{id:7311}]}},
    {id:'charger',position:{lat:3.139,lon:101.68601},poi:{name:'Shell Recharge HPC',categorySet:[{id:7309}]},
-    chargingPark:{connectors:[{connectorType:'IEC62196Type2CCS',currentType:'DC',ratedPowerKW:180}]}}
+    chargingPark:{connectors:[{connectorType:'IEC62196Type2CCS',currentType:'DC',ratedPowerKW:180},
+     {currentType:'DC',ratedPowerKW:50},{currentType:'AC3',ratedPowerKW:22}]}},
+   {id:'petrol',position:{lat:3.138,lon:101.687},poi:{name:'PETRONAS Test',brands:[{name:'PETRONAS'}],categorySet:[{id:7311}]}},
+   {id:'ac',position:{lat:3.14,lon:101.685},poi:{name:'AC Test',categorySet:[{id:7309}]},
+    chargingPark:{connectors:[{currentType:'AC3',ratedPowerKW:11}]}}
  ]}}));
  await page.reload({waitUntil:'load'});
  await page.evaluate(()=>{JalanLanguage.set('en',false);map.setView([3.139,101.686],16);});
  const input=page.locator('#passenger-stations'),pin=page.locator('#map .jalan-station-pin.combined').first();
  assert.ok(await input.isChecked());await pin.waitFor({state:'attached',timeout:7000});
+ assert.deepEqual(await pin.locator('.station-pin-label>span').allTextContents(),['Shell Test','HPC · 180 kW','DC · 50 kW','AC · 22 kW']);
+ assert.equal(await page.locator('#map .jalan-station-pin.petrol:not(.combined) .station-pin-label').textContent(),'PETRONAS');
+ assert.equal(await page.locator('#map .jalan-station-pin.ev .station-pin-label').textContent(),'AC · 11 kW');
+ assert.equal(await pin.locator('.station-drop > svg').count(),2,'a shared forecourt carries both symbols on one pin');
+ const art=await pin.evaluate(el=>{
+   const color=selector=>getComputedStyle(el.querySelector(selector)).fill;
+   const rect=el.getBoundingClientRect(),label=el.querySelector('.station-pin-label').getBoundingClientRect();
+   return [color('.station-ev-fill'),color('.station-petrol-fill'),rect.height>rect.width,label.right>rect.right];
+ });
+ assert.deepEqual(art,['rgb(17, 131, 28)','rgb(245, 188, 55)',true,true]);
  const toggle=()=>input.evaluate(n=>n.click());
  await toggle();assert.equal(await pin.count(),0);await toggle();await pin.waitFor({state:'attached'});
  await page.evaluate(()=>{

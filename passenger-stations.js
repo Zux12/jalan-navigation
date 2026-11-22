@@ -26,14 +26,31 @@
    closeDirectory();const access=site.access||site.point;
    planner.open({kind:'station',point:access,name:site.name||lang('Station','Stesen'),station:site});
  }
- const pump='<path d="M2 18V4h9v14M1 18h11M4 6h5v4H4zM11 10h2c2 0 1 5 3 5 1 0 1-1 1-2V8l-3-3" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>';
- const bolt='<path d="M11 1 4 12h5l-1 7 8-12h-6l2-6z" fill="currentColor"/>';
- function symbol(content){return '<svg viewBox="0 0 20 20" aria-hidden="true">'+content+'</svg>';}
+ const drop='M17 1.5C8.4 1.5 1.5 8.1 1.5 16.5c0 6.1 3.6 10.3 7.6 15.1 2.8 3.3 4.9 7 6.3 10a1.8 1.8 0 0 0 3.2 0c1.4-3 3.5-6.7 6.3-10 4-4.8 7.6-9 7.6-15.1C32.5 8.1 25.6 1.5 17 1.5Z';
+ const pump='<path fill="#25251f" fill-rule="evenodd" d="M2 2.5h10v15h1v2H1v-2h1zm2 2v5h6v-5z"/><path d="M12 8h1.2c2 0 2.5 1.5 2.5 3.5v2.8c0 1.6 2.4 1.6 2.4 0V8l-3.5-4" fill="none" stroke="#25251f" stroke-width="1.8" stroke-linecap="round"/>';
+ const bolt='<path d="M13.3 0 3 12h6.4l-2 8L18 7.5h-6.5z" fill="white"/>';
+ function glyph(content,x,y,size){return '<svg x="'+x+'" y="'+y+'" width="'+size+'" height="'+size+'" viewBox="0 0 20 20">'+content+'</svg>';}
+ function artwork(petrol,ev){
+   const both=petrol&&ev;
+   const split=both?'<path class="station-ev-fill" d="M17 1.5v41.1c.7 0 1.3-.4 1.6-1 1.4-3 3.5-6.7 6.3-10 4-4.8 7.6-9 7.6-15.1C32.5 8.1 25.6 1.5 17 1.5Z"/>':'';
+   const symbols=both?glyph(pump,3,8.5,14)+glyph(bolt,16.5,8,14):glyph(petrol?pump:bolt,7,6.3,20);
+   return '<svg class="station-drop" viewBox="0 0 34 44" aria-hidden="true"><path class="'+(petrol?'station-petrol-fill':'station-ev-fill')+'" d="'+drop+'"/>'+split+symbols+'<path fill="none" stroke="white" stroke-width="2" d="'+drop+'"/></svg>';
+ }
  function marker(site,interactive=true){
    const both=site.petrol&&site.ev;
-   const icon=L.divIcon({className:'jalan-station-pin'+(both?' combined':'')+(site.petrol?' petrol':' ev'),iconSize:[both?37:27,27],iconAnchor:[both?18:13,13],
-     html:(site.petrol?symbol(pump):'')+(site.ev||!site.petrol?symbol(bolt):'')});
-   const pin=L.marker(site.point,{icon,interactive,keyboard:interactive,title:site.name,zIndexOffset:interactive?50:400});
+   const frame=document.createElement('span');frame.className='station-marker-face';
+   frame.innerHTML=artwork(site.petrol,site.ev);
+   const label=document.createElement('span');label.className='station-pin-label';
+   const lines=data.chargeLabels(site);
+   if(site.ev&&!lines.length)lines.push('EV');
+   if(site.petrol)lines.unshift(site.brandName||site.name||'Petrol');
+   for(const line of lines){
+     const row=document.createElement('span');row.textContent=line;label.append(row);
+   }
+   frame.append(label);
+   const icon=L.divIcon({className:'jalan-station-pin'+(both?' combined':'')+(site.petrol?' petrol':' ev'),
+     iconSize:[34,44],iconAnchor:[17,43],html:frame.outerHTML});
+   const pin=L.marker(site.point,{icon,interactive,keyboard:interactive,title:site.name||lines.join(' · '),zIndexOffset:interactive?50:400});
    if(interactive)pin.on('click',()=>select(site));
    return pin.addTo(map);
  }
@@ -136,10 +153,14 @@
  function hitAt(x,y){
    let best=null,distance=Infinity;
    for(const row of pins.values()){
-     const rect=row.pin.getElement()?.getBoundingClientRect();if(!rect||!rect.width)continue;
-     if(x<rect.left-4||x>rect.right+4||y<rect.top-4||y>rect.bottom+4)continue;
-     const d=Math.hypot(x-rect.left-rect.width/2,y-rect.top-rect.height/2);
-     if(d<distance){distance=d;best=row;}
+     const element=row.pin.getElement();if(!element)continue;
+     const targets=row.site.count?[element]:element.querySelectorAll('.station-drop,.station-pin-label');
+     for(const target of targets){
+       const rect=target.getBoundingClientRect();if(!rect.width)continue;
+       if(x<rect.left-4||x>rect.right+4||y<rect.top-4||y>rect.bottom+4)continue;
+       const d=Math.hypot(x-rect.left-rect.width/2,y-rect.top-rect.height/2);
+       if(d<distance){distance=d;best=row;}
+     }
    }
    return best;
  }

@@ -147,6 +147,19 @@ async function main(){
   assert.equal(await page.locator('#jalan-home-sheet').getAttribute('data-state'),'a','an early map touch cancels the opening lift');
   assert.equal(await page.locator('#map').evaluate(x=>getComputedStyle(x).visibility),'visible','reveal only after native renderer ready');
   assert.equal(await page.locator('#map').evaluate(x=>getComputedStyle(x).transform),'none');
+  await page.evaluate(()=>{
+    const center=map.getCenter();
+    window.__stationPin=JalanStations.marker({name:'Test forecourt',point:[center.lat,center.lng],
+      ev:true,petrol:true,charging:{HPC:180,AC:22}});
+  });
+  const stationLabel=page.locator('#jalan-vector-map .jalan-station-pin.combined .station-pin-label');
+  await stationLabel.waitFor();
+  assert.deepEqual(await stationLabel.locator('span').allTextContents(),['Test forecourt','HPC · 180 kW','AC · 22 kW']);
+  await stationLabel.tap();
+  await page.locator('#jalan-station-card').waitFor({state:'visible'});
+  assert.equal(await page.locator('#station-heading').textContent(),'Test forecourt');
+  await page.locator('#jalan-station-card .station-dismiss').tap();
+  await page.evaluate(()=>map.removeLayer(window.__stationPin));
   const recentCredit=page.locator('.jalan-recent-credit'),handle=page.locator('#jalan-sheet-handle');
   await page.waitForTimeout(5100);
   assert.equal(await recentCredit.count(),1,'a collapsed Recent section spends none of the reading time');
