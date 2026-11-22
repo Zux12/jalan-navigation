@@ -5,7 +5,7 @@
  const toggle=$('passenger-stations'),listButton=$('passenger-stations-list'),preference='jalan-nearby-stations-v1';
  const lang=(en,ms)=>window.JalanLanguage?.code==='ms'?ms:en;
  const pins=new Map(),cache=[],googlePins=[];
- let enabled=true,current=null,loading=null,timer,retryAfter=0,directoryJob=null;
+ let enabled=true,current=null,loading=null,timer,paintZoom,retryAfter=0,directoryJob=null;
  try{enabled=localStorage.getItem(preference)!=='off';}catch{}
  toggle.checked=enabled;listButton.hidden=!enabled;
  const directory=document.createElement('section');directory.id='station-directory';directory.hidden=true;
@@ -33,17 +33,36 @@
    return pin.addTo(map);
  }
  function resetPins(){pins.forEach(({pin})=>map.removeLayer(pin));pins.clear();}
+ function overview(rows,zoom){
+   const groups=new Map(),size=360*48/(256*2**zoom);
+   for(const site of rows){
+     const key=site.point.map(n=>Math.floor(n/size)).join('/');
+     if(!groups.has(key))groups.set(key,[]);groups.get(key).push(site);
+   }
+   return [...groups].map(([key,items])=>items.length===1?items[0]:{id:'area/'+key,count:items.length,
+     point:items.reduce((p,s)=>[p[0]+s.point[0]/items.length,p[1]+s.point[1]/items.length],[0,0])});
+ }
+ function expand(site){map.setView(site.point,Math.max(11,map.getZoom()+2));}
+ function cluster(site){
+   const icon=L.divIcon({className:'jalan-station-count',iconSize:[36,30],iconAnchor:[18,15],html:String(site.count)});
+   const pin=L.marker(site.point,{icon,title:site.count+' '+lang('stations','stesen')}).addTo(map);
+   pin.on('click',()=>expand(site));return pin;
+ }
  function paint(rows){
+   paintZoom=Math.floor(map.getZoom());if(paintZoom<11)rows=overview(rows,paintZoom);
    const keep=new Set(rows.map(s=>s.id));
    pins.forEach(({pin},id)=>{if(!keep.has(id)){map.removeLayer(pin);pins.delete(id);}});
    for(const site of rows)if(!pins.has(site.id)||pins.get(site.id).site!==site){
      if(pins.has(site.id))map.removeLayer(pins.get(site.id).pin);
-     pins.set(site.id,{pin:marker(site),site});
+     pins.set(site.id,{pin:site.count?cluster(site):marker(site),site});
    }
    paintDirectory();
  }
  function view(){
-   const b=map.getBounds(),c=b.getCenter();
+   const bounds=map.getBounds();
+   const south=Math.max(.5,bounds.getSouth()),north=Math.min(7.7,bounds.getNorth()),west=Math.max(99.3,bounds.getWest()),east=Math.min(119.6,bounds.getEast());
+   if(south>=north||west>=east)return null;
+   const b=L.latLngBounds([south,west],[north,east]),c=b.getCenter();
    const center=[Number(c.lat.toFixed(2)),Number(c.lng.toFixed(2))];
    const radius=Math.ceil(Math.max(...[b.getNorthEast(),b.getNorthWest(),b.getSouthEast(),b.getSouthWest()].map(p=>data.meters(center,[p.lat,p.lng]))));
    return {center,radius};
@@ -53,16 +72,19 @@
  async function refresh(){
    if(!enabled||document.hidden)return;
    const v=view(),key=$('tt-key')?.value.trim();
-   if(!key||map.getZoom()<10||v.center[0]<0.4||v.center[0]>7.8||v.center[1]<98.8||v.center[1]>119.9){
+   if(!key||!v){
      loading?.controller.abort();loading=null;current=null;resetPins();paintDirectory();return;
    }
-   if(current&&current.until>Date.now()&&contains(current,v))return;
-   const cached=cache.findLast(a=>a.until>Date.now()&&contains(a,v));
+   if(current&&current.until>Date.now()&&contains(current,v)){
+     if(paintZoom!==Math.floor(map.getZoom()))paint(current.rows);
+     return;
+   }
+   const cached=[...cache].reverse().find(a=>a.until>Date.now()&&contains(a,v));
    if(cached){loading?.controller.abort();loading=null;current=cached;paint(cached.rows);return;}
    if(loading&&contains(loading,v)||Date.now()<retryAfter)return;
    loading?.controller.abort();
    const area={center:v.center,radius:Math.max(1200,Math.ceil(v.radius*1.35)),controller:new AbortController()};
-   loading=area;const timeout=setTimeout(()=>area.controller.abort(),12000);
+   loading=area;
    try{
      const rows=await data.nearby(area.center,area.radius,key,area.controller.signal);
      if(loading!==area||!enabled)return;
@@ -70,19 +92,18 @@
      cache.push(current);if(cache.length>6)cache.shift();
      paint(rows);
    }catch{if(loading===area){retryAfter=Date.now()+12000;setTimeout(schedule,12500);}}
-   finally{clearTimeout(timeout);if(loading===area)loading=null;}
+   finally{if(loading===area)loading=null;}
  }
  function paintDirectory(){
    if(directory.hidden)return;
    const list=directory.querySelector('.station-local-list'),b=map.getBounds();list.replaceChildren();
-   const sites=[...pins.values()].map(p=>p.site).filter(s=>b.contains(s.point));
+   const sites=(current?.rows||[]).filter(s=>b.contains(s.point));
    for(const site of sites){
      const button=document.createElement('button');button.type='button';
      button.textContent=site.name+' · '+(site.petrol&&site.ev?'Petrol + EV':site.petrol?'Petrol':'EV');
      button.onclick=()=>select(site);list.append(button);
    }
-   if(!sites.length)list.textContent=map.getZoom()<10?lang('Zoom in for nearby stations.','Zum masuk untuk stesen berhampiran.'):
-     lang('No stations shown in this area.','Tiada stesen dipaparkan di kawasan ini.');
+   if(!sites.length)list.textContent=lang('No stations shown in this area.','Tiada stesen dipaparkan di kawasan ini.');
  }
  function openDirectory(){
    if(!enabled)return;
@@ -92,7 +113,8 @@
    const google=window.JalanGooglePlaceSearch;if(!google.configured())return;
    const container=directory.querySelector('.station-google-list'),controller=new AbortController();directoryJob=controller;
    const failed=()=>{if(!controller.signal.aborted)container.textContent=lang('Google Maps results unavailable.','Hasil Google Maps tidak tersedia.');};
-   google.nearby({...view(),container,signal:controller.signal,onSelect:select,onError:failed,onPlaces:places=>{
+   const area=view();if(!area)return;
+   google.nearby({...area,container,signal:controller.signal,onSelect:select,onError:failed,onPlaces:places=>{
      googlePins.splice(0).forEach(layer=>map.removeLayer(layer));
      for(const p of places){
        if(!(p.ev||p.petrol)||[...pins.values()].some(row=>data.meters(row.site.point,p.point)<8))continue;
@@ -130,14 +152,14 @@
  surface?.addEventListener('touchcancel',()=>{touch=null;});
  surface?.addEventListener('touchend',()=>{
    if(enabled&&touch&&performance.now()-touch.at<650){
-     const row=hitAt(touch.x,touch.y);if(row){lastTouch=performance.now();select(row.site);}
+     const row=hitAt(touch.x,touch.y);if(row){lastTouch=performance.now();row.site.count?expand(row.site):select(row.site);}
    }
    touch=null;
  });
  window.addEventListener('click',event=>{
    if(event.target!==surface||!enabled||performance.now()-lastTouch<650)return;
    const row=hitAt(event.clientX,event.clientY);
-   if(row){event.stopImmediatePropagation();select(row.site);}
+   if(row){event.stopImmediatePropagation();row.site.count?expand(row.site):select(row.site);}
  },true);
  map.on('moveend zoomend',schedule);window.addEventListener('jalan:vector-gesture-end',schedule);
  window.addEventListener('jalan:gps-fix',schedule);document.addEventListener('visibilitychange',schedule);

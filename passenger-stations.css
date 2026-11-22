@@ -14,3 +14,5 @@
 #jalan-station-card .station-actions button:first-child{background:#753d06;color:white;border-color:#753d06}
 #jalan-station-card p{margin:8px 0;font-weight:650}
 #station-directory .station-local-list{max-height:22dvh;overflow:auto}#station-directory .station-google-list{max-height:32dvh;overflow:auto}.station-google:not(:empty){max-height:22dvh;overflow:auto}
+
+.jalan-station-count{display:grid;place-items:center;box-sizing:border-box;background:#fff1c8;color:#763c06;border:2px solid #b86a1d;border-radius:16px;text-align:center;font:700 13px/26px system-ui,sans-serif}

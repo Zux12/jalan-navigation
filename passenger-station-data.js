@@ -38,9 +38,18 @@
  function merge(rows){
    const unique=Array.from(new Map(rows.filter(Boolean).map(r=>[r.id,r])).values());
    const petrol=unique.filter(r=>r.petrol).map(r=>({...r,details:[...r.details]}));
-   const separate=[];
+   const cells=new Map(),byId=new Map(),related=new Map(),separate=[];
+   const cell=s=>s.point.map(n=>Math.floor(n*1000));
+   for(const site of petrol){
+     byId.set(site.id,site);for(const id of site.related)related.set(id,site);
+     const key=cell(site).join('/');if(!cells.has(key))cells.set(key,[]);cells.get(key).push(site);
+   }
    for(const ev of unique.filter(r=>!r.petrol)){
-     const matches=petrol.filter(p=>sameSite(p,ev)).sort((a,b)=>meters(a.point,ev.point)-meters(b.point,ev.point));
+     const [x,y]=cell(ev),near=new Set([related.get(ev.id),...ev.related.map(id=>byId.get(id))].filter(Boolean));
+     for(let dx=-1;dx<=1;dx++)for(let dy=-1;dy<=1;dy++){
+       for(const p of cells.get([x+dx,y+dy].join('/'))||[])near.add(p);
+     }
+     const matches=[...near].filter(p=>sameSite(p,ev)).sort((a,b)=>meters(a.point,ev.point)-meters(b.point,ev.point));
      const site=matches[0];
      if(site){
        site.ev=true;site.hpc||=ev.hpc;site.evName=ev.name;
@@ -54,7 +63,7 @@
    for(let offset=0;;){
      const url=new URL('https://api.tomtom.com/search/2/nearbySearch/.json');
      url.search=new URLSearchParams({lat:center[0],lon:center[1],radius,limit:100,ofs:offset,countrySet:'MY',categorySet:'7309,7311',relatedPois:'all',key});
-     const response=await fetch(url,{signal,credentials:'omit'});
+     const response=await fetch(url,{signal:AbortSignal.any([signal,AbortSignal.timeout(12000)]),credentials:'omit'});
      if(!response.ok)throw Error('Station lookup unavailable');
      const data=await response.json(),items=data.results||[];
      rows.push(...items.map(station).filter(Boolean));offset+=items.length;

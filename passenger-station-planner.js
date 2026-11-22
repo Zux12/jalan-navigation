@@ -92,7 +92,8 @@
      if(s.adding){
        s.choices.forEach((r,i)=>{
          const toll=r.tolls===true?t('Has tolls','Ada tol'):r.tolls===false?t('Toll-free','Tanpa tol'):t('Tolls unknown','Tol tidak diketahui');
-         button(routesBox,(i+1)+'. '+minutes(r.duration)+' · '+(r.distance/1000).toFixed(1)+' km · '+toll,()=>{s.index=i;paint();restart();},i===s.index);
+         const via=window.JalanJourneyModel?.longestRoad(r);
+         button(routesBox,(i+1)+'. '+(via?t('Via ','Melalui ')+via+' · ':'')+minutes(r.duration)+' · '+(r.distance/1000).toFixed(1)+' km · '+toll,()=>{s.index=i;paint();restart();},i===s.index);
        });
        preview=draw(choice,null,null,true);
        s.go=button(actions,t('Confirm','Sahkan'),confirm);
