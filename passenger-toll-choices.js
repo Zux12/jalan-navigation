@@ -56,7 +56,9 @@
   wanted=avoid;source=old;phase='loading';manualReview=review;paint();
   if(!from){phase='gps';job=null;paint();return;}
   if(!active&&!old.tollPolicy&&!original)original={choices:routes,via,from:[...from],target};
-  const cached=!active&&original?.target===target&&String(original.via)===String(via)&&
+  const signature=window.JalanStationRoute?.signature(old);
+  if(original&&original.choices.includes(old))original.signature=signature;
+  const cached=original?.signature===signature&&!active&&original?.target===target&&String(original.via)===String(via)&&
     String(original.from)===String(from)?original.choices:null;
   const current=()=>job===controller&&destination===target&&selected()===old&&guiding()===active;
   const timer=setTimeout(()=>controller.abort(),18000);
@@ -65,10 +67,10 @@
    if(!avoid&&cached)candidates=cached;
    else{
     try{
-     candidates=await requestDrivingRoutes(from,target,{signal:controller.signal,via,tollPolicy:avoid?{}:undefined});
+     candidates=await requestDrivingRoutes(from,target,{signal:controller.signal,via,stops:window.JalanStationRoute?.managed(old),tollPolicy:avoid?{}:undefined});
     }catch(error){
      // A verified free choice already on this sheet is usable if a second lookup fails.
-     const knownFree=avoid&&cached?.filter(r=>r.tolls===false);
+     const knownFree=avoid&&!old.stationItinerary&&cached?.filter(r=>r.tolls===false);
      if(!knownFree?.length)throw error;
      candidates=window.JalanTollPolicy.check(knownFree.map(r=>({...r,pinnedStop:r.pinnedStop?
        {...r.pinnedStop,onward:{...r.pinnedStop.onward}}:undefined})),{});
@@ -95,7 +97,7 @@
  window.addEventListener('jalan:journey-stop',()=>{original=null;reset();});
  window.addEventListener('jalan:routes-rendered',()=>{
   if(source&&selected()!==source)reset();else paint();
-  if(original&&String(original.via)!==String(selected()?.pinnedStop?.point))original=null;
+  if(original&&(String(original.via)!==String(selected()?.pinnedStop?.point)||original.signature!==window.JalanStationRoute?.signature(selected())))original=null;
  });
  for(const [id,event] of [['tt-primary','change'],['tt-key','input'],['tt-remove-key','click']])
   el(id)?.addEventListener(event,()=>{original=null;if(phase)change(wanted);});

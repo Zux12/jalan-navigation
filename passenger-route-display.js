@@ -12,6 +12,10 @@
    const saved=cache.get(route);
    if(saved?.input===input)return saved.path;
    const protectedPoints=new Set(),protectedIndices=new Set([route.pinnedStop?.index]);
+   let boundary=route.pinnedStop?.index||0;
+   for(let next=route.pinnedStop?.onward?.pinnedStop;next;next=next.onward?.pinnedStop){
+     boundary+=next.index;protectedIndices.add(boundary);
+   }
    for(const leg of route.legs||[])for(const step of leg.steps||[]){
      protectedIndices.add(step.pointIndex);
      const at=step.location||step.maneuver?.location;

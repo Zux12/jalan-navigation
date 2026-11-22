@@ -15,6 +15,7 @@
  const pane=map.createPane('passenger-stop');pane.style.zIndex='455';pane.style.pointerEvents='none';
  let tollDecision=null;
  let picked=null,tempPin=null,stopPin=null,purple=null,observed=null,track={},outcome='',retryAfter=0;
+ let extraLayers=[];
  let pendingDirect=null,request=null,hold=null,holdTimer,deadline=0,frame=0,ignoreClickUntil=0,toastTimer;
  const contacts=new Set();
  const same=(a,b)=>!!a&&!!b&&a[0]===b[0]&&a[1]===b[1];
@@ -25,12 +26,16 @@
  function paintRoute(){
    const route=routes[selectedRoute],stop=route?.pinnedStop;
    if(observed===route)return;
+   extraLayers.forEach(layer=>map.removeLayer(layer));extraLayers=[];
    if(purple)map.removeLayer(purple);if(stopPin)map.removeLayer(stopPin);
    // Preserve approach evidence across recalculations to the same physical stop.
    if(!same(stop?.point,observed?.pinnedStop?.point)){track={};outcome='';retryAfter=0;}
    observed=route;purple=null;stopPin=null;
    if(!stop)return;
    const path=window.JalanRouteDisplay.shape(route);
+   if(route.stationItinerary){
+     extraLayers=window.JalanStationPlanner.draw(route,pane,marker);return;
+   }
    const points=window.JalanRouteDisplay.section(path,0,path.lengths[stop.index]);
    purple=L.polyline(points.map(([lon,lat])=>[lat,lon]),{pane:'passenger-stop',className:'jalan-stop-route',
      jalanRouteScale:1,color:'#8047c7',weight:9,smoothFactor:0,opacity:1,interactive:false}).addTo(map);
@@ -104,7 +109,14 @@
    if(!destination){startChange(false);return;}
    options('Go to this location?',[
      ['New destination',()=>startChange(false)],
-     ['Add as stop',()=>{if(routes[selectedRoute]?.pinnedStop)
+     ['Add as stop',()=>{
+       if(window.JalanStationRoute?.stops(routes[selectedRoute]).some(s=>s.kind==='station')){
+         const regular=()=>{const point=picked;close();window.JalanStationPlanner.open({kind:'regular',point,name:''},true);};
+         if(window.JalanStationRoute.stops(routes[selectedRoute]).some(s=>s.kind==='regular'))
+           options('Replace current stop?',[['Keep current stop',close],['Replace stop',regular]]);
+         else regular();return;
+       }
+       if(routes[selectedRoute]?.pinnedStop)
        options('Replace current stop?',[['Keep current stop',close],['Replace stop',()=>startChange(true)]]);
        else startChange(true);}]
    ]);
@@ -211,7 +223,9 @@
      for(let i=0;i<2;i++){
        if(!current()||job.signal.aborted)return;
        if(replacing)message('Calculating driving routes…',0);
-       const choices=kind==='arrived'?[stop.onward]:await requestDrivingRoutes(from,target,{signal:job.signal,via,tollPolicy});
+       const remaining=kind==='passed'?stop?.onward:kind==='resume'?previous:null;
+       const stops=window.JalanStationRoute?.managed(remaining);
+       const choices=kind==='arrived'?[stop.onward]:await requestDrivingRoutes(from,target,{signal:job.signal,via:via||remaining?.pinnedStop?.point,stops,tollPolicy});
        if(!current()||job.signal.aborted)return;
        if(active){
          let latest=reliable(window.JalanGPS.getState());

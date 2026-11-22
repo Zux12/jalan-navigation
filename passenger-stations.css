@@ -1,0 +1,16 @@
+.jalan-vector-pin .jalan-station-pin,.jalan-station-pin{display:flex;align-items:center;justify-content:center;box-sizing:border-box;background:#fff3d8;color:#89400b;border:1.5px solid #b56821;border-radius:9px;box-shadow:0 1px 4px #42372050;cursor:pointer}
+.jalan-station-pin.ev{background:#e9fbf2;color:#096344;border-color:#298461}
+.jalan-station-pin svg{width:19px;height:19px;pointer-events:none}
+.jalan-station-pin.combined svg{width:16px}.jalan-station-pin.combined svg+svg{color:#096344}
+#jalan-station-card,#station-directory{position:fixed;z-index:1830;box-sizing:border-box;bottom:max(12px,env(safe-area-inset-bottom));left:50%;transform:translateX(-50%);width:min(390px,calc(100vw - 20px));max-height:68dvh;overflow:auto;border:1px solid #d1d9df;border-radius:16px;background:white;color:#192e3d;padding:14px 16px;box-shadow:0 5px 24px #172e4440;font:500 14px/1.4 system-ui,sans-serif}
+:is(#jalan-station-card,#station-directory)[hidden],#passenger-stations-list[hidden]{display:none}
+:is(#jalan-station-card,#station-directory) header{display:flex;align-items:center;justify-content:space-between;gap:8px}
+:is(#jalan-station-card,#station-directory) h2{margin:0;font-size:18px;line-height:1.25}
+:is(#jalan-station-card,#station-directory) button{cursor:pointer;border:1px solid #c5d0d6;background:white;color:#233a46;border-radius:9px;min-height:40px;padding:6px 10px;font:600 14px/1.25 system-ui,sans-serif}
+:is(#jalan-station-card,#station-directory) .station-dismiss{width:40px;flex:none;font-size:22px;border:0}
+.station-info{color:#4f606b}.station-info:empty{display:none}
+.station-order,.station-options,.station-local-list{display:grid;gap:5px;margin:6px 0}
+#jalan-station-card button[aria-pressed="true"]{background:#fff3cf;border-color:#bc671a}.station-actions{display:flex;gap:7px}.station-actions button{flex:1}
+#jalan-station-card .station-actions button:first-child{background:#753d06;color:white;border-color:#753d06}
+#jalan-station-card p{margin:8px 0;font-weight:650}
+#station-directory .station-local-list{max-height:22dvh;overflow:auto}#station-directory .station-google-list{max-height:32dvh;overflow:auto}.station-google:not(:empty){max-height:22dvh;overflow:auto}

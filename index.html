@@ -7,7 +7,7 @@
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; base-uri 'self'; object-src 'none'; form-action 'self'; script-src 'self' https://unpkg.com https://maps.googleapis.com https://maps.gstatic.com; style-src 'self' 'unsafe-inline' https://unpkg.com https://fonts.googleapis.com; img-src 'self' data: blob: https://tiles.openfreemap.org https://unpkg.com https://*.tile.openstreetmap.org https://api.tomtom.com https://maps.gstatic.com https://maps.googleapis.com https://lh3.googleusercontent.com; font-src 'self' data: https://fonts.gstatic.com; media-src 'self' blob:; connect-src 'self' https://tiles.openfreemap.org https://api.tomtom.com https://router.project-osrm.org https://nominatim.openstreetmap.org https://overpass-api.de https://mterm2026-559f9bf571b5.herokuapp.com https://maps.googleapis.com https://places.googleapis.com https://maps.gstatic.com; worker-src 'self' blob:; frame-src 'none'; upgrade-insecure-requests" />
   <link rel="preload" href="fonts/DancingScript.ttf" as="font" type="font/ttf" crossorigin />
   <link rel="stylesheet" href="passenger-launch.css?v=4" />
-  <script src="passenger-language-copy.js?v=nearby-traffic1"></script>
+  <script src="passenger-language-copy.js?v=stations1"></script>
   <script src="passenger-language.js?v=1"></script>
   <script src="passenger-launch.js?v=8"></script>
   <meta name="theme-color" content="#ffffff" />
@@ -32,6 +32,7 @@
   <link rel="stylesheet" href="jalan-kl-preview.css?v=3a1">
   <link rel="stylesheet" href="jalan-kl-3b.css?v=3b1">
   <link rel="stylesheet" href="jalan-kl-3c.css?v=3c1">
+  <link rel="stylesheet" href="passenger-stations.css?v=1">
   <link rel="stylesheet" href="passenger-pin.css?v=1-avoid1">
 </head>
 <body>
@@ -280,9 +281,10 @@
   </section>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
   <script src="passenger-toll-policy.js?v=1"></script>
+  <script src="passenger-station-route.js?v=1"></script>
   <script src="passenger-pin-route.js?v=lane-guidance1"></script>
-  <script src="passenger-route-display.js?v=driving-view1"></script>
-  <script src="app.js?v=driving-view1"></script>
+  <script src="passenger-route-display.js?v=stations1"></script>
+  <script src="app.js?v=stations1"></script>
   <script src="comparison.js?v=4-2"></script>
   <script src="traffic-test.js?v=4-2"></script>
   <script src="jalan-config.js?v=3"></script>
@@ -292,8 +294,8 @@
   <script src="voice-guidance.js?v=driving-view1"></script>
   <script src="navigation-sim.js?v=4-5-1"></script>
   <script src="predictive-gps.js?v=4-6-road1"></script>
-  <script src="gps-navigation.js?v=lane-guidance1"></script>
-  <script src="proactive-routing.js?v=lane-guidance1"></script>
+  <script src="gps-navigation.js?v=stations1"></script>
+  <script src="proactive-routing.js?v=stations1"></script>
   <script src="journey-log.js?v=4-2"></script>
   <script src="speed-intelligence.js?v=4-3"></script>
   <script src="predictive-tests.js?v=4-3"></script>
@@ -313,9 +315,9 @@
   <script src="passenger-ui.js?v=lane-guidance1"></script>
   <script src="passenger-route-traffic.js?v=community1"></script>
   <script src="passenger-saved-places.js?v=2-lang1"></script>
-  <script src="passenger-home-sheet.js?v=driving-view1"></script>
+  <script src="passenger-home-sheet.js?v=stations1"></script>
   <script src="destination-match.js?v=2"></script>
-  <script src="google-place-search.js?v=4-lang1"></script>
+  <script src="google-place-search.js?v=stations1"></script>
   <script src="destination-suggestions.js?v=6-lang1"></script>
   <script src="passenger-menu-dialogs.js?v=driving-view1"></script>
   <script src="passenger-route-sheet.js?v=2-avoid1"></script>
@@ -323,12 +325,15 @@
   <script src="passenger-speed-limit.js?v=3"></script>
   <script src="passenger-journey-model.js?v=2"></script>
   <script src="passenger-journey-sheet.js?v=6"></script>
-  <script src="passenger-toll-choices.js?v=1"></script>
-  <script src="passenger-route-start.js?v=3-pin1-avoid1"></script>
+  <script src="passenger-toll-choices.js?v=stations1"></script>
+  <script src="passenger-route-start.js?v=stations1"></script>
   <script src="passenger-vector-map.js?v=nearby-traffic1"></script>
   <script src="community-flow-model.js?v=1"></script>
   <script src="passenger-community-flow.js?v=2"></script>
   <script src="passenger-reporting.js?v=community1"></script>
-  <script src="passenger-pin.js?v=3-avoid1"></script>
+  <script src="passenger-pin.js?v=stations1"></script>
+  <script src="passenger-station-data.js?v=1"></script>
+  <script src="passenger-station-planner.js?v=1"></script>
+  <script src="passenger-stations.js?v=1"></script>
 </body>
 </html>

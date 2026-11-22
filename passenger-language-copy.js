@@ -50,6 +50,8 @@
     'User menu': 'Menu pengguna',
     'JALAN menu': 'Menu JALAN',
     'Navigation': 'Navigasi',
+    'Show EV charging & petrol stations': 'Paparkan pengecas EV dan stesen minyak',
+    'Nearby stations': 'Stesen berhampiran',
     'Show nearby traffic': 'Paparkan trafik berhampiran',
     'Zoom': 'Zum',
     '3D tilt': 'Kecondongan 3D',

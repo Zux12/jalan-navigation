@@ -1367,6 +1367,7 @@ async function main(){
   assert.deepEqual(deniedErrors,[]);
   await require('./passenger-road-details-390.cjs')(deniedPage);
   await require('./passenger-lane-guidance-390.cjs')(deniedPage);
+  await require('./passenger-stations-390.cjs')(deniedPage);
   assert.deepEqual(deniedErrors,[]);
   await deniedContext.close();
   await require('./destination-suggestions-390.cjs')({context,base,root});
