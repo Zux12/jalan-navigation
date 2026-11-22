@@ -34,7 +34,7 @@
   if(!Number.isFinite(geometryMeters)||geometryMeters<10)throw Error('Invalid route geometry distance');
   if(!Number.isFinite(r.summary?.travelTimeInSeconds)||r.summary.travelTimeInSeconds<=0||!Number.isFinite(r.summary?.lengthInMeters)||r.summary.lengthInMeters<=0||!Number.isFinite(r.summary?.trafficDelayInSeconds??0)||r.summary.trafficDelayInSeconds<0)throw Error('Invalid TomTom route measurements');
   const roadGuidance=r.guidance?.instructions||[];
-  const steps=roadGuidance.slice(0,120).map(x=>({street:x.street,roadNumbers:x.roadNumbers,roundaboutExitNumber:x.roundaboutExitNumber,exitNumber:x.exitNumber,signpostText:x.signpostText,name:x.street||x.roadNumber||x.message||'road',distance:0,location:x.point?[x.point.longitude,x.point.latitude]:null,routeOffsetInMeters:Number.isFinite(x.routeOffsetInMeters)?x.routeOffsetInMeters:null,message:x.message||'',maneuver:{type:x.maneuver||'continue',modifier:x.message||''}}));
+  const steps=window.JalanTomTom.guidanceSteps(r,coordinates);
   return {provider:'tomtom',...window.JalanTomTom.roadDetails(r.sections,coordinates.length),
    trafficSections:Array.isArray(r.sections)?r.sections.filter(s=>s?.sectionType==='TRAFFIC').slice(0,120):null,
    trafficSectionsCheckedAt:Date.now(),roadGuidance,geometry:{type:'LineString',coordinates},duration:r.summary.travelTimeInSeconds,distance:r.summary.lengthInMeters,knownTrafficDelay:r.summary.trafficDelayInSeconds??null,delay:r.summary.trafficDelayInSeconds||0,legs:[{steps}]};

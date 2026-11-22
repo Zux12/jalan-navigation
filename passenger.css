@@ -271,3 +271,19 @@ body.passenger-guiding .passenger-turn-chevron{position:absolute;right:28px;bott
 #passenger-camera-distance{margin-left:auto;font-weight:700;font-variant-numeric:tabular-nums}
 .passenger-camera-pin{display:grid;place-items:center;background:#ffe9a6;border:2px solid #81570c;border-radius:50%;box-sizing:border-box;font-size:16px;line-height:1}
 #passenger-turn-toggle[aria-expanded="true"]+.passenger-camera-alert{display:none}
+
+/* The graphic shares the turn button, leaving the map interactive below it. */
+body.passenger-guiding .passenger-turn:has(#passenger-junction-guide:not([hidden])):not([aria-expanded="true"]){
+ display:grid;grid-template-columns:auto minmax(0,1fr);gap:6px 16px;padding-bottom:10px}
+#passenger-junction-guide{grid-column:1/-1;justify-self:stretch;display:flex;justify-content:center;
+ border-top:1px solid #2a3545;padding-top:5px;line-height:0}
+#passenger-junction-guide[hidden],.passenger-turn[aria-expanded="true"] #passenger-junction-guide{display:none}
+.junction-lanes{display:flex;align-items:center;justify-content:center;width:100%;gap:2px}
+.junction-lanes svg{width:32px;min-width:0;height:32px}
+#passenger-junction-guide path{fill:none;stroke-linecap:round;stroke-linejoin:round}
+#passenger-junction-guide .other{stroke:#818b9a;stroke-width:2.4}
+#passenger-junction-guide .recommended{stroke:#45a8ff;stroke-width:3.7}
+#passenger-junction-guide[data-view="fork"]>svg{height:clamp(38px,7dvh,62px);width:auto}
+#passenger-junction-guide[data-view="fork"] .other{stroke-width:8}
+#passenger-junction-guide[data-view="fork"] .recommended{stroke-width:9}
+#passenger-junction-guide .junction-tip{fill:#45a8ff}

@@ -81,7 +81,10 @@
  function project(p){const sx=111320*Math.cos(rad(p[0])),sy=111320;let best={distance:Infinity,along:0};for(let i=1;i<points.length;i++){const a=points[i-1],b=points[i],ax=(a[1]-p[1])*sx,ay=(a[0]-p[0])*sy,dx=(b[1]-a[1])*sx,dy=(b[0]-a[0])*sy,t=Math.max(0,Math.min(1,-(ax*dx+ay*dy)/(dx*dx+dy*dy||1))),d=Math.hypot(ax+t*dx,ay+t*dy);if(d<best.distance)best={distance:d,along:cum[i-1]+t*(cum[i]-cum[i-1])};}return best;}
  function build(){activeInstruction=null;route=routes[selectedRoute];if(!route?.geometry?.coordinates?.length)return false;points=route.geometry.coordinates.map(p=>[p[1],p[0]]);cum=[0];for(let i=1;i<points.length;i++)cum.push(cum[i-1]+meters(points[i-1],points[i]));total=cum.at(-1);if(total<10)return false;
   maneuvers=[];for(const leg of route.legs||[])for(const step of leg.steps||[]){const m=step.maneuver||{},type=String(m.type||'').toLowerCase();if(type==='depart'||type==='arrive')continue;let along=null;
-   if(Number.isFinite(step.routeOffsetInMeters))along=step.routeOffsetInMeters;
+   const vertex=route.geometry.coordinates[step.pointIndex];
+   if(Number.isInteger(step.pointIndex)&&vertex&&step.location?.[0]===vertex[0]&&step.location?.[1]===vertex[1])
+     along=cum[step.pointIndex];
+   else if(Number.isFinite(step.routeOffsetInMeters))along=step.routeOffsetInMeters;
    else if(Array.isArray(step.location)&&step.location.length===2)along=project([step.location[1],step.location[0]]).along;
    else if(Array.isArray(m.location)&&m.location.length===2)along=project([m.location[1],m.location[0]]).along;
    if(along===null)continue;const message=String(step.message||'').trim();const road=String(step.name||'').trim();const action=message||(`${String(m.modifier||type||'Continue').replace(/_/g,' ')}${road?' onto '+road:''}`);
@@ -186,11 +189,11 @@
   el('gps-match-status').textContent={matched:'On route · GPS matched',predicted:'Route prediction · checking GPS',uncertain:'GPS uncertain · estimated position',deviation:'Deviation confirmed',waiting:'Waiting for reliable GPS',stale:'Old GPS reading ignored',invalid:'Invalid GPS reading'}[mode]||'Route prediction';
   const left=Math.max(0,total-progress),distance=route.distance*left/total,seconds=remainingTime();
   el('gps-distance').textContent=fmtDist(distance);el('gps-eta').textContent=fmtTime(seconds);
-  const next=maneuvers.find(x=>x.along>progress+12);
+  const nextIndex=maneuvers.findIndex(x=>x.along>progress+12),next=maneuvers[nextIndex];
   activeInstruction=null;
   if(next){
    const d=next.along-progress,label=fmtDist(d)+': ',english=label+next.action;
-   activeInstruction={english,step:next.step,action:next.action,prefix:label};
+   activeInstruction={english,step:next.step,action:next.action,prefix:label,along:next.along,previousAlong:maneuvers[nextIndex-1]?.along};
    el('gps-instruction').textContent=english;
    if(trustworthy)window.JalanVoice.announce(voice,next.along.toFixed(1),d,next.action,next.step);
   }
@@ -329,6 +332,11 @@
   // Read-only route maneuvers generated from the selected provider's actual
   // instructions. Distances are from current matched progress, not fabricated
   // turn guesses from arbitrary OSM polylines.
+  visualInstruction(message){
+   if(!active||!latestMatched||rerouting||!activeInstruction||activeInstruction.english!==message||
+      activeInstruction.previousAlong>progress)return null;
+   return {step:activeInstruction.step,distance:activeInstruction.along-progress};
+  },
   instructionStep(english){return activeInstruction?.english===english?activeInstruction.step:null;},
   malayInstruction(english){
    if(!activeInstruction||english!==activeInstruction.english)return undefined;
