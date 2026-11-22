@@ -1,0 +1,47 @@
+'use strict';
+const assert=require('node:assert/strict');
+module.exports=async function forwardMotion(page,base){
+ await page.goto(base+'/index.html?mode=passenger',{waitUntil:'load'});
+ const result=await page.evaluate(async()=>{
+   const a=[3.139,101.687],corner=[a[0],a[1]+.00012],b=[a[0]+.00012,corner[1]],end=[a[0]+.001,corner[1]];
+   const marker=name=>Object.values(map._layers).find(l=>l.options?.icon?.options.className===name);
+   const emit=(name,detail)=>window.dispatchEvent(new CustomEvent(name,{detail}));
+   async function sample(name,endpoint){
+     const frames=[],started=performance.now();
+     do{
+       await new Promise(requestAnimationFrame);
+       const p=marker(name).getLatLng(),center=map.getCenter();
+       frames.push([p.lat,p.lng,center.lat,center.lng]);
+       if(p.distanceTo(endpoint)<.01)break;
+     }while(performance.now()-started<3500);
+     return frames;
+   }
+   let at=Date.now();
+   emit('jalan:initial-location',{point:a,accuracy:5,timestamp:at-1000});
+   emit('jalan:free-location',{point:corner,accuracy:5,timestamp:at,heading:90,speed:13});
+   const free=await sample('passenger-startup-pin',corner);
+   emit('jalan:free-location',{point:[4.5,103.2],accuracy:6,timestamp:at+1000,heading:90,speed:13});
+   const afterSpike=marker('passenger-startup-pin').getLatLng();
+   $('tt-primary').checked=false;setStart(a,'Start');destination=end;
+   routes=[{provider:'osrm',duration:120,distance:130,legs:[],geometry:{type:'LineString',coordinates:[a,corner,b,end].map(([lat,lon])=>[lon,lat])}}];
+   selectedRoute=0;renderRoutes();$('passenger-go').click();
+   let fixes=0;const count=()=>fixes++;window.addEventListener('jalan:gps-fix',count);
+   at=Date.now();
+   const fix=(p,heading,time)=>window.__offlineGPSWatch({timestamp:time,coords:{latitude:p[0],longitude:p[1],accuracy:5,speed:17,heading}});
+   fix(a,90,at-1000);fix(b,0,at);
+   const measured=JalanGPS.getState().gpsPosition;
+   const guided=await sample('jalan-vehicle-marker',b);
+   window.removeEventListener('jalan:gps-fix',count);
+   return {a,corner,b,free,guided,measured,fixes,afterSpike:[afterSpike.lat,afterSpike.lng]};
+ });
+ const {a,corner,b,free,guided}=result;
+ assert.deepEqual(result.afterSpike,corner);assert.deepEqual(result.measured,b);assert.equal(result.fixes,2);
+ assert.ok(new Set(free.filter(p=>p[1]>a[1]&&p[1]<corner[1]).map(p=>p[1])).size>=3,'free driving renders intermediate positions');
+ assert.ok(new Set(free.map(p=>p[3])).size>=3,'the free camera follows the moving marker between fixes');
+ assert.ok(guided.some(p=>Math.abs(p[0]-a[0])<1e-9&&p[1]>a[1]&&p[1]<corner[1]),'drive the first side of the bend');
+ assert.ok(guided.some(p=>Math.abs(p[1]-corner[1])<1e-9&&p[0]>a[0]&&p[0]<b[0]),'turn on the road before the second fix');
+ assert.ok(new Set(guided.map(p=>p[2]+','+p[3])).size>=3,'guided follow camera advances on multiple frames');
+ assert.deepEqual(guided.at(-1).slice(0,2),b);
+ await page.evaluate(()=>JalanGPS.stop());
+ console.log('PASS continuous free and guided movement between real GPS callbacks, bend, isolated spike and endpoint');
+};

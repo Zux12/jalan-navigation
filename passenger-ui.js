@@ -116,7 +116,13 @@
  window.JalanPassengerStartup=startupPosition;
  let startupMarker=null,locationPending=true;
  let startupTimestamp=-Infinity;
- let freeLast=null,courseOrigin=null,freeHeading=null,freeExploring=false,freeReturn=null;
+ let freeLast=null,freeCandidate=null,courseOrigin=null,freeHeading=null,freeExploring=false,freeReturn=null;
+ const freeMotion=viewModel.positionFollower((point,settled)=>{
+   if(!startupMarker||!freeActive()||document.hidden)return;
+   startupMarker.setLatLng(point);
+   if(!freeExploring&&!document.body.classList.contains('passenger-pin-open'))positionFreeCamera(freeTurn.bearing,point,settled);
+   scheduleScreenVehicle();
+ });
  const freeTurn=viewModel.bearingFollower(bearing=>{
    if(!startupMarker||freeExploring||!freeActive()||document.hidden){freeTurn.reset();return;}
    const vector=window.JalanVectorMap;
@@ -146,19 +152,19 @@
    host.classList.toggle('jalan-free-raster',on);
    map.invalidateSize({animate:false,pan:false});
  }
- function positionFreeCamera(bearing){
+ function positionFreeCamera(bearing,point=freeMotion.point||freeLast.point,settled=true){
    const sheet=el('jalan-home-sheet'),top=sheet?.getBoundingClientRect().top??innerHeight;
    const anchor=viewModel.anchor({height:innerHeight,barTop:top});
    const vector=window.JalanVectorMap;
    const rotateRaster=!vector?.active&&!freeExploring&&freeHeading!==null;
    rasterFreeLayout(rotateRaster,anchor.y);
    if(vector?.active){
-     vector.setCamera({center:[freeLast.point[1],freeLast.point[0]],bearing,pitch:0,padding:anchor.padding});
+     vector.setFollowCamera({center:[point[1],point[0]],bearing,pitch:0,padding:anchor.padding},settled);
    }else if(rotateRaster){
      host.style.setProperty('--jalan-free-turn',-bearing+'deg');
-     map.setView(freeLast.point,map.getZoom(),{animate:false});
+     map.setView(point,map.getZoom(),{animate:false});
    }else{
-     const zoom=map.getZoom(),position=map.project(freeLast.point,zoom);
+     const zoom=map.getZoom(),position=map.project(point,zoom);
      const offset=viewModel.rasterOffset({height:innerHeight,y:anchor.y,angle:-bearing,tilt:0});
      map.setView(map.unproject(position.subtract([offset.x,offset.y]),zoom),zoom,{animate:false});
    }
@@ -200,7 +206,7 @@
  window.addEventListener('pointerup',releaseFree,{passive:true});
  window.addEventListener('pointercancel',releaseFree,{passive:true});
  const clearStartupMarker=()=>{
-   freeTurn.reset();
+   freeMotion.reset();freeTurn.reset();
    if(startupMarker){map.removeLayer(startupMarker);startupMarker=null;}
  };
  const locationConfidence=detail=>Array.isArray(detail?.point)&&detail.point.length===2&&
@@ -213,6 +219,7 @@
    locationPending=false;
    clearStartupMarker();
    startupPosition.ready=locationConfidence(detail);
+   freeCandidate=null;
    if(startupPosition.ready){startupTimestamp=detail.timestamp;freeLast=detail;courseOrigin=detail;}
    // The original public location circle cannot masquerade as a trusted fix.
    if(locationMarker){pointLayer.removeLayer(locationMarker);locationMarker=null;}
@@ -224,6 +231,7 @@
      iconSize:[84,84],iconAnchor:[42,42]});
    startupMarker=L.marker(detail.point,{icon,interactive:false,keyboard:false,
      title:'GPS location measured'}).addTo(map);
+   freeMotion.feed(detail.point,detail.timestamp,detail.speed,detail.accuracy);
    requestAnimationFrame(refreshFreeCamera);
  });
  window.addEventListener('jalan:initial-location-error',()=>{
@@ -235,7 +243,17 @@
    const detail=event.detail;
    if(document.body.classList.contains('passenger-guiding')||destination||routes.length||
       detail?.timestamp<startupTimestamp)return;
-   if(!locationConfidence(detail)){freeTurn.reset();return;}
+   if(!locationConfidence(detail)){freeTurn.reset();freeMotion.pause();return;}
+   if(freeLast){
+     const compatible=prior=>{
+       const elapsed=Math.max(0,(detail.timestamp-prior.timestamp)/1000);
+       return L.latLng(prior.point).distanceTo(detail.point)<=Math.max(80,55*elapsed+prior.accuracy+detail.accuracy);
+     };
+     if(!compatible(freeLast)&&!(freeCandidate&&detail.timestamp>freeCandidate.timestamp&&compatible(freeCandidate))){
+       freeCandidate=detail;freeMotion.pause();return;
+     }
+   }
+   freeCandidate=null;
    const previous=courseOrigin;
    let heading=null;
    if(Number.isFinite(detail.heading)&&detail.heading>=0&&detail.heading<360&&detail.speed>=1)
@@ -254,16 +272,19 @@
    startupTimestamp=detail.timestamp;
    if(!startupMarker){
      window.dispatchEvent(new CustomEvent('jalan:initial-location',{detail}));
-   }else startupMarker.setLatLng(detail.point);
+   }else{
+     freeMotion.feed(detail.point,detail.timestamp,detail.speed,detail.accuracy);
+     if(!freeExploring)centerFree();
+   }
    scheduleScreenVehicle();
-   if(!freeExploring)centerFree();
    // Keep the original blue location circle from duplicating the triangle.
    if(locationMarker){pointLayer.removeLayer(locationMarker);locationMarker=null;}
  });
- window.addEventListener('jalan:free-location-error',()=>freeTurn.reset());
+ window.addEventListener('jalan:free-location-error',()=>{freeMotion.pause();freeTurn.reset();});
+ document.addEventListener('visibilitychange',()=>{if(document.hidden){freeMotion.pause();freeTurn.reset();}});
  function leaveFreeCamera(){
    if(!startupMarker)return;
-   clearTimeout(freeReturn);freeExploring=false;freeHeading=null;freeLast=null;courseOrigin=null;
+   clearTimeout(freeReturn);freeExploring=false;freeHeading=null;freeLast=null;freeCandidate=null;courseOrigin=null;
    clearStartupMarker();freeTurn.reset(0);
    rasterFreeLayout(false);
    window.JalanVectorMap?.setCamera({bearing:0,pitch:0,padding:{top:0,bottom:0,left:0,right:0}});
@@ -358,6 +379,12 @@
      document.body.classList.contains('passenger-map-flat')?
        (lastValidHeading===null?'0deg':lastValidHeading+'deg'):(-angle)+'deg');
  };
+ const guidedMotion=viewModel.positionFollower((point,settled)=>{
+   if(!vehicle||!document.body.classList.contains('passenger-guiding')||document.hidden)return;
+   vehicle.setLatLng(point);accuracyHalo?.setLatLng(point);
+   if(!exploring)followPassengerGPS(lastGPSDetail,true,settled);
+   scheduleScreenVehicle();
+ });
  const guidedTurn=viewModel.bearingFollower(bearing=>{
    const vector=window.JalanVectorMap;
    if(vector?.active)vector.setCamera({bearing});
@@ -385,14 +412,14 @@
    });
  };
  function markVehicleUncertain(){
-   guidedTurn.reset();
+   guidedMotion.pause();guidedTurn.reset();
    if(!vehicle)return;
    vehicle.getElement()?.classList.add('jalan-vehicle-uncertain');
    screenVehicle.classList.add('passenger-vehicle-uncertain');
    accuracyHalo?.setStyle({color:'#8090a0',fillColor:'#8090a0'});
  }
  function discardVehicle(){
-   guidedTurn.reset(0);
+   guidedMotion.reset();guidedTurn.reset(0);
    if(vehicle){map.removeLayer(vehicle);vehicle=null;}
    if(accuracyHalo){map.removeLayer(accuracyHalo);accuracyHalo=null;}
    lastValidHeading=null;
@@ -414,12 +441,26 @@
    const position=detail.vehiclePosition||detail.gpsPosition;
    if(!vehicle)vehicle=L.marker(position,{icon:vehicleIcon,interactive:false,
      keyboard:false,zIndexOffset:950}).addTo(map);
-   else vehicle.setLatLng(position);
+
    if(!accuracyHalo)accuracyHalo=L.circle(position,{radius:Math.max(5,detail.gpsAccuracy),
      className:'jalan-vehicle-accuracy',color:'#13a8d1',fillColor:'#13a8d1',fillOpacity:0.08,weight:1,
      interactive:false}).addTo(map);
-   else accuracyHalo.setLatLng(position).setRadius(Math.max(5,detail.gpsAccuracy))
+   else accuracyHalo.setRadius(Math.max(5,detail.gpsAccuracy))
      .setStyle({color:'#13a8d1',fillColor:'#13a8d1'});
+   // Use the segment already chosen by the matcher. A fresh nearest-road
+   // search here could pick the other carriageway or another pass of a loop.
+   let path=null,offset=null;
+   const i=detail.vehicleSegment,coords=state.route?.geometry?.coordinates;
+   if(detail.matched&&Number.isInteger(i)&&coords?.[i+1]){
+     const a=coords[i],b=coords[i+1],c=Math.cos(position[0]*Math.PI/180);
+     const dx=(b[0]-a[0])*c,dy=b[1]-a[1],x=(position[1]-a[0])*c,y=position[0]-a[1];
+     const u=Math.max(0,Math.min(1,(x*dx+y*dy)/(dx*dx+dy*dy||1)));
+     if(Math.hypot(x-u*dx,y-u*dy)*111320<2){
+       path=window.JalanRouteDisplay.shape(state.route);
+       offset=path.lengths[i]+u*(path.lengths[i+1]-path.lengths[i]);
+     }
+   }
+   guidedMotion.feed(position,detail.vehicleSampleTime??Date.now()-detail.gpsFixAgeMs,detail.speedMps,detail.gpsAccuracy,path,offset);
    vehicle.getElement()?.classList.remove('jalan-vehicle-uncertain');
    screenVehicle.classList.toggle('passenger-vehicle-uncertain',detail.vehicleCertain===false);
    const heading=detail.vehicleHeading??detail.heading,speed=detail.speedMps;
@@ -990,7 +1031,7 @@
    }
    return points[points.length-1]||position;
  };
- const followPassengerGPS=(detail,rotating=false)=>{
+ const followPassengerGPS=(detail,frame=false,settled=true)=>{
    if(exploring||!document.body.classList.contains('passenger-guiding'))return;
    const state=window.JalanGPS?.getState();
    if(!state?.active||!state.gpsReliable||!Number.isFinite(state.gpsFixAgeMs)||state.gpsFixAgeMs>10000||!detail?.gpsReliable||
@@ -999,7 +1040,7 @@
       !detail.gpsPosition.every(Number.isFinite))return;
    // Centre the native camera on the measured vehicle with viewport padding;
    // invert raster perspective so both renderers leave the triangle above the bar.
-   const targetZoom=navigationZoom(),center=navigationCenter(detail.vehiclePosition||detail.gpsPosition,targetZoom);
+   const targetZoom=navigationZoom(),center=navigationCenter(guidedMotion.point||detail.vehiclePosition||detail.gpsPosition,targetZoom);
    // A preceding route-overview fitBounds() may still be animating; cancel
    // it before taking ownership of the passenger camera.
    // The previous update called map.stop() + setView(...zoom17) for *every*
@@ -1008,8 +1049,12 @@
    const zoom=map.getZoom();
    const camera=map.getCenter(),dx=(camera.lng-center[1])*111320*Math.cos(center[0]*Math.PI/180),
          dy=(camera.lat-center[0])*111320;
+   const vector=window.JalanVectorMap;
+   if(vector?.active&&frame){
+     vector.setFollowCamera({center:[center[1],center[0]],zoom:targetZoom-1},settled);return;
+   }
    if(!Number.isFinite(zoom)||Math.abs(zoom-targetZoom)>.01)map.setView(center,targetZoom,{animate:false});
-   else if(Math.hypot(dx,dy)>(rotating ? .04 : 8))map.panTo(center,{animate:false});
+   else if(Math.hypot(dx,dy)>(frame ? .04 : 8))map.panTo(center,{animate:false});
    scheduleScreenVehicle();
  };
  window.addEventListener('jalan:gps-fix',event=>{
@@ -1167,11 +1212,11 @@
      return;
    }
    returnPending=false;exploring=false;
-   updateVehicle(lastGPSDetail);
+   guidedMotion.reset();updateVehicle(lastGPSDetail);
    const flat=document.body.classList.contains('passenger-map-flat');
    guidedTurn.reset(flat?0:lastValidHeading??0);
    applyCameraAngle(-guidedTurn.bearing);
-   const target=state.vehiclePosition||state.gpsPosition;
+   const target=guidedMotion.point||state.vehiclePosition||state.gpsPosition;
    map.stop();
    const zoom=navigationZoom();
    map.setView(navigationCenter(target,zoom),zoom,{animate:false,reset:true});
