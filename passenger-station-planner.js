@@ -60,8 +60,11 @@
    const info=box('.station-info');info.replaceChildren();
    if(place){
      const category=place.ev&&place.petrol?t('Petrol + EV charging','Petrol + pengecas EV'):place.ev?t('EV charging','Pengecas EV'):place.petrol?t('Petrol station','Stesen minyak'):'';
-     const text=[category,place.hpc?'HPC':'',place.evName!==place.name?place.evName:'',...(place.details||[]),place.address].filter(Boolean);
-     info.textContent=text.join(' · ');
+     const labels=window.JalanStationData.chargeLabels(place);
+     const specs=place.details||[];
+     const text=[category,place.evName!==place.name?place.evName:'',labels.join(' / '),
+       ...specs.filter(line=>!labels.includes(line)),place.address].filter(Boolean);
+     for(const line of text){const row=document.createElement('div');row.textContent=line;info.append(row);}
    }
    const order=box('.station-order'),routesBox=box('.station-options'),actions=box('.station-actions'),status=box('p');
    order.replaceChildren();routesBox.replaceChildren();actions.replaceChildren();removePreview();
