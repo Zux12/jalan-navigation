@@ -5,8 +5,8 @@
  const toggle=$('passenger-stations'),listButton=$('passenger-stations-list'),preference='jalan-nearby-stations-v1';
  const lang=(en,ms)=>window.JalanLanguage?.code==='ms'?ms:en;
  const pins=new Map(),cache=new Map(),pending=new Map();
- let enabled=true,located=false,timer,wake,directoryJob=null,googleRows=[],currentRows=[],wanted=[],signature='';
- try{enabled=localStorage.getItem(preference)!=='off';}catch{}
+ let enabled=false,located=false,timer,wake,directoryJob=null,googleRows=[],currentRows=[],wanted=[],signature='';
+ try{enabled=localStorage.getItem(preference)==='on';}catch{}
  toggle.checked=enabled;listButton.hidden=!enabled;
  const directory=document.createElement('section');directory.id='station-directory';directory.hidden=true;
  directory.setAttribute('role','dialog');directory.setAttribute('aria-labelledby','station-directory-heading');
