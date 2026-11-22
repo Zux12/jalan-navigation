@@ -298,7 +298,7 @@ async function main(){
   const fix=()=>window.__fix({timestamp:Date.now(),coords:{latitude:3.139,longitude:101.6869,accuracy:8,speed:5,heading:45}});
   await page.evaluate(fix);
   await page.waitForFunction(()=>map.getZoom()>=17);
-  assert.equal(await page.evaluate(()=>JalanVectorMap.getBearing()),45);
+  await page.waitForFunction(()=>JalanVectorMap.getBearing()===45);
   // A fresh GPS reading becomes visible on the next native map frame.
   await page.waitForFunction(()=>{
    const p=JalanVectorMap.project([3.139,101.6869]),b=document.getElementById('passenger-vehicle-screen').getBoundingClientRect();
@@ -317,7 +317,6 @@ async function main(){
   await assertAnchor();
   // Hold the GPS fix still and inspect the marker on the actual WebGL render
   // event, while zoom, center, pitch and fractional bearing change together.
-  await page.waitForFunction(()=>Math.abs(JalanVectorMap.getBearing()-45)<.001);
   const frameErrors=await page.evaluate(async()=>{
    const gl=window.__widthMap,center=gl.getCenter(),zoom=gl.getZoom();
    const base={center,bearing:gl.getBearing(),pitch:gl.getPitch(),zoom};
