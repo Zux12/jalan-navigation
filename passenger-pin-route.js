@@ -32,7 +32,8 @@
    // into apparently complete coverage of either leg.
    const validSections=allSections.filter(s=>validRange(s,maxIndex));
    const instructions=(raw.guidance?.instructions||[]).filter(i=>i.routeOffsetInMeters>=offset)
-     .map(i=>({...i,routeOffsetInMeters:i.routeOffsetInMeters-offset,pointIndex:undefined}));
+     .map(i=>({...i,routeOffsetInMeters:i.routeOffsetInMeters-offset,pointIndex:Number.isInteger(i.pointIndex)&&i.pointIndex>=secondStart&&i.pointIndex<=maxIndex
+       ?i.pointIndex-secondStart:undefined}));
    const sections=validSections.filter(s=>s.endPointIndex>split)
      .map(s=>({...s,startPointIndex:Math.max(0,s.startPointIndex-secondStart),endPointIndex:Math.min(last.points.length-1,s.endPointIndex-secondStart)}));
    const onward=normalize({summary:last.summary,legs:[last],guidance:{instructions},sections});

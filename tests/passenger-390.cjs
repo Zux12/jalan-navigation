@@ -1366,6 +1366,7 @@ async function main(){
   assert.equal(await deniedPage.locator('#passenger-key').count(),0,'configured routing needs no passenger key entry');
   assert.deepEqual(deniedErrors,[]);
   await require('./passenger-road-details-390.cjs')(deniedPage);
+  await require('./passenger-lane-guidance-390.cjs')(deniedPage);
   assert.deepEqual(deniedErrors,[]);
   await deniedContext.close();
   await require('./destination-suggestions-390.cjs')({context,base,root});

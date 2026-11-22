@@ -23,8 +23,8 @@
   <title>JALAN 4.8.0 — Testing</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
   <link rel="stylesheet" href="style.css?v=4-7-1" />
-  <link rel="stylesheet" href="passenger.css?v=smooth-turns1" />
-  <link rel="stylesheet" href="passenger-home-sheet.css?v=17-recent" />
+  <link rel="stylesheet" href="passenger.css?v=lane-guidance1" />
+  <link rel="stylesheet" href="passenger-home-sheet.css?v=lane-guidance1" />
   <link rel="stylesheet" href="passenger-menu-dialogs.css?v=5" />
   <link rel="stylesheet" href="passenger-reporting.css?v=community2" />
   <link rel="stylesheet" href="passenger-route-sheet.css?v=nearby-traffic1" />
@@ -75,7 +75,7 @@
       </svg>
     </div>
     <div id="passenger-map-gestures" class="passenger-map-gestures" aria-label="Pan with one finger; pinch to zoom and twist two fingers to rotate the 2.5D map"></div>
-    <button id="passenger-turn-toggle" class="passenger-turn" type="button" aria-expanded="false" aria-controls="passenger-turn-list"><span id="passenger-turn-arrow" aria-hidden="true">↑</span><span class="passenger-turn-copy"><strong id="passenger-instruction">Acquiring GPS…</strong><small id="passenger-next">Following selected route</small></span><span class="passenger-turn-chevron" aria-hidden="true">⌄</span></button>
+    <button id="passenger-turn-toggle" class="passenger-turn" type="button" aria-expanded="false" aria-controls="passenger-turn-list"><span id="passenger-turn-arrow" aria-hidden="true">↑</span><span class="passenger-turn-copy"><strong id="passenger-instruction">Acquiring GPS…</strong><small id="passenger-next">Following selected route</small></span><span class="passenger-turn-chevron" aria-hidden="true">⌄</span><span id="passenger-junction-guide" hidden role="img"></span></button>
     <div id="passenger-camera-alert" class="passenger-camera-alert" hidden><span aria-hidden="true">📷</span> <strong>Speed camera ahead</strong> <span id="passenger-camera-distance"></span></div>
     <section id="passenger-turn-list" class="passenger-turn-list hidden" aria-label="Reports and upcoming route directions"><div class="passenger-turn-list-header"><strong>Along your route</strong></div>
       <div class="passenger-turn-tabs" role="tablist" aria-label="Route information"><button type="button" id="passenger-tab-reports" role="tab" aria-controls="passenger-reports-panel" aria-selected="true">Reports</button><button type="button" id="passenger-tab-directions" role="tab" aria-controls="passenger-directions-panel" aria-selected="false">Directions</button></div>
@@ -280,20 +280,20 @@
   </section>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
   <script src="passenger-toll-policy.js?v=1"></script>
-  <script src="passenger-pin-route.js?v=3-avoid2"></script>
+  <script src="passenger-pin-route.js?v=lane-guidance1"></script>
   <script src="passenger-route-display.js?v=driving-view1"></script>
   <script src="app.js?v=driving-view1"></script>
   <script src="comparison.js?v=4-2"></script>
   <script src="traffic-test.js?v=4-2"></script>
   <script src="jalan-config.js?v=3"></script>
-  <script src="tomtom-live.js?v=nearby-traffic1"></script>
+  <script src="tomtom-live.js?v=lane-guidance1"></script>
   <script src="passenger-maneuvers.js?v=1"></script>
   <script src="passenger-malay-audio.js?v=driving-view1"></script>
   <script src="voice-guidance.js?v=driving-view1"></script>
   <script src="navigation-sim.js?v=4-5-1"></script>
   <script src="predictive-gps.js?v=4-6-road1"></script>
-  <script src="gps-navigation.js?v=community1"></script>
-  <script src="proactive-routing.js?v=community1"></script>
+  <script src="gps-navigation.js?v=lane-guidance1"></script>
+  <script src="proactive-routing.js?v=lane-guidance1"></script>
   <script src="journey-log.js?v=4-2"></script>
   <script src="speed-intelligence.js?v=4-3"></script>
   <script src="predictive-tests.js?v=4-3"></script>
@@ -309,7 +309,8 @@
   <script src="community-report-model.js?v=2"></script>
   <script src="passenger-navigation-view.js?v=smooth-turns1"></script>
   <script src="passenger-speed-cameras.js?v=1"></script>
-  <script src="passenger-ui.js?v=smooth-turns1"></script>
+  <script src="passenger-lane-guidance.js?v=1"></script>
+  <script src="passenger-ui.js?v=lane-guidance1"></script>
   <script src="passenger-route-traffic.js?v=community1"></script>
   <script src="passenger-saved-places.js?v=2-lang1"></script>
   <script src="passenger-home-sheet.js?v=driving-view1"></script>
