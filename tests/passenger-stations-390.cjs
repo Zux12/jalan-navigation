@@ -1,6 +1,60 @@
 'use strict';
 const assert=require('node:assert/strict');
+async function openingArea(page){
+ const original=page.url(),url=new URL(original),calls=[];
+ url.searchParams.set('stationCoverageTest','1');url.searchParams.set('renderer','raster');
+ await page.addInitScript(()=>{
+   if(!new URLSearchParams(location.search).has('stationCoverageTest'))return;
+   // Install after the context's permission-denied stub, before the load callback.
+   document.addEventListener('DOMContentLoaded',()=>{
+     navigator.geolocation.getCurrentPosition=ok=>{window.__firstStationFix=ok;};
+     navigator.geolocation.watchPosition=()=>1;
+   });
+ });
+ const local=[3.158,101.711],town=[2.196,102.249];
+ const petrol=(id,p)=>({id,position:{lat:p[0],lon:p[1]},poi:{name:id,categorySet:[{id:7311}]}});
+ const charger=(id,p)=>({id,position:{lat:p[0]+.001,lon:p[1]},poi:{name:id,categorySet:[{id:7309}]}});
+ let oldRequest,release;
+ const held=new Promise(resolve=>{release=resolve;});
+ const handle=async route=>{
+   const q=new URL(route.request().url()).searchParams,lat=+q.get('lat'),lon=+q.get('lon'),radius=+q.get('radius');
+   calls.push({lat,lon,radius});
+   const near=p=>Math.abs(lat-p[0])<.007&&Math.abs(lon-p[1])<.007&&radius<1100;
+   let rows=[];
+   if(near(local))rows=[petrol('Local petrol',local),charger('Local EV',local)];
+   else if(near(town))rows=[petrol('Melaka petrol',town),charger('Melaka EV',town)];
+   else if(!oldRequest){oldRequest=true;await held;rows=[petrol('Old city station',[3.139,101.6869])];}
+   else return route.fulfill({status:503,body:'simulated outage'}).catch(()=>{});
+   await route.fulfill({json:{summary:{totalResults:rows.length},results:rows}}).catch(()=>{});
+ };
+ const pattern='**/nearbySearch/**';
+ await page.route(pattern,handle);
+ try{
+   await page.goto(url.href,{waitUntil:'load'});await page.waitForFunction(()=>!!window.__firstStationFix);
+   const toggle=page.locator('#passenger-stations');
+   assert.equal(await toggle.isChecked(),false,'stations start off on first visit');
+   assert.ok(await page.locator('#passenger-stations-list').evaluate(el=>el.hidden));
+   await page.evaluate(()=>map.fire('dragstart'));await page.clock.runFor(650);
+   assert.equal(calls.length,0,'browsing with stations off makes no station requests');
+   await Promise.all([page.waitForEvent('load'),toggle.evaluate(el=>{el.click();location.reload();})]);
+   await page.waitForFunction(()=>!!window.__firstStationFix);
+   assert.ok(await toggle.isChecked(),'explicitly enabling stations survives reload');
+   await page.clock.runFor(650);assert.equal(calls.length,0,'opening KL view waits for startup GPS');
+   const overviewRequest=page.waitForRequest(r=>r.url().includes('/nearbySearch/'));
+   await page.evaluate(()=>map.fire('dragstart'));
+   await page.clock.runFor(650);await overviewRequest;
+   const arrive=point=>page.evaluate(p=>window.__firstStationFix({timestamp:Date.now(),coords:{latitude:p[0],longitude:p[1],accuracy:6}}),point);
+   const pin=name=>page.locator('#map .jalan-station-pin[title="'+name+'"]');
+   await arrive(local);await pin('Local petrol').waitFor({timeout:6500});await pin('Local EV').waitFor();
+   release();await page.clock.runFor(400);
+   assert.equal(await pin('Old city station').count(),0,'late KL result cannot replace the local map');
+   await page.evaluate(p=>{map.fire('dragstart');map.setView(p,17,{animate:false});},town);
+   await pin('Melaka petrol').waitFor({timeout:6500});await pin('Melaka EV').waitFor();
+   assert.equal(await pin('Local petrol').count(),0,'panning away discards the old view');
+ }finally{release();await page.unroute(pattern,handle);await page.goto(original,{waitUntil:'load'});}
+}
 module.exports=async function stations(page){
+ await openingArea(page);
  await page.route('**/nearbySearch/**',route=>route.fulfill({json:{summary:{totalResults:4},results:[
    {id:'pump',position:{lat:3.139,lon:101.686},poi:{name:'Shell Test',categorySet:[{id:7311}]}},
    {id:'charger',position:{lat:3.139,lon:101.68601},poi:{name:'Shell Recharge HPC',categorySet:[{id:7309}]},
@@ -66,4 +120,6 @@ module.exports=async function stations(page){
   colors:Object.values(map._layers).filter(l=>l.options?.className==='jalan-stop-route').map(l=>l.options.color)}));
  assert.deepEqual(result.order,['station','regular']);assert.deepEqual(result.colors,['#e47508','#ffca28','#8047c7']);
  await page.evaluate(()=>{window.__stationRestore();clearRoute(true);});
+ await toggle();await page.reload({waitUntil:'load'});
+ assert.equal(await input.isChecked(),false,'explicitly disabling stations survives reload');
 };

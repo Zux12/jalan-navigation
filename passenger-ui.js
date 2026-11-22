@@ -112,7 +112,9 @@
    faces.forEach((face,i)=>svg.children[i+1].setAttribute('d',face));
    return true;
  }
- const startupPosition={ready:false};
+ const startupPosition={ready:false,get followingPoint(){
+   return startupMarker&&!freeExploring&&freeActive()&&freeLast&&Date.now()-freeLast.timestamp<=15000?freeLast.point:null;
+ }};
  window.JalanPassengerStartup=startupPosition;
  let startupMarker=null,locationPending=true;
  let startupTimestamp=-Infinity;

@@ -88,19 +88,65 @@
    }
    return combined;
  }
- async function nearby(center,radius,key,signal){
-   const rows=[];
-   for(let offset=0;;){
-     const url=new URL('https://api.tomtom.com/search/2/nearbySearch/.json');
-     url.search=new URLSearchParams({lat:center[0],lon:center[1],radius,limit:100,ofs:offset,countrySet:'MY',categorySet:'7309,7311',relatedPois:'all',key});
-     const response=await fetch(url,{signal:AbortSignal.any([signal,AbortSignal.timeout(12000)]),credentials:'omit'});
-     if(!response.ok)throw Error('Station lookup unavailable');
-     const data=await response.json(),items=data.results||[];
-     rows.push(...items.map(station).filter(Boolean));offset+=items.length;
-     if(!items.length||offset>=Number(data.summary?.totalResults)||items.length<100)break;
-   }
-   return merge(rows);
+ // Fixed map cells let neighbouring views share results without treating a
+ // city-wide shortlist as a complete download for every street inside it.
+ const localSize=.01;
+ function cell(size,y,x){
+   const center=[(y+.5)*size,(x+.5)*size].map(n=>Number(n.toFixed(6)));
+   return {id:[size,y,x].join('/'),center,size,y,x,radius:Math.ceil(meters(center,[center[0]-size/2,center[1]-size/2]))+5};
  }
- const api={station,merge,meters,nearby,withGoogle,chargeLabels};
+ function cellsForView({south,west,north,east},point){
+   let size=localSize;
+   while(Math.max(north-south,east-west)>size*2)size*=2;
+   const cells=[];
+   for(let y=Math.floor(south/size);y<Math.ceil(north/size);y++){
+     for(let x=Math.floor(west/size);x<Math.ceil(east/size);x++)cells.push(cell(size,y,x));
+   }
+   cells.sort((a,b)=>meters(a.center,point)-meters(b.center,point));
+   const local=cell(localSize,Math.floor(point[0]/localSize),Math.floor(point[1]/localSize));
+   return [local,...cells.filter(c=>c.id!==local.id)];
+ }
+ async function page(area,offset,key,signal){
+   const url=new URL('https://api.tomtom.com/search/2/nearbySearch/.json');
+   url.search=new URLSearchParams({lat:area.center[0],lon:area.center[1],radius:area.radius,limit:100,ofs:offset,countrySet:'MY',categorySet:'7309,7311',relatedPois:'all',key});
+   const controller=new AbortController(),abort=()=>controller.abort();
+   if(signal.aborted)abort();else signal.addEventListener('abort',abort,{once:true});
+   const timeout=setTimeout(abort,12000);
+   try{
+     const response=await fetch(url,{signal:controller.signal,credentials:'omit'});
+     if(!response.ok)throw Error('Station lookup unavailable');
+     const result=await response.json();
+     if(!Array.isArray(result.results))throw Error('Station response unavailable');
+     return result;
+   }finally{clearTimeout(timeout);signal.removeEventListener('abort',abort);}
+ }
+ async function nearby(area,key,signal,onRows){
+   const found=new Map();
+   async function load(part){
+     let offset=0;const seen=new Set();
+     for(;;){
+       const result=await page(part,offset,key,signal),items=result.results;
+       const before=found.size;
+       const previous=seen.size;
+       for(const raw of items){
+         seen.add(raw.id);const site=station(raw);if(site)found.set(site.id,site);
+       }
+       if(found.size>before)onRows([...found.values()]);
+       offset+=items.length;
+       if(items.length<100)return;
+       const total=Number(result.summary?.totalResults);
+       if(offset>=total||seen.size===previous)break;
+     }
+     // Some dense searches end on a full page. Refine street-level cells
+     // geometrically. Overview cells will be queried independently on zoom.
+     if(part.size<=localSize&&part.size>localSize/4){
+       for(const dy of [0,1])for(const dx of [0,1]){
+         await load(cell(part.size/2,part.y*2+dy,part.x*2+dx));
+       }
+     }
+   }
+   await load(area);return [...found.values()];
+ }
+ const api={station,merge,meters,nearby,withGoogle,chargeLabels,cellsForView};
  if(typeof module==='object'&&module.exports)module.exports=api;else window.JalanStationData=api;
 })();
