@@ -115,5 +115,5 @@
   guide.dataset.view=view.fork?'fork':'lanes';guide.setAttribute('aria-label',label);
   guide.replaceChildren(drawing);guide.hidden=false;
  }
- window.JalanLaneGuidance={render,clear};
+ window.JalanLaneGuidance={render,clear,hasGuide:step=>!!visual(step,0)};
 })();

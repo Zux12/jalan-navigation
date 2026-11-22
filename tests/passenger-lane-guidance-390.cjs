@@ -52,7 +52,9 @@ module.exports=async function laneGuidance(page){
  assert.ok(layout.menu>=layout.banner && layout.arrow>layout.banner && layout.arrow<layout.footer);
  await drive(790,120);assert.equal(await guide.isVisible(),false);
  await drive(800);await guide.waitFor({state:'visible'});
- await drive(900);await drive(920);
+ await drive(893);assert.equal(await guide.getAttribute('data-view'),'fork');
+ assert.equal(await guide.isVisible(),true,'keep the fork through its last few metres');
+ await drive(920);
  assert.equal(await guide.isVisible(),false,'passing a fork clears it for an ordinary turn with no lane details');
  await page.evaluate(()=>JalanGPS.stop());assert.equal(await guide.isVisible(),false);
 };

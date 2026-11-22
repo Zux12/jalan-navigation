@@ -88,7 +88,10 @@
    else if(Array.isArray(step.location)&&step.location.length===2)along=project([step.location[1],step.location[0]]).along;
    else if(Array.isArray(m.location)&&m.location.length===2)along=project([m.location[1],m.location[0]]).along;
    if(along===null)continue;const message=String(step.message||'').trim();const road=String(step.name||'').trim();const action=message||(`${String(m.modifier||type||'Continue').replace(/_/g,' ')}${road?' onto '+road:''}`);
-   maneuvers.push({along,action,step});}
+   // Keep a mapped junction on screen through its decision point. Other
+   // instructions retain the existing 12 m advance to the next maneuver.
+   const advance=window.JalanLaneGuidance?.hasGuide(step)?0:12;
+   maneuvers.push({along,action,step,advance});}
   maneuvers.sort((a,b)=>a.along-b.along);
   roadMotion=window.JalanPredictiveGPS.createRoadMotion?.(route.geometry.coordinates)||null;
   return true;}
@@ -189,13 +192,13 @@
   el('gps-match-status').textContent={matched:'On route · GPS matched',predicted:'Route prediction · checking GPS',uncertain:'GPS uncertain · estimated position',deviation:'Deviation confirmed',waiting:'Waiting for reliable GPS',stale:'Old GPS reading ignored',invalid:'Invalid GPS reading'}[mode]||'Route prediction';
   const left=Math.max(0,total-progress),distance=route.distance*left/total,seconds=remainingTime();
   el('gps-distance').textContent=fmtDist(distance);el('gps-eta').textContent=fmtTime(seconds);
-  const nextIndex=maneuvers.findIndex(x=>x.along>progress+12),next=maneuvers[nextIndex];
+  const nextIndex=maneuvers.findIndex(x=>x.along>progress+x.advance),next=maneuvers[nextIndex];
   activeInstruction=null;
   if(next){
    const d=next.along-progress,label=fmtDist(d)+': ',english=label+next.action;
    activeInstruction={english,step:next.step,action:next.action,prefix:label,along:next.along,previousAlong:maneuvers[nextIndex-1]?.along};
    el('gps-instruction').textContent=english;
-   if(trustworthy)window.JalanVoice.announce(voice,next.along.toFixed(1),d,next.action,next.step);
+   if(trustworthy&&d>12)window.JalanVoice.announce(voice,next.along.toFixed(1),d,next.action,next.step);
   }
   else el('gps-instruction').textContent=maneuvers.length?'Continue toward destination':'Follow selected route — detailed maneuvers unavailable';
   paintArrival(seconds,mode);
@@ -345,7 +348,7 @@
   },
   getDirections(){
    if(!active||!route||!latestMatched||rerouting)return [];
-   const items=maneuvers.filter(m=>Number.isFinite(m.along)&&m.along>progress+12)
+   const items=maneuvers.filter(m=>Number.isFinite(m.along)&&m.along>progress+m.advance)
      .map(m=>({action:m.action,step:m.step,distanceMeters:Math.max(0,m.along-progress)}));
    items.push({action:'Arrive at destination',distanceMeters:Math.max(0,total-progress),arrival:true});
    return items;
