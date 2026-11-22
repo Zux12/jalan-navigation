@@ -2,7 +2,7 @@
 // voice. Offsets/durations are in seconds in the decoded mono MP3.
 (() => {
  'use strict';
- const cues = {
+ const malay = {
    'preview': [0.15, 7.1643],
    'follow': [7.4642, 1.8561],
    'straight': [9.4703, 1.49],
@@ -57,127 +57,171 @@
    'in-2000': [115.4561, 1.4484],
    'speed-camera': [117.103, 1.858]
  };
- const aliases = {continue:'straight',arrive:'arrival',stop:'stop-arrival',generic:'follow'};
- const file = new URL('audio/ms-guidance.mp3?v=2', document.currentScript?.src || document.baseURI).href;
+ // English fallback spoken by Flite's SLT voice. Cue times are decoded seconds.
+ const english = {
+ 'preview': [0.1000, 5.9400],
+ 'follow': [6.1400, 1.3650],
+ 'straight': [7.6050, 1.2200],
+ 'left': [8.9250, 1.0850],
+ 'right': [10.1100, 0.9700],
+ 'uturn': [11.1800, 1.2450],
+ 'merge': [12.5250, 0.8150],
+ 'exit': [13.4400, 1.1950],
+ 'ramp': [14.7350, 1.1050],
+ 'motorway': [15.9400, 1.4950],
+ 'roundabout': [17.5350, 2.9650],
+ 'enter-roundabout': [20.6000, 1.5850],
+ 'leave-roundabout': [22.2850, 1.5700],
+ 'depart': [23.9550, 1.4050],
+ 'ferry': [25.4600, 1.1850],
+ 'arrival': [26.7450, 1.1750],
+ 'near-destination': [28.0200, 2.0250],
+ 'stop-arrival': [30.1450, 3.0250],
+ 'stop-passed': [33.2700, 3.1150],
+ 'rerouting': [36.4850, 1.5600],
+ 'route-updated': [38.1450, 1.1350],
+ 'speed-camera': [39.3800, 1.5150],
+ 'slight-left': [40.9950, 0.9700],
+ 'sharp-left': [42.0650, 1.5000],
+ 'keep-left': [43.6650, 1.0650],
+ 'merge-left': [44.8300, 1.1200],
+ 'exit-left': [46.0500, 1.6600],
+ 'ramp-left': [47.8100, 1.6350],
+ 'slight-right': [49.5450, 0.8600],
+ 'sharp-right': [50.5050, 1.3450],
+ 'keep-right': [51.9500, 0.9650],
+ 'merge-right': [53.0150, 1.0350],
+ 'exit-right': [54.1500, 1.6000],
+ 'ramp-right': [55.8500, 1.5800],
+ 'roundabout-1': [57.5300, 2.7800],
+ 'roundabout-2': [60.4100, 2.7750],
+ 'roundabout-3': [63.2850, 2.7550],
+ 'roundabout-4': [66.1400, 2.7400],
+ 'roundabout-5': [68.9800, 2.7400],
+ 'roundabout-6': [71.8200, 2.7300],
+ 'roundabout-7': [74.6500, 2.8300],
+ 'roundabout-8': [77.5800, 2.7400],
+ 'roundabout-9': [80.4200, 2.6950],
+ 'roundabout-10': [83.2150, 2.6350],
+ 'in-50': [85.9500, 1.4150],
+ 'in-100': [87.4650, 1.6750],
+ 'in-200': [89.2400, 1.6950],
+ 'in-300': [91.0350, 1.7500],
+ 'in-500': [92.8850, 1.8350],
+ 'in-1000': [94.8200, 1.4900],
+ 'in-2000': [96.4100, 1.3300]
+ };
  const AudioEngine = window.AudioContext || window.webkitAudioContext;
- let context = null, loading = null, active = null;
+ function player(cues,asset){
+  const aliases = {continue:'straight',arrive:'arrival',stop:'stop-arrival',generic:'follow'};
+  const file = new URL(asset, document.currentScript?.src || document.baseURI).href;
+  let context = null, loading = null, active = null;
 
- function getContext(){
-   if(!AudioEngine)return null;
-   if(!context || context.state==='closed'){
-     context=new AudioEngine();loading=null;
-   }
-   return context;
+  function getContext(){
+    if(!AudioEngine)return null;
+    if(!context || context.state==='closed'){
+      context=new AudioEngine();loading=null;
+    }
+    return context;
+  }
+  function bank(ctx){
+    if(!loading){
+      const attempt=fetch(file).then(response=>{
+        if(!response.ok)throw Error('Guidance audio unavailable');
+        return response.arrayBuffer();
+      }).then(bytes=>ctx.decodeAudioData(bytes));
+      loading=attempt;
+      attempt.catch(()=>{if(loading===attempt)loading=null;});
+    }
+    return loading;
+  }
+  // On iOS create/resume the context synchronously within the user's gesture.
+  // Silent playback primes older Safari. Guidance itself can then run from GPS.
+  function unlock(preload=true){
+    try{
+      const ctx=getContext();
+      if(!ctx)return false;
+      if(ctx.state!=='running'){
+        ctx.resume().catch(()=>{});
+        const silent=ctx.createBufferSource();
+        silent.buffer=ctx.createBuffer(1,1,ctx.sampleRate);
+        silent.connect(ctx.destination);silent.onended=()=>silent.disconnect();
+        silent.start();
+      }
+      if(preload)bank(ctx).catch(()=>{});
+      return true;
+    }catch{return false;}
+  }
+  function finish(job,status){
+    if(active!==job)return;
+    active=null;
+    for(const source of job.sources){
+      source.onended=null;
+      try{source.stop();}catch{}
+      source.disconnect();
+    }
+    job.done?.(status);
+  }
+  function cancel(){if(active)finish(active,'done');}
+  function play(keys,done){
+    if(document.hidden || !keys.length)return false;
+    let ctx;
+    try{ctx=getContext();}catch{return false;}
+    if(!ctx)return false;
+    cancel();
+    const job={sources:[],done};
+    active=job;
+    Promise.all([ctx.state==='running'?undefined:ctx.resume(),bank(ctx)]).then(([,buffer])=>{
+      if(active!==job)return;
+      if(document.hidden){finish(job,'done');return;}
+      let when=ctx.currentTime+.025;
+      keys.forEach((key,i)=>{
+        const [offset,duration]=cues[key],source=ctx.createBufferSource();
+        source.buffer=buffer;source.connect(ctx.destination);job.sources.push(source);
+        if(i===keys.length-1)source.onended=()=>finish(job,'done');
+        source.start(when,offset,duration);
+        when+=duration+.08;
+      });
+    }).catch(()=>finish(job,'error'));
+    return true;
+  }
+  const known=key=>Object.hasOwn(cues,key);
+  function actionKey(text){
+    const value=String(text||'').trim().toLowerCase();
+    if(known(value))return value;
+    if(Object.hasOwn(aliases,value))return aliases[value];
+    const parser=window.JalanManeuvers;
+    if(!parser)return 'follow';
+    const key=parser.audioKey(null,String(text||''));
+    if(key==='roundabout'){
+      const ordinal=parser.roundaboutExit?.(null,String(text||''));
+      if(known('roundabout-'+ordinal))return 'roundabout-'+ordinal;
+    }
+    return known(key)?key:(aliases[key]||'follow');
+  }
+  function speak(action,metres,done){
+    const distance='in-'+metres,keys=[];
+    // 50 m is the immediate manoeuvre prompt in JALAN's milestone policy.
+    if(metres!==50&&known(distance))keys.push(distance);
+    keys.push(actionKey(action));
+    return play(keys,done);
+  }
+  const alertKeys=new Map([
+    ['you are near your destination','near-destination'],['anda menghampiri destinasi','near-destination'],
+    ['anda hampir tiba di destinasi','near-destination'],['anda telah tiba di destinasi','arrival'],
+    ['full guidance','full-guidance'],['panduan penuh','full-guidance'],['panduan suara penuh','full-guidance'],
+    ['alerts only','alerts-only'],['amaran sahaja','alerts-only'],['makluman sahaja','alerts-only'],
+    ['stop reached. continuing to your destination','stop-arrival'],['stop passed. continuing to your destination','stop-passed'],
+    ['recalculating route','rerouting'],['mengira semula laluan','rerouting']
+  ]);
+  function alert(text,done){
+    const value=String(text||'').trim().toLowerCase().replace(/[.!…]+$/,'');
+    if(value==='speed camera ahead in 300 metres')return play(['in-300','speed-camera'],done);
+    if(value==='speed camera ahead')return play(['speed-camera'],done);
+    return play([known(value)?value:(alertKeys.get(value)||'follow')],done);
+  }
+  return {available:!!AudioEngine,unlock,cancel,speak,alert,preview:done=>play(['preview'],done)};
  }
- function bank(ctx){
-   if(!loading){
-     const attempt=fetch(file).then(response=>{
-       if(!response.ok)throw Error('Malay guidance audio unavailable');
-       return response.arrayBuffer();
-     }).then(bytes=>ctx.decodeAudioData(bytes));
-     loading=attempt;
-     attempt.catch(()=>{if(loading===attempt)loading=null;});
-   }
-   return loading;
- }
- // On iOS create/resume the context synchronously within the user's gesture.
- // Silent playback primes older Safari. Guidance itself can then run from GPS.
- function unlock(){
-   try{
-     const ctx=getContext();
-     if(!ctx)return false;
-     if(ctx.state!=='running'){
-       ctx.resume().catch(()=>{});
-       const silent=ctx.createBufferSource();
-       silent.buffer=ctx.createBuffer(1,1,ctx.sampleRate);
-       silent.connect(ctx.destination);silent.onended=()=>silent.disconnect();
-       silent.start();
-     }
-     bank(ctx).catch(()=>{});
-     return true;
-   }catch{return false;}
- }
- function finish(job,status){
-   if(active!==job)return;
-   active=null;
-   for(const source of job.sources){
-     source.onended=null;
-     try{source.stop();}catch{}
-     source.disconnect();
-   }
-   job.done?.(status);
- }
- function cancel(){if(active)finish(active,'done');}
- function play(keys,done){
-   if(document.hidden || !keys.length)return false;
-   let ctx;
-   try{ctx=getContext();}catch{return false;}
-   if(!ctx)return false;
-   cancel();
-   const job={sources:[],done};
-   active=job;
-   Promise.all([ctx.state==='running'?undefined:ctx.resume(),bank(ctx)]).then(([,buffer])=>{
-     if(active!==job)return;
-     if(document.hidden){finish(job,'done');return;}
-     let when=ctx.currentTime+.025;
-     keys.forEach((key,i)=>{
-       const [offset,duration]=cues[key],source=ctx.createBufferSource();
-       source.buffer=buffer;source.connect(ctx.destination);job.sources.push(source);
-       if(i===keys.length-1)source.onended=()=>finish(job,'done');
-       source.start(when,offset,duration);
-       when+=duration+.08;
-     });
-   }).catch(()=>finish(job,'error'));
-   return true;
- }
- const known=key=>Object.hasOwn(cues,key);
- function actionKey(text){
-   const value=String(text||'').trim().toLowerCase();
-   if(known(value))return value;
-   if(Object.hasOwn(aliases,value))return aliases[value];
-   const parser=window.JalanManeuvers;
-   if(!parser)return 'follow';
-   const key=parser.audioKey(null,String(text||''));
-   if(key==='roundabout'){
-     const ordinal=parser.roundaboutExit?.(null,String(text||''));
-     if(known('roundabout-'+ordinal))return 'roundabout-'+ordinal;
-   }
-   return known(key)?key:(aliases[key]||'follow');
- }
- function speak(action,metres,done){
-   const distance='in-'+metres,keys=[];
-   // 50 m is the immediate manoeuvre prompt in JALAN's milestone policy.
-   if(metres!==50&&known(distance))keys.push(distance);
-   keys.push(actionKey(action));
-   return play(keys,done);
- }
- const alertKeys=new Map([
-   ['you are near your destination','near-destination'],['anda menghampiri destinasi','near-destination'],
-   ['anda hampir tiba di destinasi','near-destination'],['anda telah tiba di destinasi','arrival'],
-   ['full guidance','full-guidance'],['panduan penuh','full-guidance'],['panduan suara penuh','full-guidance'],
-   ['alerts only','alerts-only'],['amaran sahaja','alerts-only'],['makluman sahaja','alerts-only'],
-   ['stop reached. continuing to your destination','stop-arrival'],['stop passed. continuing to your destination','stop-passed'],
-   ['recalculating route','rerouting'],['mengira semula laluan','rerouting']
- ]);
- function alert(text,done){
-   const value=String(text||'').trim().toLowerCase().replace(/[.!…]+$/,'');
-   if(value==='speed camera ahead in 300 metres')return play(['in-300','speed-camera'],done);
-   if(value==='speed camera ahead')return play(['speed-camera'],done);
-   return play([known(value)?value:(alertKeys.get(value)||'follow')],done);
- }
- function primeIfNeeded(){
-   if(!/^ms(?:-|$)/i.test(document.documentElement.lang))return;
-   try{
-     const voices=window.speechSynthesis?.getVoices?.()||[];
-     if(voices.some(v=>/^ms(?:[-_]|$)/i.test(v.lang)))return;
-   }catch{}
-   unlock();
- }
- if(AudioEngine){
-   document.addEventListener('click',primeIfNeeded,{capture:true,passive:true});
-   document.addEventListener('keydown',primeIfNeeded,{capture:true,passive:true});
-   document.addEventListener('visibilitychange',()=>{if(document.hidden)cancel();});
-   window.addEventListener('pagehide',cancel);
- }
- window.JalanMalayAudio={available:!!AudioEngine,unlock,cancel,speak,alert,preview:done=>play(['preview'],done)};
+ window.JalanMalayAudio=player(malay,'audio/ms-guidance.mp3?v=2');
+ window.JalanEnglishAudio=player(english,'audio/en-guidance.mp3?v=1');
 })();

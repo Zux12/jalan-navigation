@@ -192,7 +192,7 @@ async function main(){
    const path=Array.from({length:1201},(_,i)=>[3.139,101.680+.01*i/1200]);
    window.__widthLine=L.polyline(path,{jalanRouteScale:1,color:'#087af5'}).addTo(map);
   });
-  for(const [zoom,width] of [[16,8],[18,11],[16,8]]){
+  for(const [zoom,width] of [[16,12],[18,16.5],[16,12]]){
    await page.evaluate(zoom=>map.setView([3.139,101.685],zoom,{animate:false}),zoom);
    await page.waitForFunction(({zoom,width})=>{
      const gl=window.__widthMap;
@@ -493,7 +493,7 @@ async function main(){
   assert.equal(await page.locator('#jalan-vector-map').count(),0);
   assert.equal(await page.evaluate(()=>routeLayer.getLayers().length),2);
   assert.match(await page.locator('#jalan-map-status').textContent(),/Basic map/);
-  for(const [zoom,width] of [[16,8],[18,11],[16,8]]){
+  for(const [zoom,width] of [[16,12],[18,16.5],[16,12]]){
    await page.evaluate(zoom=>map.setZoom(zoom,{animate:false}),zoom);
    assert.equal(await page.evaluate(()=>Number(routeLayer.getLayers()[selectedRoute].getElement().getAttribute('stroke-width'))),width);
   }
@@ -569,8 +569,28 @@ async function main(){
     'pre-route map follows the live triangle');
   await startup.evaluate(()=>window.dispatchEvent(new CustomEvent('jalan:free-location',{detail:{
     point:[3.1394,101.6873],accuracy:8,timestamp:Date.now()+1,heading:90,speed:5}})));
-  await startup.waitForFunction(()=>document.querySelector('.jalan-vector-pin .passenger-startup-pin svg')?.dataset.heading==='90');
+  await startup.waitForFunction(()=>document.querySelector('.jalan-vector-pin .passenger-startup-pin svg')?.dataset.heading==='0'&&Math.abs(JalanVectorMap.getBearing()-90)<.01);
   await assertTriangleCentered(vectorHalo);
+  const anchored=()=>startup.evaluate(()=>{
+   const ring=document.querySelector('.jalan-vector-pin .passenger-startup-pin').getBoundingClientRect();
+   const top=document.querySelector('#jalan-home-sheet').getBoundingClientRect().top;
+   return Math.abs(ring.x+ring.width/2-innerWidth/2)<2&&Math.abs(top-ring.bottom-12)<2;
+  });
+  assert.ok(await anchored(),'free-driving marker stays just above the visible sheet');
+  await startup.evaluate(()=>window.dispatchEvent(new CustomEvent('jalan:free-location',{detail:{
+    point:[3.1394,101.6873],accuracy:8,timestamp:Date.now()+2,heading:180,speed:0}})));
+  assert.equal(await startup.evaluate(()=>JalanVectorMap.getBearing()),90,'stationary fixes hold the last course');
+  await startup.evaluate(()=>{
+    const fix=(lat,heading,speed,ms)=>window.dispatchEvent(new CustomEvent('jalan:free-location',{
+      detail:{point:[lat,101.6873],accuracy:8,timestamp:Date.now()+ms,heading,speed}}));
+    // Each northward movement is smaller than the reported accuracy.
+    fix(3.13943,null,null,3);fix(3.13946,null,null,4);fix(3.13949,null,null,5);
+  });
+  await startup.waitForFunction(()=>Math.abs(JalanVectorMap.getBearing())<.01);
+  assert.ok(await anchored(),'the map turns under the same marker when heading is inferred from movement');
+  await startup.evaluate(()=>window.dispatchEvent(new CustomEvent('jalan:free-location',{detail:{
+    point:[3.1394,101.6873],accuracy:8,timestamp:Date.now()+6,heading:90,speed:5}})));
+  await startup.waitForFunction(()=>Math.abs(JalanVectorMap.getBearing()-90)<.01);
   const pinSelector=vectorHalo+' svg';
   await startup.evaluate(selector=>{
     window.__startupShape=document.querySelector(selector);
@@ -597,6 +617,14 @@ async function main(){
   const basicHalo='#map .leaflet-marker-pane .passenger-startup-pin';
   await startup.locator(basicHalo).waitFor({state:'visible'});
   await assertTriangleCentered(basicHalo);
+  await startup.evaluate(()=>window.dispatchEvent(new CustomEvent('jalan:free-location',{detail:{
+    point:[3.1394,101.6873],accuracy:8,timestamp:Date.now()+8,heading:90,speed:5}})));
+  await startup.waitForFunction(()=>{
+    const host=map.getContainer(),box=host.querySelector('.passenger-startup-pin').getBoundingClientRect();
+    const top=document.getElementById('jalan-home-sheet').getBoundingClientRect().top;
+    return host.classList.contains('jalan-free-raster')&&host.style.getPropertyValue('--jalan-free-turn')==='-90deg'&&
+      Math.abs(box.left+box.width/2-innerWidth/2)<3&&Math.abs(top-box.bottom-12)<3;
+  });
   await startup.close();await startupContext.close();
   // Inaccurate geolocation must not display a false current-position arrow or
   // auto-zoom, and browser permission denial must remain usable.

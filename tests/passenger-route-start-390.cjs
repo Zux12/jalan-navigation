@@ -60,7 +60,12 @@ module.exports=async(browser,base,root)=>{
   await page.clock.runFor(200);
   assert.equal(await page.evaluate(()=>!destination&&!routes.length&&!JalanGPS.getState().active),true);
   assert.equal(await page.locator('#jalan-home-sheet').getAttribute('data-state'),'a');
-  assert.equal(await page.evaluate(()=>Math.abs(map.getCenter().lat-3.139)<.00001),true);
+  assert.equal(await page.evaluate(()=>{
+    const pin=Object.values(map._layers).find(layer=>layer.options?.icon?.options.className==='passenger-startup-pin');
+    const box=pin?.getElement()?.getBoundingClientRect(),sheet=document.getElementById('jalan-home-sheet');
+    return !!box&&pin.getLatLng().distanceTo(L.latLng(3.139,101.6869))<1&&
+      Math.abs(box.x+box.width/2-innerWidth/2)<3&&Math.abs(sheet.getBoundingClientRect().top-box.bottom-12)<3;
+  }),true,'Cancel restores the free-driving position above the sheet');
   await page.clock.runFor(10000);assert.equal(await starts(),1,'Cancel clears any pending auto-start');
   await fixture();await page.clock.runFor(200);
   await page.mouse.move(180,200);await page.mouse.down();
