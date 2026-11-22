@@ -1368,7 +1368,7 @@ async function main(){
   assert.deepEqual(deniedErrors,[]);
   await require('./passenger-road-details-390.cjs')(deniedPage);
   await require('./passenger-lane-guidance-390.cjs')(deniedPage);
-  await require('./passenger-stations-390.cjs')(deniedPage);
+  assert.equal(await deniedPage.locator('#passenger-stations').isChecked(),false,'storage denial defaults stations off');
   assert.deepEqual(deniedErrors,[]);
   await deniedContext.close();
   await require('./destination-suggestions-390.cjs')({context,base,root});
@@ -1392,6 +1392,9 @@ async function main(){
    await pinPage.locator('#jalan-launch').waitFor({state:'hidden'});
    await require('./passenger-avoid-tolls-390.cjs')(pinPage);
    await require('./passenger-speed-cameras-390.cjs')(pinPage);
+   await pinPage.route('**/jalan-config.js*',route=>route.fulfill({contentType:'application/javascript',
+    body:"window.JalanPublicConfig={managedTomTom:true,tomtomBrowserKey:'SYNTHETIC_MANAGED_TEST_KEY',appVersion:'4.8.0-test'};"}));
+   await require('./passenger-stations-390.cjs')(pinPage);
   }finally{await pinPage.close();}
 
   assert.deepEqual(errors,[],'no uncaught JS errors in either UI');

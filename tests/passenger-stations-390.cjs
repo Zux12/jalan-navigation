@@ -31,6 +31,14 @@ async function openingArea(page){
  await page.route(pattern,handle);
  try{
    await page.goto(url.href,{waitUntil:'load'});await page.waitForFunction(()=>!!window.__firstStationFix);
+   const toggle=page.locator('#passenger-stations');
+   assert.equal(await toggle.isChecked(),false,'stations start off on first visit');
+   assert.ok(await page.locator('#passenger-stations-list').evaluate(el=>el.hidden));
+   await page.evaluate(()=>map.fire('dragstart'));await page.clock.runFor(650);
+   assert.equal(calls.length,0,'browsing with stations off makes no station requests');
+   await Promise.all([page.waitForEvent('load'),toggle.evaluate(el=>{el.click();location.reload();})]);
+   await page.waitForFunction(()=>!!window.__firstStationFix);
+   assert.ok(await toggle.isChecked(),'explicitly enabling stations survives reload');
    await page.clock.runFor(650);assert.equal(calls.length,0,'opening KL view waits for startup GPS');
    const overviewRequest=page.waitForRequest(r=>r.url().includes('/nearbySearch/'));
    await page.evaluate(()=>map.fire('dragstart'));
@@ -112,4 +120,6 @@ module.exports=async function stations(page){
   colors:Object.values(map._layers).filter(l=>l.options?.className==='jalan-stop-route').map(l=>l.options.color)}));
  assert.deepEqual(result.order,['station','regular']);assert.deepEqual(result.colors,['#e47508','#ffca28','#8047c7']);
  await page.evaluate(()=>{window.__stationRestore();clearRoute(true);});
+ await toggle();await page.reload({waitUntil:'load'});
+ assert.equal(await input.isChecked(),false,'explicitly disabling stations survives reload');
 };
