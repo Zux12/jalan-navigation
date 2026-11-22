@@ -218,7 +218,7 @@ body.passenger-vector-active .passenger-map-gestures{display:none!important}
 #jalan-map-status:empty{display:none}
 /* A rotating basic map needs enough tile coverage at every bearing. */
 body.passenger-mode:not(.passenger-vector-active) #map.jalan-free-raster{
- position:absolute;left:calc((100vw - var(--jalan-free-size))/2);top:calc((100dvh - var(--jalan-free-size))/2);
+ position:fixed;left:calc((100vw - var(--jalan-free-size))/2);top:calc((100dvh - var(--jalan-free-size))/2);
  width:var(--jalan-free-size);height:var(--jalan-free-size);transform:rotate(var(--jalan-free-turn,0deg));transform-origin:center}
 /* The pre-route GPS halo surrounds the same vehicle used during guidance. */
 .leaflet-marker-icon.passenger-startup-pin{display:grid;place-items:center;pointer-events:none;
