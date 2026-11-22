@@ -4,8 +4,8 @@
  const data=window.JalanStationData,planner=window.JalanStationPlanner;
  const toggle=$('passenger-stations'),listButton=$('passenger-stations-list'),preference='jalan-nearby-stations-v1';
  const lang=(en,ms)=>window.JalanLanguage?.code==='ms'?ms:en;
- const pins=new Map(),cache=[];let googleRows=[];
- let enabled=true,current=null,loading=null,timer,paintZoom,retryAfter=0,directoryJob=null;
+ const pins=new Map(),cache=new Map(),pending=new Map();
+ let enabled=true,located=false,timer,wake,directoryJob=null,googleRows=[],currentRows=[],wanted=[],signature='';
  try{enabled=localStorage.getItem(preference)!=='off';}catch{}
  toggle.checked=enabled;listButton.hidden=!enabled;
  const directory=document.createElement('section');directory.id='station-directory';directory.hidden=true;
@@ -14,13 +14,13 @@
  document.body.append(directory);
  function closeDirectory(){
    directory.hidden=true;directoryJob?.abort();directoryJob=null;
-   const hadGoogle=googleRows.length;googleRows=[];if(hadGoogle&&enabled)paint(current?.rows||[]);
+   const hadGoogle=googleRows.length;googleRows=[];if(hadGoogle&&enabled)paint(currentRows);
    directory.querySelector('.station-google-list').replaceChildren();
    document.body.classList.remove('passenger-station-directory');
  }
  function select(site){
    if(site.googleId){
-     const matched=data.withGoogle(current?.rows||[],[site]).find(s=>s.googleId===site.googleId);
+     const matched=data.withGoogle(currentRows,[site]).find(s=>s.googleId===site.googleId);
      if(matched)site=matched;
    }
    closeDirectory();const access=site.access||site.point;
@@ -71,10 +71,10 @@
    pin.on('click',()=>expand(site));return pin;
  }
  function paint(rows){
-   rows=data.withGoogle(rows,googleRows);paintZoom=Math.floor(map.getZoom());
+   rows=data.withGoogle(rows,googleRows.filter(s=>map.getBounds().contains(s.point)));
    // Keep nearby forecourts separate at street zoom. At city scale their
    // text plates can cover several blocks, so group adjacent stations first.
-   if(paintZoom<15)rows=overview(rows,paintZoom);
+   if(Math.floor(map.getZoom())<15)rows=overview(rows,Math.floor(map.getZoom()));
    const keep=new Set(rows.map(s=>s.id));
    pins.forEach(({pin},id)=>{if(!keep.has(id)){map.removeLayer(pin);pins.delete(id);}});
    for(const site of rows)if(!pins.has(site.id)||pins.get(site.id).site!==site){
@@ -88,66 +88,96 @@
    const south=Math.max(.5,bounds.getSouth()),north=Math.min(7.7,bounds.getNorth()),west=Math.max(99.3,bounds.getWest()),east=Math.min(119.6,bounds.getEast());
    if(south>=north||west>=east)return null;
    const b=L.latLngBounds([south,west],[north,east]),c=b.getCenter();
-   const center=[Number(c.lat.toFixed(2)),Number(c.lng.toFixed(2))];
+   const center=[c.lat,c.lng];
    const radius=Math.ceil(Math.max(...[b.getNorthEast(),b.getNorthWest(),b.getSouthEast(),b.getSouthWest()].map(p=>data.meters(center,[p.lat,p.lng]))));
-   return {center,radius};
+   return {center,radius,south,west,north,east};
  }
- const contains=(area,v)=>data.meters(area.center,v.center)+v.radius<=area.radius;
+ function releaseStartup(){located=true;schedule();}
  function schedule(){if(!timer&&enabled&&!document.hidden)timer=setTimeout(()=>{timer=null;refresh();},300);}
- async function refresh(){
-   if(!enabled||document.hidden)return;
-   const v=view(),key=$('tt-key')?.value.trim();
-   if(!key||!v){
-     loading?.controller.abort();loading=null;current=null;resetPins();paintDirectory();return;
-   }
-   if(current&&current.until>Date.now()&&contains(current,v)){
-     if(loading){loading.controller.abort();loading=null;}
-     if(paintZoom!==Math.floor(map.getZoom()))paint(current.rows);
-     return;
-   }
-   const cached=[...cache].reverse().find(a=>a.until>Date.now()&&contains(a,v));
-   if(cached){loading?.controller.abort();loading=null;current=cached;paint(cached.rows);return;}
-   if(loading&&contains(loading,v)||Date.now()<retryAfter)return;
-   loading?.controller.abort();
-   const area={center:v.center,radius:Math.max(1200,Math.ceil(v.radius*1.35)),controller:new AbortController()};
-   loading=area;
+ function stopDownloads(){
+   clearTimeout(wake);clearTimeout(timer);timer=null;
+   for(const job of pending.values())job.abort();
+   pending.clear();wanted=[];signature='';currentRows=[];resetPins();
+ }
+ function paintCells(){
+   // A cell can supply its first page before the next page or its neighbours finish.
+   const next=Math.floor(map.getZoom())+'|'+wanted.map(c=>c.id+':'+cache.get(c.id)?.revision).sort().join('|');
+   if(next===signature){paintDirectory();return;}
+   signature=next;currentRows=data.merge(wanted.flatMap(c=>cache.get(c.id)?.rows||[]));paint(currentRows);
+ }
+ async function download(area,key,entry){
+   const controller=new AbortController();pending.set(area.id,controller);
+   const previous=entry.rows;
+   const publish=rows=>{
+     if(pending.get(area.id)!==controller)return;
+     entry.rows=rows;entry.revision++;paintCells();
+   };
    try{
-     const rows=await data.nearby(area.center,area.radius,key,area.controller.signal);
-     if(loading!==area||!enabled)return;
-     current={center:area.center,radius:area.radius,rows,until:Date.now()+300000};
-     cache.push(current);if(cache.length>6)cache.shift();
-     paint(rows);
-   }catch{if(loading===area){retryAfter=Date.now()+12000;setTimeout(schedule,12500);}}
-   finally{if(loading===area)loading=null;}
+     const rows=await data.nearby(area,key,controller.signal,rows=>publish(previous.length?[...previous,...rows]:rows));
+     if(pending.get(area.id)!==controller)return;
+     entry.until=Date.now()+300000;entry.retry=0;
+     if(previous.length||!rows.length)publish(rows);
+   }catch{if(pending.get(area.id)===controller)entry.retry=Date.now()+12000;}
+   finally{if(pending.get(area.id)===controller){pending.delete(area.id);schedule();}}
+ }
+ function refresh(){
+   if(!enabled||document.hidden||!located)return;
+   const v=view(),key=$('tt-key')?.value.trim();
+   if(!key||!v){stopDownloads();paintDirectory();return;}
+   const state=document.body.classList.contains('passenger-following-location')&&window.JalanGPS?.getState();
+   const fix=state?.gpsReliable?state.gpsPosition:window.JalanPassengerStartup?.followingPoint;
+   const focus=fix&&fix[0]>=v.south&&fix[0]<=v.north&&fix[1]>=v.west&&fix[1]<=v.east?fix:v.center;
+   wanted=data.cellsForView(v,focus);
+   const ids=new Set(wanted.map(c=>c.id)),now=Date.now();
+   for(const [id,job] of pending)if(!ids.has(id)){pending.delete(id);job.abort();}
+   const first=wanted[0].id,local=cache.get(first);
+   if(pending.size===2&&!pending.has(first)&&Math.max(local?.until||0,local?.retry||0)<=now){
+     const last=wanted.findLast(c=>pending.has(c.id)).id;
+     pending.get(last).abort();pending.delete(last);
+   }
+   for(const area of wanted){
+     const entry=cache.get(area.id)||{rows:[],revision:0,until:0,retry:0};
+     cache.delete(area.id);cache.set(area.id,entry);
+     if(pending.size<2&&!pending.has(area.id)&&Math.max(entry.until,entry.retry)<=now)download(area,key,entry);
+   }
+   while(cache.size>48)cache.delete(cache.keys().next().value);
+   paintCells();
+   clearTimeout(wake);
+   const times=wanted.map(c=>{const e=cache.get(c.id);return Math.max(e.until,e.retry);}).filter(t=>t>now);
+   if(times.length)wake=setTimeout(schedule,Math.min(...times)-now+10);
  }
  function paintDirectory(){
    if(directory.hidden)return;
    const list=directory.querySelector('.station-local-list'),b=map.getBounds();list.replaceChildren();
-   const sites=(current?.rows||[]).filter(s=>b.contains(s.point));
+   const sites=currentRows.filter(s=>b.contains(s.point));
    for(const site of sites){
      const button=document.createElement('button');button.type='button';
      button.textContent=site.name+' · '+(site.petrol&&site.ev?'Petrol + EV':site.petrol?'Petrol':'EV');
      button.onclick=()=>select(site);list.append(button);
    }
-   if(!sites.length)list.textContent=lang('No stations shown in this area.','Tiada stesen dipaparkan di kawasan ini.');
+   if(!sites.length){
+     if(pending.size||!located)list.textContent=lang('Loading nearby stations…','Memuatkan stesen berhampiran…');
+     else if(wanted.some(c=>cache.get(c.id)?.retry>Date.now()))list.textContent=lang('Station lookup interrupted. Retrying…','Carian stesen terganggu. Mencuba semula…');
+     else list.textContent=lang('No stations shown in this area.','Tiada stesen dipaparkan di kawasan ini.');
+   }
  }
  function openDirectory(){
    if(!enabled)return;
    $('jalan-home-menu-close').click();planner.close();closeDirectory();directory.hidden=false;
    document.body.classList.add('passenger-station-directory');
-   paintDirectory();schedule();directory.querySelector('button').focus({preventScroll:true});
+   releaseStartup();paintDirectory();directory.querySelector('button').focus({preventScroll:true});
    const google=window.JalanGooglePlaceSearch;if(!google.configured())return;
    const container=directory.querySelector('.station-google-list'),controller=new AbortController();directoryJob=controller;
    const failed=()=>{if(!controller.signal.aborted)container.textContent=lang('Google Maps results unavailable.','Hasil Google Maps tidak tersedia.');};
    const area=view();if(!area)return;
    google.nearby({...area,container,signal:controller.signal,onSelect:select,onError:failed,onPlaces:places=>{
-     googleRows=places;paint(current?.rows||[]);
+     googleRows=places;paint(currentRows);
    }}).catch(failed);
  }
  function switchPins(){
    enabled=toggle.checked;listButton.hidden=!enabled;
    try{localStorage.setItem(preference,enabled?'on':'off');}catch{}
-   if(enabled)schedule();else{loading?.controller.abort();loading=null;current=null;resetPins();closeDirectory();planner.close();}
+   if(enabled)releaseStartup();else{stopDownloads();closeDirectory();planner.close();}
  }
  toggle.addEventListener('change',switchPins);listButton.onclick=openDirectory;directory.querySelector('button').onclick=closeDirectory;
  window.addEventListener('keydown',e=>{if(e.key==='Escape')closeDirectory();});
@@ -187,10 +217,16 @@
    const row=hitAt(event.clientX,event.clientY);
    if(row){event.stopImmediatePropagation();row.site.count?expand(row.site):select(row.site);}
  },true);
- map.on('moveend zoomend',schedule);window.addEventListener('jalan:vector-gesture-end',schedule);
- window.addEventListener('jalan:gps-fix',schedule);document.addEventListener('visibilitychange',schedule);
+ map.on('moveend zoomend',schedule);map.on('dragstart',releaseStartup);
+ map.getContainer().addEventListener('wheel',releaseStartup,{passive:true});
+ map.getContainer().addEventListener('touchstart',releaseStartup,{passive:true});
+ for(const event of ['jalan:initial-location','jalan:initial-location-error','jalan:free-location','jalan:gps-fix','jalan:routes-rendered','jalan:vector-gesture-end'])window.addEventListener(event,releaseStartup);
+ document.addEventListener('visibilitychange',schedule);
+ window.addEventListener('online',()=>{for(const entry of cache.values())entry.retry=0;schedule();});
  for(const [id,event] of [['tt-key','input'],['tt-remove-key','click']])$(id)?.addEventListener(event,()=>{
-   loading?.controller.abort();loading=null;current=null;cache.length=0;retryAfter=0;resetPins();schedule();
+   stopDownloads();cache.clear();schedule();
  });
- window.JalanStations={marker};schedule();
+ // Give startup GPS a chance to centre the map before requesting the KL fallback.
+ // Browsing still works if the permission prompt is left unanswered.
+ window.JalanStations={marker};setTimeout(releaseStartup,14500);
 })();

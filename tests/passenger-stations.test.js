@@ -1,6 +1,28 @@
 'use strict';
 const {test}=require('node:test'),assert=require('node:assert/strict');
 const model=require('../passenger-station-route'),data=require('../passenger-station-data');
+test('street coverage is independent of the city cache and follows a visible driver first',()=>{
+ const bounds={south:3.10,west:101.62,north:3.19,east:101.74},driver=[3.158,101.711];
+ const cells=data.cellsForView(bounds,driver);
+ assert.ok(cells.length<=10);
+ assert.ok(data.meters(cells[0].center,driver)<cells[0].radius);
+ assert.equal(cells[0].size,.01);
+ const closer=data.cellsForView({south:3.15,west:101.70,north:3.16,east:101.72},driver);
+ assert.equal(closer[0].id,cells[0].id);
+ assert.ok(closer.slice(1).some(c=>!cells.some(w=>w.id===c.id)));
+});
+test('a slow or interrupted second page leaves the first page available',async t=>{
+ const results=Array.from({length:100},(_,i)=>({id:String(i),poi:{name:'Petrol '+i,categorySet:[{id:7311}]},position:{lat:3.1,lon:101.7}}));
+ const offsets=[],shown=[];
+ t.mock.method(globalThis,'fetch',async url=>{
+   const offset=Number(url.searchParams.get('ofs'));offsets.push(offset);
+   if(offset)return {ok:false};
+   return {ok:true,json:async()=>({summary:{totalResults:103},results})};
+ });
+ const area=data.cellsForView({south:3.1,north:3.11,west:101.7,east:101.71},[3.101,101.701])[0];
+ await assert.rejects(data.nearby(area,'fixture',new AbortController().signal,rows=>shown.push(rows.length)),/unavailable/);
+ assert.deepEqual(offsets,[0,100]);assert.deepEqual(shown,[100]);
+});
 const petrol=(id,name,lon,cat)=>data.station({id,poi:{name,categorySet:[{id:cat}]},position:{lat:3.15,lon},
  chargingPark:cat===7309?{connectors:[{connectorType:'IEC62196Type2CCS',currentType:'DC',ratedPowerKW:180}]}:undefined});
 test('single forecourt combines charging specifications while separate carriageways stay distinct',()=>{
