@@ -39,7 +39,11 @@ module.exports=async function stations(page){
     Promise.resolve([make(a,b),make(a,b,1)]);
  });
  const card=page.locator('#jalan-station-card');
- const tapStation=()=>page.evaluate(()=>Object.values(map._layers).find(l=>l.options.title==='Shell Test'&&l.options.interactive).fire('click'));
+ async function tapStation(){
+   await page.evaluate(()=>{map.stop();map.setView([3.139,101.686],16,{animate:false});});
+   await pin.waitFor({state:'attached'});
+   await page.evaluate(()=>Object.values(map._layers).find(l=>l.options.title==='Shell Test'&&l.options.interactive).fire('click'));
+ }
  await tapStation();await card.getByRole('button',{name:'Add stop'}).waitFor();
  assert.match(await card.innerText(),/180 kW/);assert.match(await card.innerText(),/driving vs current route/);
  await card.getByRole('button',{name:'Add stop'}).click();
