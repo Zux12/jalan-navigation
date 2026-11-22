@@ -54,9 +54,13 @@
   sound.querySelector('input:checked').focus();
  };
  window.JalanPassengerSound={open:openSound};
- sound.addEventListener('change',event=>{
-  if(event.target.name==='passenger-sound-mode')window.JalanGPS.setVoiceMode(event.target.value);
- });
+ function activateSoundMode(event){
+  const control=event.target;
+  if(control.name==='passenger-sound-mode'&&control.checked&&control.value!==window.JalanGPS.getVoiceMode())
+    window.JalanGPS.setVoiceMode(control.value);
+ }
+ sound.addEventListener('click',activateSoundMode);
+ sound.addEventListener('change',activateSoundMode);
  el('passenger-sound-ok').addEventListener('click',()=>{
   window.JalanVoice.choose(choice.value);
   window.JalanGPS.setVoiceMode(sound.querySelector('input:checked').value);
