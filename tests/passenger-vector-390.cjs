@@ -298,7 +298,7 @@ async function main(){
   const fix=()=>window.__fix({timestamp:Date.now(),coords:{latitude:3.139,longitude:101.6869,accuracy:8,speed:5,heading:45}});
   await page.evaluate(fix);
   await page.waitForFunction(()=>map.getZoom()>=17);
-  assert.equal(await page.evaluate(()=>JalanVectorMap.getBearing()),45);
+  await page.waitForFunction(()=>JalanVectorMap.getBearing()===45);
   // A fresh GPS reading becomes visible on the next native map frame.
   await page.waitForFunction(()=>{
    const p=JalanVectorMap.project([3.139,101.6869]),b=document.getElementById('passenger-vehicle-screen').getBoundingClientRect();
@@ -567,9 +567,24 @@ async function main(){
     'moving before a destination never starts navigation or calculates a route');
   assert.ok(await startup.evaluate(()=>Math.abs(map.getCenter().lat-3.1394)<.00001),
     'pre-route map follows the live triangle');
+  await startup.evaluate(()=>{
+    window.__turnFrames=[];
+    window.__sampleTurn=()=>{
+      const svg=document.querySelector('.jalan-vector-pin .passenger-startup-pin svg');
+      if(svg)window.__turnFrames.push([JalanVectorMap.getBearing(),Number(svg.dataset.heading)]);
+    };
+    window.addEventListener('jalan:vector-render',window.__sampleTurn);
+  });
   await startup.evaluate(()=>window.dispatchEvent(new CustomEvent('jalan:free-location',{detail:{
     point:[3.1394,101.6873],accuracy:8,timestamp:Date.now()+1,heading:90,speed:5}})));
   await startup.waitForFunction(()=>document.querySelector('.jalan-vector-pin .passenger-startup-pin svg')?.dataset.heading==='0'&&Math.abs(JalanVectorMap.getBearing()-90)<.01);
+  const frames=await startup.evaluate(()=>{
+    window.removeEventListener('jalan:vector-render',window.__sampleTurn);
+    return window.__turnFrames;
+  });
+  const midTurn=frames.filter(([bearing])=>bearing>50&&bearing<89);
+  assert.ok(new Set(midTurn.map(([bearing])=>bearing)).size>=2,'free-driving map renders intermediate bearings');
+  assert.ok(midTurn.every(([,heading])=>Math.min(heading,360-heading)<.02),'triangle stays upright throughout the turn');
   await assertTriangleCentered(vectorHalo);
   const anchored=()=>startup.evaluate(()=>{
    const ring=document.querySelector('.jalan-vector-pin .passenger-startup-pin').getBoundingClientRect();
@@ -625,6 +640,29 @@ async function main(){
     return host.classList.contains('jalan-free-raster')&&host.style.getPropertyValue('--jalan-free-turn')==='-90deg'&&
       Math.abs(box.left+box.width/2-innerWidth/2)<3&&Math.abs(top-box.bottom-12)<3;
   });
+  const rasterTurn=await startup.evaluate(async()=>{
+    const host=map.getContainer(),pin=host.querySelector('.passenger-startup-pin'),svg=pin.querySelector('svg');
+    const top=document.getElementById('jalan-home-sheet').getBoundingClientRect().top,frames=[];
+    window.dispatchEvent(new CustomEvent('jalan:free-location',{detail:{
+      point:[3.1394,101.6873],accuracy:8,timestamp:Date.now()+10,heading:180,speed:5}}));
+    const set=map.setView;let pans=0;
+    map.setView=function(...args){pans++;return set.apply(this,args);};
+    try{
+      for(let i=0;i<120;i++){
+        await new Promise(resolve=>requestAnimationFrame(resolve));
+        const bearing=-parseFloat(host.style.getPropertyValue('--jalan-free-turn')),box=pin.getBoundingClientRect();
+        const matrix=svg.getScreenCTM();
+        frames.push({bearing,tilt:Math.atan2(matrix.b,matrix.a),dx:box.x+box.width/2-innerWidth/2,dy:box.y+box.height/2-(top-54)});
+        if(bearing===180)break;
+      }
+    }finally{map.setView=set;}
+    return {frames,pans};
+  });
+  assert.equal(rasterTurn.pans,0,'free rotation does not pan/reload Leaflet on each frame');
+  assert.equal(rasterTurn.frames.at(-1).bearing,180);
+  assert.ok(rasterTurn.frames.some(f=>f.bearing>95&&f.bearing<175));
+  assert.ok(rasterTurn.frames.every(f=>Math.abs(f.tilt)<.01&&Math.abs(f.dx)<3&&Math.abs(f.dy)<3),
+    'the basic-map arrow and its anchor stay fixed throughout the turn');
   await startup.close();await startupContext.close();
   // Inaccurate geolocation must not display a false current-position arrow or
   // auto-zoom, and browser permission denial must remain usable.
