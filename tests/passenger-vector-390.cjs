@@ -317,6 +317,7 @@ async function main(){
   await assertAnchor();
   // Hold the GPS fix still and inspect the marker on the actual WebGL render
   // event, while zoom, center, pitch and fractional bearing change together.
+  await page.waitForFunction(()=>Math.abs(JalanVectorMap.getBearing()-45)<.001);
   const frameErrors=await page.evaluate(async()=>{
    const gl=window.__widthMap,center=gl.getCenter(),zoom=gl.getZoom();
    const base={center,bearing:gl.getBearing(),pitch:gl.getPitch(),zoom};
@@ -567,9 +568,24 @@ async function main(){
     'moving before a destination never starts navigation or calculates a route');
   assert.ok(await startup.evaluate(()=>Math.abs(map.getCenter().lat-3.1394)<.00001),
     'pre-route map follows the live triangle');
+  await startup.evaluate(()=>{
+    window.__turnFrames=[];
+    window.__sampleTurn=()=>{
+      const svg=document.querySelector('.jalan-vector-pin .passenger-startup-pin svg');
+      if(svg)window.__turnFrames.push([JalanVectorMap.getBearing(),Number(svg.dataset.heading)]);
+    };
+    window.addEventListener('jalan:vector-render',window.__sampleTurn);
+  });
   await startup.evaluate(()=>window.dispatchEvent(new CustomEvent('jalan:free-location',{detail:{
     point:[3.1394,101.6873],accuracy:8,timestamp:Date.now()+1,heading:90,speed:5}})));
   await startup.waitForFunction(()=>document.querySelector('.jalan-vector-pin .passenger-startup-pin svg')?.dataset.heading==='0'&&Math.abs(JalanVectorMap.getBearing()-90)<.01);
+  const frames=await startup.evaluate(()=>{
+    window.removeEventListener('jalan:vector-render',window.__sampleTurn);
+    return window.__turnFrames;
+  });
+  const midTurn=frames.filter(([bearing])=>bearing>50&&bearing<89);
+  assert.ok(new Set(midTurn.map(([bearing])=>bearing)).size>=2,'free-driving map renders intermediate bearings');
+  assert.ok(midTurn.every(([,heading])=>Math.min(heading,360-heading)<.02),'triangle stays upright throughout the turn');
   await assertTriangleCentered(vectorHalo);
   const anchored=()=>startup.evaluate(()=>{
    const ring=document.querySelector('.jalan-vector-pin .passenger-startup-pin').getBoundingClientRect();

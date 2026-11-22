@@ -16,5 +16,34 @@
   const distance=dy/(Math.cos(p)+dy*Math.sin(p)/1200)/(flat?1:1.35);
   return {x:distance*Math.sin(angle*r),y:distance*Math.cos(angle*r)};
  }
- return {defaults,sanitize,zoomLevel,pitch,anchor,rasterOffset};
+ // A critically damped turn keeps its angular velocity when a new GPS fix
+ // arrives. Integrate elapsed time so 30, 60 and 120 Hz displays turn alike.
+ function bearingFollower(paint,clock=window){
+  let bearing=0,target=0,velocity=0,rate=10,frame=null,lastTime=0;
+  const difference=(from,to)=>((to-from)%360+540)%360-180;
+  function reset(angle=bearing){
+   if(frame!==null)clock.cancelAnimationFrame(frame);
+   frame=null;bearing=target=angle;velocity=0;
+  }
+  function tick(now){
+   const dt=Math.max(0,Math.min((now-lastTime)/1000,.1));
+   lastTime=now;
+   const error=bearing-target,decay=Math.exp(-rate*dt),slope=velocity+rate*error;
+   bearing=target+(error+slope*dt)*decay;
+   velocity=(velocity-rate*slope*dt)*decay;
+   if(error*(bearing-target)<=0||(Math.abs(bearing-target)<.05&&Math.abs(velocity)<.6)){
+    bearing=target;velocity=0;frame=null;
+   }else frame=clock.requestAnimationFrame(tick);
+   paint(bearing);
+  }
+  function aim(angle){
+   if(!Number.isFinite(angle)||Math.abs(difference(target,angle))<1.5)return;
+   const arc=difference(bearing,angle);
+   target=angle+360*Math.round((bearing+arc-angle)/360);
+   rate=8+Math.min(6,Math.abs(arc)/12);
+   if(frame===null){lastTime=clock.performance.now();frame=clock.requestAnimationFrame(tick);}
+  }
+  return {aim,reset,get bearing(){return bearing;}};
+ }
+ return {defaults,sanitize,zoomLevel,pitch,anchor,rasterOffset,bearingFollower};
 });
