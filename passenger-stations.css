@@ -1,4 +1,5 @@
 .jalan-station-pin{background:transparent;border:0}
+.jalan-vector-pin[role="button"] .jalan-station-pin{pointer-events:auto}
 .station-marker-face{display:block;position:relative;width:34px;height:44px;transform-origin:17px 43px}
 .station-drop{display:block;position:relative;z-index:1;width:34px;height:44px;filter:drop-shadow(0 1px 1.5px #17222a66)}
 .station-ev-fill{fill:#11831c}.station-petrol-fill{fill:#f5bc37}
