@@ -17,6 +17,8 @@ module.exports=async function forwardMotion(page,base){
      return frames;
    }
    let at=Date.now();
+   // Use street zoom so a 13 m drive spans multiple physical map pixels.
+   map.setView(a,17,{animate:false});
    emit('jalan:initial-location',{point:a,accuracy:5,timestamp:at-1000});
    emit('jalan:free-location',{point:corner,accuracy:5,timestamp:at,heading:90,speed:13});
    const free=await sample('passenger-startup-pin',corner);
