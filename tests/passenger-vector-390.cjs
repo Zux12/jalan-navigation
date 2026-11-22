@@ -147,6 +147,19 @@ async function main(){
   assert.equal(await page.locator('#jalan-home-sheet').getAttribute('data-state'),'a','an early map touch cancels the opening lift');
   assert.equal(await page.locator('#map').evaluate(x=>getComputedStyle(x).visibility),'visible','reveal only after native renderer ready');
   assert.equal(await page.locator('#map').evaluate(x=>getComputedStyle(x).transform),'none');
+  await page.evaluate(()=>{
+    const center=map.getCenter();
+    window.__stationPin=JalanStations.marker({name:'Test forecourt',point:[center.lat,center.lng],
+      ev:true,petrol:true,charging:{HPC:180,AC:22}});
+  });
+  const stationLabel=page.locator('#jalan-vector-map .jalan-station-pin.combined .station-pin-label');
+  await stationLabel.waitFor();
+  assert.deepEqual(await stationLabel.locator('span').allTextContents(),['Test forecourt','HPC · 180 kW','AC · 22 kW']);
+  await stationLabel.tap();
+  await page.locator('#jalan-station-card').waitFor({state:'visible'});
+  assert.equal(await page.locator('#station-heading').textContent(),'Test forecourt');
+  await page.locator('#jalan-station-card .station-dismiss').tap();
+  await page.evaluate(()=>map.removeLayer(window.__stationPin));
   const recentCredit=page.locator('.jalan-recent-credit'),handle=page.locator('#jalan-sheet-handle');
   await page.waitForTimeout(5100);
   assert.equal(await recentCredit.count(),1,'a collapsed Recent section spends none of the reading time');
@@ -300,13 +313,18 @@ async function main(){
   await page.waitForFunction(()=>map.getZoom()>=17);
   await page.waitForFunction(()=>JalanVectorMap.getBearing()===45);
   // A fresh GPS reading becomes visible on the next native map frame.
+  await page.evaluate(()=>new Promise(resolve=>{
+    window.__widthMap.once('render',resolve);window.__widthMap.triggerRepaint();
+  }).then(()=>true));
   await page.waitForFunction(()=>{
    const p=JalanVectorMap.project([3.139,101.6869]),b=document.getElementById('passenger-vehicle-screen').getBoundingClientRect();
-   return Math.abs(b.x+b.width/2-p.x)<2&&Math.abs(b.y+b.height/2-p.y)<2;
-  },null,{timeout:2000});
+   const canvas=window.__widthMap.getContainer().getBoundingClientRect();
+   return Math.abs(b.x+b.width/2-canvas.left-p.x)<2&&Math.abs(b.y+b.height/2-canvas.top-p.y)<2;
+  },null,{timeout:5000});
   const placement=await page.evaluate(()=>{
    const p=JalanVectorMap.project([3.139,101.6869]),box=document.getElementById('passenger-vehicle-screen').getBoundingClientRect();
-   return {dx:Math.abs(box.x+box.width/2-p.x),dy:Math.abs(box.y+box.height/2-p.y),y:p.y};
+   const canvas=window.__widthMap.getContainer().getBoundingClientRect();
+   return {dx:Math.abs(box.x+box.width/2-canvas.left-p.x),dy:Math.abs(box.y+box.height/2-canvas.top-p.y),y:p.y};
   });
   assert.ok(placement.dx<2&&placement.dy<2,'vehicle shares native pitched projection with route');
   assert.ok(placement.y>450&&placement.y<750,'vehicle is in lower visible map area');
@@ -619,6 +637,7 @@ async function main(){
     'rotating and zooming before Go keeps the visible SVG attached');
   await assertTriangleCentered(vectorHalo);
   await startup.evaluate(()=>JalanVectorMap.setCamera({bearing:0,pitch:0,zoom:16}));
+  await startup.waitForFunction(()=>window.__freeMarker.getLatLng().lat===3.1394);
   await startup.evaluate(()=>window.dispatchEvent(new CustomEvent('jalan:free-location',{detail:{point:[4,102],accuracy:180,timestamp:Date.now()}})));
   assert.equal(await startup.evaluate(()=>window.__freeMarker.getLatLng().lat),3.1394,'poor GPS cannot move the triangle');
   await startup.screenshot({path:path.join(artifacts,'gps-badge-startup-green.png')});

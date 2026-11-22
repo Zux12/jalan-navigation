@@ -97,7 +97,7 @@
     const lat=p?.location?.lat?.(),lng=p?.location?.lng?.();
     if(!p?.id||!Number.isFinite(lat)||!Number.isFinite(lng))return null;
     const entry=results.get(p.id)||{id:p.id,googleId:p.id,name:p.displayName||'',point:[lat,lng],access:[lat,lng],details:[]};
-    entry[flag]=true;results.set(p.id,entry);return entry;
+    const updated={...entry,[flag]:true};results.set(p.id,updated);return updated;
    }
    widget.addEventListener('gmp-error',()=>{failed.add(type);if(!signal.aborted&&failed.size===2)onError();});
    widget.addEventListener('gmp-load',()=>{

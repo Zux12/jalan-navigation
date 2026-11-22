@@ -7,7 +7,20 @@ test('single forecourt combines charging specifications while separate carriagew
  const rows=data.merge([petrol('a','Shell northbound',101.7,7311),petrol('b','Shell Recharge HPC northbound',101.70008,7309),
   petrol('c','Shell Recharge southbound',101.70009,7309)]);
  assert.equal(rows.length,2);assert.deepEqual([rows[0].petrol,rows[0].ev,rows[0].hpc],[true,true,true]);
- assert.deepEqual(rows[0].details,['DC · 180 kW · CCS2']);assert.equal(rows[1].hpc,false);
+ assert.deepEqual(rows[0].details,['DC · 180 kW · CCS2']);assert.equal(rows[1].hpc,true);
+});
+test('pins show the highest rating for each available class, including partially known connectors',()=>{
+ const site=connectors=>data.station({id:'ev',poi:{name:'Charger',categorySet:[{id:7309}]},
+  position:{lat:3.15,lon:101.7},chargingPark:{connectors}});
+ const c=(currentType,ratedPowerKW)=>({currentType,ratedPowerKW});
+ const fast=site([c('DC',150),c('DC',180),c('DC',50),c('AC1',7.4),c('AC3',22)]);
+ assert.deepEqual(data.chargeLabels(fast),['HPC · 180 kW','DC · 50 kW','AC · 22 kW']);
+ assert.deepEqual(data.chargeLabels(site([c('DC',149.9),c('AC3',null)])),['DC · 149.9 kW','AC']);
+ assert.deepEqual(data.chargeLabels(site([c('',180)])),['EV · 180 kW']);
+ assert.deepEqual(data.chargeLabels(site([{connectorType:'IEC62196Type2CCS',ratedPowerKW:160}])),['HPC · 160 kW']);
+ assert.deepEqual(data.chargeLabels(site([])),[]);
+ const merged=data.merge([petrol('pump','Forecourt',101.7,7311),fast]);
+ assert.deepEqual(data.chargeLabels(merged[0]),data.chargeLabels(fast));
 });
 const regular={kind:'regular',name:'KL Sentral',point:[3,101.69]},station={kind:'station',name:'Shell',point:[3,101.7]};
 const direct=async(a,b)=>[0,1].map(i=>({duration:120+i*12,distance:400+i*10,tolls:i===1,delay:8,knownTrafficDelay:8,

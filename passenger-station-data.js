@@ -4,24 +4,39 @@
  const meters=(a,b)=>Math.hypot(a[0]-b[0],(a[1]-b[1])*Math.cos((a[0]+b[0])*Math.PI/360))*111320;
  const clean=s=>String(s||'').trim().toLowerCase();
  function connector(c){
-   const type={IEC62196Type2CCS:'CCS2',IEC62196Type1CCS:'CCS1',IEC62196Type2Outlet:'Type 2',IEC62196Type2CableAttached:'Type 2'}[c.connectorType]||c.connectorType;
-   return [/^AC/.test(c.currentType)?'AC':c.currentType==='DC'?'DC':'',c.ratedPowerKW>0?c.ratedPowerKW+' kW':'',type].filter(Boolean).join(' · ');
+   const plug={IEC62196Type2CCS:'CCS2',IEC62196Type1CCS:'CCS1',IEC62196Type2Outlet:'Type 2',IEC62196Type2CableAttached:'Type 2'}[c.connectorType]||c.connectorType;
+   let current='';
+   if(/^AC(?:[13])?$/.test(c.currentType))current='AC';
+   else if(c.currentType==='DC'||['CCS1','CCS2','CHAdeMO'].includes(plug))current='DC';
+   const kw=Number.isFinite(c.ratedPowerKW)&&c.ratedPowerKW>0?c.ratedPowerKW:null;
+   const kind=current==='DC'&&kw>=150?'HPC':current||'EV';
+   return {kind,kw,detail:[current,kw&&kw+' kW',plug].filter(Boolean).join(' · ')};
+ }
+ // Each label uses the highest reported connector rating within its own class.
+ function chargeLabels(site){
+   const levels=site.charging||{};
+   const kinds=['HPC','DC','AC','EV'].filter(k=>Object.hasOwn(levels,k)||k==='HPC'&&site.hpc);
+   return kinds.map(k=>levels[k]?k+' · '+levels[k]+' kW':k);
  }
  function station(raw){
    const point=coords(raw?.position),poi=raw?.poi;
    if(!point||!poi?.name||!raw.id)return null;
    const ids=(poi.categorySet||[]).map(c=>String(c.id)),labels=clean((poi.categories||[]).join(' '));
-   const connectors=raw.chargingPark?.connectors||[];
+   const connectors=(raw.chargingPark?.connectors||[]).filter(Boolean).map(connector);
    const ev=ids.some(id=>id.startsWith('7309'))||connectors.length>0||/electric vehicle|charging station/.test(labels);
    const petrol=ids.some(id=>id.startsWith('7311'))||/petrol station|gas station|fuel station/.test(labels);
    if(!ev&&!petrol)return null;
    const address=raw.address||{};
+   const charging={};
+   for(const {kind,kw} of connectors){
+     if(kind!=='EV'||kw)charging[kind]=Math.max(charging[kind]||0,kw||0);
+   }
    return {id:raw.id,name:poi.name,point,access:coords(raw.entryPoints?.find(e=>e.type==='main')?.position)||point,
      petrol,ev,address:address.freeformAddress||'',streetNumber:address.streetNumber,street:address.streetName,
-     brand:(poi.brands||[]).map(x=>clean(x.name)).filter(Boolean),
+     brandName:(poi.brands||[]).find(x=>x?.name)?.name,brand:(poi.brands||[]).map(x=>clean(x.name)).filter(Boolean),
      related:(raw.relatedPois||[]).map(x=>x.id).filter(Boolean),
-     details:[...new Set(connectors.map(connector).filter(Boolean))],
-     hpc:/\bHPC\b|high[- ](?:performance|power) charg/i.test(poi.name),evName:ev?poi.name:''};
+     charging,details:[...new Set(connectors.map(c=>c.detail).filter(Boolean))],
+     hpc:Object.hasOwn(charging,'HPC')||ev&&/\bHPC\b|high[- ](?:performance|power) charg/i.test(poi.name),evName:ev?poi.name:''};
  }
  function sameSite(a,b){
    if(a.related.includes(b.id)||b.related.includes(a.id))return true;
@@ -37,7 +52,7 @@
  }
  function merge(rows){
    const unique=Array.from(new Map(rows.filter(Boolean).map(r=>[r.id,r])).values());
-   const petrol=unique.filter(r=>r.petrol).map(r=>({...r,details:[...r.details]}));
+   const petrol=unique.filter(r=>r.petrol).map(r=>({...r,charging:{...r.charging},details:[...r.details]}));
    const cells=new Map(),byId=new Map(),related=new Map(),separate=[];
    const cell=s=>s.point.map(n=>Math.floor(n*1000));
    for(const site of petrol){
@@ -53,6 +68,7 @@
      const site=matches[0];
      if(site){
        site.ev=true;site.hpc||=ev.hpc;site.evName=ev.name;
+       for(const [kind,kw] of Object.entries(ev.charging||{}))site.charging[kind]=Math.max(site.charging[kind]||0,kw);
        site.details=Array.from(new Set([...site.details,...ev.details]));
      }else separate.push(ev);
    }
@@ -85,6 +101,6 @@
    }
    return merge(rows);
  }
- const api={station,merge,meters,nearby,withGoogle};
+ const api={station,merge,meters,nearby,withGoogle,chargeLabels};
  if(typeof module==='object'&&module.exports)module.exports=api;else window.JalanStationData=api;
 })();
