@@ -123,12 +123,52 @@
      vector?.active?vector.getPitch():0,true);
  };
  const freeActive=()=>!destination&&!routes.length&&!document.body.classList.contains('passenger-guiding');
+ const host=map.getContainer();
+ const freeBearing=()=>freeHeading??0;
+ function rasterFreeLayout(on){
+   const wasOn=host.classList.contains('jalan-free-raster');
+   if(on){
+     const size=Math.ceil(Math.hypot(innerWidth,innerHeight))+'px';
+     if(wasOn&&host.style.getPropertyValue('--jalan-free-size')===size)return;
+     host.style.setProperty('--jalan-free-size',size);
+   }else if(!wasOn)return;
+   host.classList.toggle('jalan-free-raster',on);
+   map.invalidateSize({animate:false,pan:false});
+ }
+ function positionFreeCamera(bearing){
+   const sheet=el('jalan-home-sheet'),top=sheet?.getBoundingClientRect().top??innerHeight;
+   const anchor=viewModel.anchor({height:innerHeight,barTop:top});
+   const vector=window.JalanVectorMap;
+   rasterFreeLayout(!vector?.active&&bearing!==0);
+   if(vector?.active){
+     vector.setCamera({center:[freeLast.point[1],freeLast.point[0]],bearing,pitch:0,padding:anchor.padding});
+   }else{
+     host.style.setProperty('--jalan-free-turn',-bearing+'deg');
+     const zoom=map.getZoom(),position=map.project(freeLast.point,zoom);
+     const offset=viewModel.rasterOffset({height:innerHeight,y:anchor.y,angle:-bearing,tilt:0});
+     map.setView(map.unproject(position.subtract([offset.x,offset.y]),zoom),zoom,{animate:false});
+   }
+ }
  const centerFree=()=>{
    if(!document.body.classList.contains('passenger-pin-open')&&freeActive()&&freeLast&&Date.now()-freeLast.timestamp<=15000&&!document.hidden){
-     freeExploring=false;map.panTo(freeLast.point,{animate:false});
+     freeExploring=false;positionFreeCamera(freeBearing());
    }
  };
- const exploreFree=()=>{if(freeActive()){freeExploring=true;clearTimeout(freeReturn);}};
+ const refreshFreeCamera=()=>{if(!freeExploring&&startupMarker)centerFree();};
+ document.addEventListener('DOMContentLoaded',()=>{
+   const sheet=el('jalan-home-sheet');
+   if(sheet)new ResizeObserver(refreshFreeCamera).observe(sheet);
+ });
+ window.addEventListener('resize',refreshFreeCamera);
+ const exploreFree=()=>{
+   if(!freeActive())return;
+   // Leaflet handles drag and pinch in a north-up coordinate system.
+   if(host.classList.contains('jalan-free-raster')&&freeLast)positionFreeCamera(0);
+   freeExploring=true;clearTimeout(freeReturn);
+ };
+ host.addEventListener('touchstart',event=>{
+   if(event.touches.length>1&&!window.JalanVectorMap?.active)exploreFree();
+ },{passive:true});
  const releaseFree=()=>{if(freeActive()&&freeExploring){clearTimeout(freeReturn);freeReturn=setTimeout(centerFree,3000);}};
  map.on('dragstart',exploreFree);map.on('dragend',releaseFree);
  window.addEventListener('jalan:vector-gesture',exploreFree);
@@ -159,7 +199,8 @@
    const icon=L.divIcon({className:'passenger-startup-pin',html:freeShape.outerHTML,
      iconSize:[84,84],iconAnchor:[42,42]});
    startupMarker=L.marker(detail.point,{icon,interactive:false,keyboard:false,
-     title:'GPS location measured; direction not yet verified'}).addTo(map);
+     title:'GPS location measured'}).addTo(map);
+   requestAnimationFrame(refreshFreeCamera);
  });
  window.addEventListener('jalan:initial-location-error',()=>{
    if(!locationPending)return;
@@ -174,9 +215,9 @@
    let heading=null;
    if(Number.isFinite(detail.heading)&&detail.heading>=0&&detail.heading<360&&detail.speed>=1)
      heading=detail.heading;
-   else if(previous&&detail.timestamp>previous.timestamp&&detail.timestamp-previous.timestamp<=30000){
+   else if(previous&&(!Number.isFinite(detail.speed)||detail.speed>=1)&&detail.timestamp>previous.timestamp&&detail.timestamp-previous.timestamp<=30000){
      const a=L.latLng(previous.point),b=L.latLng(detail.point);
-     if(a.distanceTo(b)>=Math.max(5,Math.min(20,detail.accuracy))){
+     if(a.distanceTo(b)>=Math.max(6,previous.accuracy,detail.accuracy)){
        const rad=Math.PI/180,p=a.lat*rad,q=b.lat*rad,dl=(b.lng-a.lng)*rad;
        heading=(Math.atan2(Math.sin(dl)*Math.cos(q),Math.cos(p)*Math.sin(q)-Math.sin(p)*Math.cos(q)*Math.cos(dl))/rad+360)%360;
      }
@@ -192,9 +233,15 @@
    // Keep the original blue location circle from duplicating the triangle.
    if(locationMarker){pointLayer.removeLayer(locationMarker);locationMarker=null;}
  });
- window.addEventListener('jalan:routes-rendered',()=>{
+ function leaveFreeCamera(){
+   if(!startupMarker)return;
+   clearTimeout(freeReturn);freeExploring=false;freeHeading=null;freeLast=null;
    clearStartupMarker();
- });
+   rasterFreeLayout(false);
+   window.JalanVectorMap?.setCamera({bearing:0,pitch:0,padding:{top:0,bottom:0,left:0,right:0}});
+ }
+ window.addEventListener('jalan:destination-selected',leaveFreeCamera);
+ window.addEventListener('jalan:routes-rendered',leaveFreeCamera);
  // Route-planning markers are useful before Go but misleading when a separate
  // GPS-matched vehicle marker owns passenger guidance.
  const hidePlannerMarkers=()=>{
@@ -968,6 +1015,7 @@
  window.addEventListener('pagehide',cancelAutoReturn);
 
  window.addEventListener('jalan:map-renderer',()=>{
+   if(freeActive()&&startupMarker){refreshFreeCamera();scheduleScreenVehicle();return;}
    applyCameraAngle(focusedReport||document.body.classList.contains('passenger-map-flat')?
      0:lastValidHeading===null?0:-lastValidHeading);
    el('passenger-2d').textContent=document.body.classList.contains('passenger-map-flat')?

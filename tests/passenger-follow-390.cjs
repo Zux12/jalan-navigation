@@ -41,14 +41,18 @@ module.exports=async(page,context,base)=>{
  await page.evaluate(()=>{window.__currentPlace=[3.14,101.687];});
  await page.locator('#passenger-journey-handle').click();
  await page.locator('#passenger-journey-stop').click();
- const atCurrent=()=>page.evaluate(()=>{
+ const currentVehicleInView=()=>{
   if(JalanGPS.getState().active){
    const v=document.getElementById('passenger-vehicle-screen').getBoundingClientRect(),b=document.getElementById('passenger-journey-sheet').getBoundingClientRect();
    return Math.abs(b.top-v.bottom-12)<4&&Math.abs(v.left+v.width/2-innerWidth/2)<4;
   }
-  const p=map.getCenter();return Math.abs(p.lat-window.__currentPlace[0])<.00001&&Math.abs(p.lng-window.__currentPlace[1])<.00001;
- });
- assert.equal(await atCurrent(),true,'Stop requests a fresh measured location and centers there');
+  const marker=Object.values(map._layers).find(layer=>layer.options?.icon?.options.className==='passenger-startup-pin');
+  if(!marker?.getElement())return false;
+  const ring=marker.getElement().getBoundingClientRect(),top=document.getElementById('jalan-home-sheet').getBoundingClientRect().top;
+  return marker.getLatLng().distanceTo(L.latLng(window.__currentPlace))<1&&Math.abs(top-ring.bottom-12)<4&&Math.abs(ring.left+ring.width/2-innerWidth/2)<4;
+ };
+ const atCurrent=()=>page.evaluate(currentVehicleInView);
+ await page.waitForFunction(currentVehicleInView);
  assert.equal(await page.evaluate(()=>destination===null&&startMarker===null&&routes.length===0),true);
  assert.equal(await page.locator('#jalan-home-sheet').getAttribute('data-state'),'a');
  assert.equal(await page.locator('.passenger-startup-pin').count(),1);

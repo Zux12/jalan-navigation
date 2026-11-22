@@ -9,20 +9,21 @@ function scene({voices=[],store=new Map(),blocked=false,supported=true,language=
  const synth={getVoices:()=>currentVoices,addEventListener:(type,fn)=>listeners[type]=fn,
   cancel(){},speak:u=>utterances.push(u)};
  const document={hidden:false};
+ const timers=new Map();let timerId=0;
  const storage={getItem:k=>{if(blocked)throw Error('blocked');return store.get(k)||null;},
   setItem:(k,v)=>{if(blocked)throw Error('blocked');store.set(k,v);},
   removeItem:k=>{if(blocked)throw Error('blocked');store.delete(k);}};
- const context={window:{dispatchEvent:e=>events.push(e),addEventListener:(type,fn)=>handlers[type]=fn,
+ const context={window:{setTimeout:fn=>{timers.set(++timerId,fn);return timerId;},clearTimeout:key=>timers.delete(key),dispatchEvent:e=>events.push(e),addEventListener:(type,fn)=>handlers[type]=fn,
    JalanLanguage:{code:language,translate:require('../passenger-language-copy.js').translate},
    JalanManeuvers:require('../passenger-maneuvers.js')},document,localStorage:storage,
   Date:{now:()=>now},CustomEvent:class{constructor(type,init){this.type=type;this.detail=init?.detail;}}};
  if(supported){context.speechSynthesis=synth;context.window.speechSynthesis=synth;
   context.SpeechSynthesisUtterance=context.window.SpeechSynthesisUtterance=class{constructor(text){this.text=text;}};}
- if(audio)context.window.JalanMalayAudio={available:true,cancel(){},unlock(){},
+ if(audio)context.window.JalanEnglishAudio=context.window.JalanMalayAudio={available:true,cancel(){},unlock(){},
   speak:(key,d)=>{clips.push([key,d]);return true;},preview:()=>{clips.push(['preview']);return true;},
   alert:text=>{clips.push(['alert',text]);return true;}};
  vm.runInNewContext(source,context);
- return {api:context.window.JalanVoice,utterances,events,document,store,clips,
+ return {api:context.window.JalanVoice,utterances,events,document,store,clips,fireTimers:()=>{for(const fn of [...timers.values()])fn();},
   switchTo:lang=>{context.window.JalanLanguage.code=lang;handlers['jalan:language-change']();},
   voices:v=>{currentVoices=v;listeners.voiceschanged();},advance:()=>now+=4000};
 }
@@ -45,11 +46,11 @@ test('sample is independent from mute, milestones and guidance throttle',()=>{
  s.advance();s.api.announce('full','left',180,'turn left');assert.equal(s.utterances.length,2,'milestone only once');
  s.utterances[0].onerror();assert.equal(s.events.at(-1).detail.state,'error');
 });
-test('enabling guidance speaks in the chosen voice and leaves the next turn eligible immediately',()=>{
+test('enabling guidance silently prepares the chosen voice and leaves the next turn eligible immediately',()=>{
  const s=scene({voices:[us]});s.api.choose(id(us));
  s.api.announce('mute','turn',180,'turn left');
  s.api.setMode('full');
- assert.equal(s.utterances[0]?.text,'Full guidance');
+ assert.equal(s.utterances[0]?.volume,0);
  assert.equal(s.utterances[0].voice,us);
  s.api.announce('full','turn',180,'turn left');
  assert.match(s.utterances.at(-1).text,/turn left/);
@@ -60,13 +61,14 @@ test('enabling guidance speaks in the chosen voice and leaves the next turn elig
  s.api.announce('full','turn',180,'turn left');
  assert.equal(s.utterances.length,4,'re-enabling lets the current turn be heard again');
 });
-test('recorded Malay mode confirmation uses the mode clip and respects Alerts only and Mute',()=>{
+test('recorded Malay mode waits quietly and respects Alerts only and Mute',()=>{
  const s=scene({voices:[uk],language:'ms',audio:true});
  s.api.setMode('alerts');s.api.announce('alerts','turn',180,'turn left');
  s.api.setMode('mute');
- assert.deepEqual(s.clips,[['alert','Alerts only']]);
+ assert.deepEqual(s.clips,[]);
  s.api.setMode('full');
- assert.deepEqual(s.clips.at(-1),['alert','Full guidance']);
+ s.api.announce('full','turn',180,'turn left');
+ assert.deepEqual(s.clips,[['left',200]]);
 });
 test('voice choice survives reload and temporary missing voice uses default until voices arrive',()=>{
  const s=scene({voices:[us]});s.api.choose(id(us));
@@ -126,8 +128,20 @@ test('BM uses recorded maneuvers and preview when only English voices or no spee
 test('an installed Malay voice that fails falls back only for the current prompt',()=>{
  const s=scene({voices:[ms],language:'ms',audio:true});
  s.api.announce('full',1,190,left.message,left);
- const failed=s.utterances[0];failed.onerror({error:'language-unavailable'});
+ const failed=s.utterances[0].onerror;failed({error:'language-unavailable'});
  assert.deepEqual(s.clips,[['left',200]]);
- s.switchTo('en');failed.onerror({error:'language-unavailable'});
+ s.switchTo('en');failed({error:'language-unavailable'});
  assert.equal(s.clips.length,1);
+});
+test('a silent English speech engine falls back once, and muting cancels a pending fallback',()=>{
+ const s=scene({voices:[uk],audio:true});
+ s.api.setMode('full');s.api.announce('full',1,190,left.message,left);
+ s.fireTimers();s.fireTimers();
+ assert.deepEqual(s.clips,[['left',200]]);
+ s.advance();s.api.alert('full','Speed camera ahead.');
+ s.api.setMode('mute');s.fireTimers();
+ assert.equal(s.clips.length,1);
+ s.api.setMode('alerts');s.advance();s.api.alert('alerts','Speed camera ahead.');
+ s.utterances.at(-1).onstart();s.fireTimers();
+ assert.equal(s.clips.length,1,'a working native voice is never doubled');
 });
