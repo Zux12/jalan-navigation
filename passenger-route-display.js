@@ -47,6 +47,14 @@
    }
    add(input.at(-1),lengths.at(-1));
    const path={points,offsets,lengths,total:lengths.at(-1)};
+   // Each animation frame needs one point. Search the precomputed distances
+   // without walking or copying the entire route on every paint.
+   path.at=metres=>{
+     let low=0,high=offsets.length-1;
+     while(high-low>1){const mid=(low+high)>>1;if(offsets[mid]<metres)low=mid;else high=mid;}
+     const span=offsets[high]-offsets[low],u=span?Math.max(0,Math.min(1,(metres-offsets[low])/span)):0;
+     const p=mix(points[low],points[high],u);return [p[1],p[0]];
+   };
    cache.set(route,{input,path});return path;
  }
  function section(path,from=0,to=path.total){

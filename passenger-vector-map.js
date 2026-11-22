@@ -28,7 +28,15 @@
    if(watched.has(layer))return;watched.add(layer);
    ['setLatLng','setLatLngs','setStyle','setIcon','setUrl','bindPopup','bindTooltip'].forEach(name=>{
      if(typeof layer[name]!=='function')return;
-     const fn=layer[name];layer[name]=function(...args){const result=fn.apply(this,args);schedule();return result;};
+     const fn=layer[name];layer[name]=function(...args){
+       const result=fn.apply(this,args),cls=layer.options?.icon?.options.className||layer.options?.className;
+       if(active&&name==='setLatLng'&&(cls==='jalan-vehicle-marker'||cls==='jalan-vehicle-accuracy'||cls==='passenger-startup-pin')){
+         // Keep the moving overlay in the same frame as the camera. Refreshing
+         // every station and serializing all route lines here stalls a dense map.
+         pins.get(L.stamp(layer))?.marker.setLngLat(lngLat(layer.getLatLng()));
+       }else schedule();
+       return result;
+     };
    });
    if(typeof layer.openPopup==='function'){
      const open=layer.openPopup,close=layer.closePopup;
@@ -48,12 +56,15 @@
      };
    }
  }
- function syncCamera(){
+ let lastLogicalMove=-Infinity;
+ function syncCamera(event){
    if(!active||syncing)return;
+   const now=performance.now();
+   if(event?.jalanGlide&&now-lastLogicalMove<180)return;
    const center=gl.getCenter(),zoom=gl.getZoom()+1,latlng=L.latLng(center.lat,center.lng);
    // A pure bearing or pitch change already belongs to the native renderer.
    if(map.getZoom()===zoom&&map.getCenter().equals(latlng,1e-12))return;
-   syncing=true;
+   lastLogicalMove=now;syncing=true;
    // reset:true avoids Leaflet's setView -> this.panBy optimization calling
    // back into the native camera and applying the movement a second time.
    try{original.setView(latlng,zoom,{animate:false,reset:true});}
@@ -106,6 +117,7 @@
    getBearing(){return active?gl.getBearing():0;},
    getPitch(){return active?gl.getPitch():0;},
    setCamera(options){if(active)gl.jumpTo(options);},
+   setFollowCamera(options,settled){if(active){gl.jumpTo(options,{jalanGlide:!settled});if(settled)syncCamera();}},
    getReportRoad(position,heading,accuracy=0,allGrades=false){
      try{
      const P=window.JalanReportModel;if(!active||!P||!P.coord(position)||!P.heading(heading))return null;

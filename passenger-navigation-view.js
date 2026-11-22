@@ -45,5 +45,59 @@
   }
   return {aim,reset,get bearing(){return bearing;}};
  }
- return {defaults,sanitize,zoomLevel,pitch,anchor,rasterOffset,bearingFollower};
+ // The display runs up to one GPS interval behind the measurements. Regular
+ // fixes sustain a glide. If they stop, the last stretch coasts to its endpoint.
+ function positionFollower(paint,clock=window){
+  let shown=null,target=null,frame=null,time=null,from=null,began=0,duration=0;
+  function cancel(){
+   if(frame!==null)clock.cancelAnimationFrame(frame);
+   frame=null;
+  }
+  function reset(){cancel();shown=target=from=null;time=null;}
+  function pause(){cancel();target=shown;}
+  const gap=(a,b)=>Math.hypot(a[0]-b[0],(a[1]-b[1])*Math.cos((a[0]+b[0])*Math.PI/360))*111320;
+  function tick(now){
+   const t=Math.min(1,Math.max(0,(now-began)/duration)),tail=.12;
+   // Constant speed for most of an interval with a short deceleration tail.
+   const u=t<1-tail?t/(1-tail/2):1-(1-t)**2/(2*tail*(1-tail/2));
+   if(t===1)shown=target;
+   else if(from.path&&from.path===target.path){
+    const offset=from.offset+(target.offset-from.offset)*u;
+    shown={point:from.path.at(offset),path:from.path,offset};
+   }else shown={point:from.point.map((v,i)=>v+(target.point[i]-v)*u)};
+   frame=t<1?clock.requestAnimationFrame(tick):null;
+   paint(shown.point,t===1);
+  }
+  function feed(point,stamp,speed,accuracy,path=null,offset=null){
+   if(!Number.isFinite(stamp)||time!==null&&stamp<time)return;
+   const interval=time===null?0:stamp-time;
+   time=stamp;
+   let next={point,path,offset};
+   if(path&&Number.isFinite(offset))next.point=path.at(offset);
+   else next.path=null;
+   const distance=target?gap(target.point,next.point):Infinity;
+   // Hold a stationary fix against small GPS fluctuations. An unknown speed
+   // still permits travel once cumulative displacement exceeds that noise.
+   const still=Number.isFinite(speed)&&speed>=0&&speed<.6;
+   const deadband=still?Math.min(10,Math.max(2,accuracy*.7)):
+     speed==null?Math.min(4,Math.max(1,accuracy*.25)):.04;
+   if(target&&target.path===next.path&&distance<deadband)return;
+   cancel();
+   if(!shown||interval>15000||gap(shown.point,next.point)>Math.max(100,Math.min(interval,15000)*.07)){
+    shown=target=next;paint(shown.point,true);return;
+   }
+   from=shown;target=next;
+   if(from.path&&from.path===next.path&&Math.abs(from.offset-next.offset)>Math.max(40,2.5*gap(from.point,next.point))){
+    // A new match on a different pass of a loop must not tour the entire loop.
+    from={point:shown.point};
+   }
+   began=clock.performance.now();
+   // Leave a short buffer beyond the expected next fix. At a steady GPS
+   // cadence the next segment starts while this one is still at cruising speed.
+   duration=Math.max(200,Math.min(still?600:4500,(interval||600)*1.16));
+   frame=clock.requestAnimationFrame(tick);
+  }
+  return {feed,pause,reset,get point(){return shown?.point;}};
+ }
+ return {defaults,sanitize,zoomLevel,pitch,anchor,rasterOffset,bearingFollower,positionFollower};
 });

@@ -59,3 +59,32 @@ test('new GPS readings retarget an ongoing turn and stationary jitter stays quie
  s.turn.aim(120);s.frame(16);s.turn.reset();const held=s.turn.bearing;
  s.frame(1000);assert.equal(s.turn.bearing,held);assert.equal(s.active(),false);
 });
+function movement(){
+ let now=0,frame=null;const paints=[];
+ const clock={performance:{now:()=>now},requestAnimationFrame:fn=>{frame=fn;return 1;},cancelAnimationFrame:()=>{frame=null;}};
+ const view=V.positionFollower((p,settled)=>paints.push({p,settled}),clock);
+ return {view,paints,advance(ms){now+=ms;const fn=frame;frame=null;fn?.(now);},running:()=>!!frame};
+}
+test('accepted GPS points glide continuously at different frame rates and an outage ends at the last point',()=>{
+ for(const hz of [30,60,120]){
+  const s=movement();s.view.feed([3,101],1000,15,5);s.view.feed([3,101.00015],2000,15,5);
+  assert.deepEqual(s.view.point,[3,101]);
+  for(let i=0;i<hz;i++)s.advance(1000/hz);
+  const before=s.view.point[1];assert.ok(before>101.00012&&before<101.00015);
+  s.view.feed([3,101.00030],3000,15,5);assert.equal(s.view.point[1],before);
+  for(let i=0;i<hz*2;i++)s.advance(1000/hz);
+  assert.deepEqual(s.view.point,[3,101.00030]);assert.equal(s.running(),false);
+  assert.ok(s.paints.slice(1).every((v,i)=>v.p[1]>=s.paints[i].p[1]&&v.p[1]-s.paints[i].p[1]<.00001));
+ }
+});
+test('matched display follows bends and stationary readings do not move the parked car',()=>{
+ const s=movement(),path={at:d=>d<=10?[3,101+d/111000]:[3+(d-10)/111000,101+10/111000]};
+ s.view.feed(path.at(0),1000,15,5,path,0);s.view.feed(path.at(20),2000,15,5,path,20);
+ s.advance(400);assert.equal(s.view.point[0],3);assert.ok(s.view.point[1]>101);
+ s.advance(450);assert.equal(s.view.point[1],path.at(20)[1]);assert.ok(s.view.point[0]>3);
+ s.advance(400);const parked=s.view.point;s.view.feed(path.at(21),3000,0,8,path,21);
+ assert.equal(s.running(),false);assert.deepEqual(s.view.point,parked);
+ s.view.feed(path.at(30),4000,10,5,path,30);s.advance(150);s.view.pause();
+ const frozen=s.view.point;s.advance(2000);assert.deepEqual(s.view.point,frozen);
+ s.view.reset();assert.equal(s.view.point,undefined);
+});

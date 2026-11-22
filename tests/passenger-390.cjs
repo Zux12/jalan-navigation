@@ -1310,6 +1310,7 @@ async function main(){
   console.log('PASS active journey sheet: drag/touch/keyboard, longest-road label, proportional remaining traffic, scroll, Resume continuity and Stop reset');
   await require('./passenger-follow-390.cjs')(page,context,base);
   await require('./passenger-route-start-390.cjs')(browser,base,root);
+  await require('./passenger-forward-390.cjs')(page,base);
   await require('./passenger-drift-390.cjs')(page,base);
   await require('./passenger-reporting-390.cjs')(browser,base,root);
   await page.goto(base+'/index.html?mode=engineering',{waitUntil:'load'});
