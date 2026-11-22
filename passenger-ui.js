@@ -121,23 +121,25 @@
    if(!startupMarker||freeExploring||!freeActive()||document.hidden){freeTurn.reset();return;}
    const vector=window.JalanVectorMap;
    if(vector?.active)vector.setCamera({bearing});
-   else{
-     positionFreeCamera(bearing);
-     drawFreeVehicle(startupMarker.getElement()?.querySelector('svg'));
-   }
+   else host.style.setProperty('--jalan-free-turn',-bearing+'deg');
  });
  const drawFreeVehicle=svg=>{
    const vector=window.JalanVectorMap;
-   if(svg)drawVehicleShape(svg,(freeExploring?(freeHeading??0):freeTurn.bearing)-(vector?.active?vector.getBearing():0),
-     vector?.active?vector.getPitch():0,true);
+   const heading=freeExploring?(freeHeading??0):freeTurn.bearing;
+   const relative=vector?.active?heading-vector.getBearing():freeExploring?heading:0;
+   if(svg)drawVehicleShape(svg,relative,vector?.active?vector.getPitch():0,true);
  };
  const freeActive=()=>!destination&&!routes.length&&!document.body.classList.contains('passenger-guiding');
  const host=map.getContainer();
  const freeBearing=()=>freeHeading??0;
- function rasterFreeLayout(on){
+ function rasterFreeLayout(on,y){
    const wasOn=host.classList.contains('jalan-free-raster');
    if(on){
-     const size=Math.ceil(Math.hypot(innerWidth,innerHeight))+'px';
+     // The map pivots at the triangle. Cover the farthest screen corner
+     // at every angle, resizing in tile-sized increments as the sheet moves.
+     const radius=Math.hypot(innerWidth/2,Math.max(y,innerHeight-y));
+     const size=Math.ceil(radius*2/256)*256+'px';
+     host.style.setProperty('--jalan-free-anchor',y+'px');
      if(wasOn&&host.style.getPropertyValue('--jalan-free-size')===size)return;
      host.style.setProperty('--jalan-free-size',size);
    }else if(!wasOn)return;
@@ -148,11 +150,14 @@
    const sheet=el('jalan-home-sheet'),top=sheet?.getBoundingClientRect().top??innerHeight;
    const anchor=viewModel.anchor({height:innerHeight,barTop:top});
    const vector=window.JalanVectorMap;
-   rasterFreeLayout(!vector?.active&&bearing!==0);
+   const rotateRaster=!vector?.active&&!freeExploring&&freeHeading!==null;
+   rasterFreeLayout(rotateRaster,anchor.y);
    if(vector?.active){
      vector.setCamera({center:[freeLast.point[1],freeLast.point[0]],bearing,pitch:0,padding:anchor.padding});
-   }else{
+   }else if(rotateRaster){
      host.style.setProperty('--jalan-free-turn',-bearing+'deg');
+     map.setView(freeLast.point,map.getZoom(),{animate:false});
+   }else{
      const zoom=map.getZoom(),position=map.project(freeLast.point,zoom);
      const offset=viewModel.rasterOffset({height:innerHeight,y:anchor.y,angle:-bearing,tilt:0});
      map.setView(map.unproject(position.subtract([offset.x,offset.y]),zoom),zoom,{animate:false});
@@ -171,10 +176,10 @@
  window.addEventListener('resize',refreshFreeCamera);
  const exploreFree=()=>{
    if(!freeActive())return;
-   freeTurn.reset();
+   freeTurn.reset();freeExploring=true;
    // Leaflet handles drag and pinch in a north-up coordinate system.
    if(host.classList.contains('jalan-free-raster')&&freeLast)positionFreeCamera(0);
-   freeExploring=true;clearTimeout(freeReturn);
+   clearTimeout(freeReturn);
  };
  host.addEventListener('touchstart',event=>{
    if(event.touches.length>1&&!window.JalanVectorMap?.active)exploreFree();
