@@ -58,6 +58,20 @@
    }
    return petrol.concat(separate);
  }
+ // UI Kit results may only provide an ID and point. Combine them with a
+ // locally listed forecourt only at the same entrance, never by street alone.
+ function withGoogle(rows,google){
+   if(!google.length)return rows;
+   const combined=[...rows];
+   for(const item of google){
+     const i=combined.findIndex(s=>s.googleId===item.googleId||meters(s.point,item.point)<=6);
+     if(i<0){combined.push(item);continue;}
+     const local=combined[i];
+     combined[i]={...local,name:local.name||item.name,googleId:local.googleId||item.googleId,
+       ev:!!(local.ev||item.ev),petrol:!!(local.petrol||item.petrol)};
+   }
+   return combined;
+ }
  async function nearby(center,radius,key,signal){
    const rows=[];
    for(let offset=0;;){
@@ -71,6 +85,6 @@
    }
    return merge(rows);
  }
- const api={station,merge,meters,nearby};
+ const api={station,merge,meters,nearby,withGoogle};
  if(typeof module==='object'&&module.exports)module.exports=api;else window.JalanStationData=api;
 })();

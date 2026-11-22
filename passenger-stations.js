@@ -4,7 +4,7 @@
  const data=window.JalanStationData,planner=window.JalanStationPlanner;
  const toggle=$('passenger-stations'),listButton=$('passenger-stations-list'),preference='jalan-nearby-stations-v1';
  const lang=(en,ms)=>window.JalanLanguage?.code==='ms'?ms:en;
- const pins=new Map(),cache=[],googlePins=[];
+ const pins=new Map(),cache=[];let googleRows=[];
  let enabled=true,current=null,loading=null,timer,paintZoom,retryAfter=0,directoryJob=null;
  try{enabled=localStorage.getItem(preference)!=='off';}catch{}
  toggle.checked=enabled;listButton.hidden=!enabled;
@@ -14,10 +14,15 @@
  document.body.append(directory);
  function closeDirectory(){
    directory.hidden=true;directoryJob?.abort();directoryJob=null;
-   googlePins.splice(0).forEach(layer=>map.removeLayer(layer));directory.querySelector('.station-google-list').replaceChildren();
+   const hadGoogle=googleRows.length;googleRows=[];if(hadGoogle&&enabled)paint(current?.rows||[]);
+   directory.querySelector('.station-google-list').replaceChildren();
    document.body.classList.remove('passenger-station-directory');
  }
  function select(site){
+   if(site.googleId){
+     const matched=data.withGoogle(current?.rows||[],[site]).find(s=>s.googleId===site.googleId);
+     if(matched)site=matched;
+   }
    closeDirectory();const access=site.access||site.point;
    planner.open({kind:'station',point:access,name:site.name||lang('Station','Stesen'),station:site});
  }
@@ -49,7 +54,7 @@
    pin.on('click',()=>expand(site));return pin;
  }
  function paint(rows){
-   paintZoom=Math.floor(map.getZoom());if(paintZoom<11)rows=overview(rows,paintZoom);
+   rows=data.withGoogle(rows,googleRows);paintZoom=Math.floor(map.getZoom());if(paintZoom<11)rows=overview(rows,paintZoom);
    const keep=new Set(rows.map(s=>s.id));
    pins.forEach(({pin},id)=>{if(!keep.has(id)){map.removeLayer(pin);pins.delete(id);}});
    for(const site of rows)if(!pins.has(site.id)||pins.get(site.id).site!==site){
@@ -76,6 +81,7 @@
      loading?.controller.abort();loading=null;current=null;resetPins();paintDirectory();return;
    }
    if(current&&current.until>Date.now()&&contains(current,v)){
+     if(loading){loading.controller.abort();loading=null;}
      if(paintZoom!==Math.floor(map.getZoom()))paint(current.rows);
      return;
    }
@@ -115,11 +121,7 @@
    const failed=()=>{if(!controller.signal.aborted)container.textContent=lang('Google Maps results unavailable.','Hasil Google Maps tidak tersedia.');};
    const area=view();if(!area)return;
    google.nearby({...area,container,signal:controller.signal,onSelect:select,onError:failed,onPlaces:places=>{
-     googlePins.splice(0).forEach(layer=>map.removeLayer(layer));
-     for(const p of places){
-       if(!(p.ev||p.petrol)||[...pins.values()].some(row=>data.meters(row.site.point,p.point)<8))continue;
-       googlePins.push(marker(p));
-     }
+     googleRows=places;paint(current?.rows||[]);
    }}).catch(failed);
  }
  function switchPins(){

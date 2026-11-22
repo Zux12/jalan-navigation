@@ -36,3 +36,11 @@ test('an unconnected access road is never joined across carriageways; toll excep
  const disconnected=async(a,b)=>direct(a===station.point?[a[0],a[1]+.01]:a,b);
  await assert.rejects(model.plan([3,101.68],[3,101.75],[station],{},disconnected),/connected/);
 });
+
+test('Google charger at a listed petrol forecourt yields one combined pin with its details ID',()=>{
+ const local=petrol('fuel','Petronas',101.7,7311);
+ const additional={id:'g',googleId:'g',point:[3.15,101.70001],ev:true};
+ const joined=data.withGoogle([local],[additional]);assert.equal(joined.length,1);
+ assert.deepEqual([joined[0].name,joined[0].petrol,joined[0].ev,joined[0].googleId],['Petronas',true,true,'g']);
+ assert.equal(local.ev,false);assert.equal(data.withGoogle([local],[{...additional,point:[3.15,101.701]}]).length,2);
+});
