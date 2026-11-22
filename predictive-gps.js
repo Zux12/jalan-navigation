@@ -113,7 +113,7 @@
    }
    if(match.distance<=band&&!diverging){
     lastRoad={position:match.position,along:match.along,time,heading:match.bearing,motionHeading:course??match.bearing};pending=null;departed=false;departureLine=null;
-    return {position:match.position,heading:match.bearing,
+    return {position:match.position,heading:match.bearing,segmentIndex:match.segmentIndex,
      speedLimitIndex:match.distance<=12&&(course===null||difference(course,match.bearing)<=45)?match.segmentIndex:null,onRoute:true,certain:true,allowDeviation:false,mode:'road-aligned'};
    }
    if(departed&&(!departureLine||roads===null))

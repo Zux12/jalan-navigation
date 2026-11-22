@@ -27,6 +27,11 @@ module.exports=async(page,base)=>{
  assert.equal(await page.evaluate(()=>window.__motionRequests.length),0);
  await page.evaluate(()=>window.__motionFix(3,101.601));
  const liveTriangle=async latitude=>{
+  // Navigation accepts this measurement immediately. Its presentation moves
+  // through intermediate frames and settles at the same accepted endpoint.
+  assert.deepEqual(await page.evaluate(()=>JalanGPS.getState().vehiclePosition),[latitude,101.601]);
+  await page.waitForFunction(lat=>Object.values(map._layers).some(x=>
+   x.options?.icon?.options.className==='jalan-vehicle-marker'&&x.getLatLng().lat===lat),latitude);
   const position=await page.evaluate(()=>{
    const marker=Object.values(map._layers).find(x=>x.options?.icon?.options.className==='jalan-vehicle-marker');
    const screen=document.getElementById('passenger-vehicle-screen').getBoundingClientRect();
