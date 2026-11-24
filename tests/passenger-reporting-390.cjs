@@ -15,6 +15,15 @@ module.exports=async(browser,base,root)=>{
  await page.goto(base+'/index.html?mode=passenger');
  const preference=page.locator('#passenger-share-speed');
  assert.equal(await preference.isChecked(),false,'new visitor must explicitly opt in to speed observations');
+ // The consent copy must remain understandable in both supported languages without changing consent.
+ const consentLabel=page.locator('label.jalan-share-speed');
+ assert.equal((await consentLabel.textContent()).trim(),'Share my speed to help detect traffic (optional)');
+ await page.evaluate(()=>JalanLanguage.set('ms',false));
+ assert.equal((await consentLabel.textContent()).trim(),'Kongsi kelajuan saya untuk membantu mengesan kesesakan (pilihan)');
+ assert.equal(await preference.isChecked(),false,'language switch must not enable sharing');
+ await page.evaluate(()=>JalanLanguage.set('en',false));
+ assert.equal((await consentLabel.textContent()).trim(),'Share my speed to help detect traffic (optional)');
+ assert.equal(await preference.isChecked(),false,'returning to English must not enable sharing');
  await preference.evaluate(el=>{el.click();});await page.reload();
  assert.equal(await preference.isChecked(),true,'explicit opt-in survives reload');
  await preference.evaluate(el=>{el.click();});await page.reload();

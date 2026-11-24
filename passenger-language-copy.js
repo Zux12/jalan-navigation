@@ -226,6 +226,7 @@
     'Traffic report sent.': 'Laporan trafik telah dihantar.',
     'Traffic report could not be confirmed. Please try again from Report.': 'Penghantaran laporan trafik gagal disahkan. Cuba lagi melalui menu Lapor.',
     'Share my speed to help detect traffic': 'Kongsi kelajuan saya untuk membantu mengesan kesesakan',
+    'Share my speed to help detect traffic (optional)': 'Kongsi kelajuan saya untuk membantu mengesan kesesakan (pilihan)',
     'No': 'Tidak',
     'Dismiss traffic question': 'Tutup soalan trafik',
     'Can you see it?': 'Adakah kejadian ini masih berlaku?',
