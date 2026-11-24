@@ -178,3 +178,38 @@ test('silent deletion of persisted preference while HMAC awaits prevents a traff
  assert.equal(observations,0,'missing saved preference must not permit the upload');
  assert.equal(box.checked,false,'silent preference deletion fails closed');
 });
+
+test('traffic observations never inherit endpoint road identity across an ambiguous or different-grade intervening cell',async()=>{
+ const src=fs.readFileSync(path.join(__dirname,'../passenger-community-flow.js'),'utf8');
+ const surface={key:'vector-abba',level:'0:surface'},bridge={...surface,level:'1:bridge'};
+ for(const interior of [surface,bridge,null]){
+  const w=new EventTarget(),d=new EventTarget(),box=new EventTarget(),observations=[];
+  d.getElementById=()=>box;
+  const middle=shape.cells[1];
+  const lon=m=>101+m/111320;
+  w.JalanVectorMap={getReportRoad:point=>{
+   const m=(point[0]-101)*111320;
+   return m>middle.start&&m<middle.end?interior:surface;
+  }};
+  w.JalanGPS={getState:()=>({active:true,route})};
+  w.JalanRouteTraffic={freeFlowAt:()=>60};w.JalanFlowModel=M;w.JalanReportModel=P;
+  const data=new Map([['jalan-traffic-sharing-v2','on']]);
+  const localStorage={getItem:k=>data.get(k)??null,setItem:(k,v)=>data.set(k,v)};
+  const crypto={getRandomValues:b=>b.fill(1),subtle:{importKey:async()=>1,sign:async()=>new Uint8Array(32)}};
+  let clock=Date.now();class TestDate extends Date{static now(){return clock;}}
+  vm.runInNewContext(src,{window:w,document:d,location:{search:'?mode=passenger'},URLSearchParams,localStorage,crypto,TextEncoder,Uint8Array,Date:TestDate,Event,AbortController,
+   setTimeout:()=>1,clearTimeout(){},setInterval(){},fetch:async(url,options)=>{
+    if(url.endsWith('observe'))observations.push(JSON.parse(options.body));
+    return {ok:true,json:async()=>({sections:[]})};
+   }});
+  const fix=m=>w.dispatchEvent(new CustomEvent('jalan:gps-fix',{detail:{matched:true,gpsReliable:true,gpsAccuracy:5,gpsFixAgeMs:0,gpsPosition:[0,lon(m)],heading:90,speedMps:5,speedLimitIndex:0}}));
+  w.dispatchEvent(new Event('jalan:journey-start'));fix(10);clock+=5000;fix(40);
+  await new Promise(resolve=>setImmediate(resolve));clock+=5000;fix(260);
+  await new Promise(resolve=>setImmediate(resolve));
+  assert.ok(observations.some(o=>o.segment===M.roadSegment(shape.cells[0],surface)),'verified surface cell must remain eligible');
+  assert.ok(observations.some(o=>o.segment===M.roadSegment(shape.cells[2],surface)),'verified destination cell must remain eligible');
+  const middleId=M.roadSegment(middle,surface);
+  assert.equal(observations.some(o=>o.segment===middleId),interior===surface,'only independently matched middle cell may inherit surface identity');
+  if(interior===bridge)assert.ok(!observations.some(o=>o.segment===M.roadSegment(middle,bridge)),'do not manufacture a bridge observation from surface endpoint fixes');
+ }
+});

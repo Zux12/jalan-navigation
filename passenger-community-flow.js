@@ -131,6 +131,10 @@
   // Mean speed across the measured traversal, including time spent stopped.
   for(let n=old.cell.order;n<=where.cell.order&&n<=old.cell.order+10;n++){
    const c=path.cells[n],length=c.end-c.start,exit=c.end-length*.2;
+   // Endpoint fixes alone cannot establish the identity/grade of every
+   // intervening cell. Use the same conservative interior check as reads.
+   const resolve=window.JalanVectorMap?.getReportRoad;
+   if(!resolve||!P.sameRoad(road,model.readRoad(path,c,resolve)))continue;
    const entry=c===old.cell?(old.entry||{along:old.along,at:old.at}):
     {along:c.start,at:old.at+(c.start-old.along)*1000/(movement/elapsed)};
    const crossed=length>=6&&entry.along<=c.start+length*.2&&old.along<exit&&where.along>=exit;
