@@ -11,15 +11,18 @@
  // v1 could have been set ON without a deliberate user choice. Never treat it as consent.
  const saved=get(pref);
  let enabled=storageAvailable&&saved==='on',active=false,route=null,sections=[],lookup=new Map(),cacheUntil=0,previous=null,matched=null,readCell=null;
- let seedKey=null,seedPromise=null,epoch=0,reader=null,lastRead=0,regionOffset=0;
+ let seedKey=null,seedPromise=null,epoch=0,reader=null,lastRead=0,regionOffset=0,consentSince=0;
  const writes=new Set(),lastSent=new Map(),verifiedRoads=new Map();
  box.checked=enabled;
  function resetWrites(){epoch++;for(const c of writes)c.abort();writes.clear();previous=null;matched=null;readCell=null;lastSent.clear();}
  function setting(on,persist){
+  const wasEnabled=enabled;
   if(persist)set(pref,on?'on':'off');
   // Failed persistence or unavailable storage must never permit observations.
   enabled=Boolean(on&&storageAvailable);box.checked=enabled;
-  if(!enabled)resetWrites();
+  // Never derive an upload from movement accumulated while sharing was off.
+  if(!enabled||!wasEnabled)resetWrites();
+  if(enabled&&!wasEnabled)consentSince=Date.now();
  }
  box.addEventListener('change',()=>setting(box.checked,true));
  window.addEventListener('storage',e=>{
@@ -109,7 +112,10 @@
   readCell={segment:where.cell.segment,at:Date.now()-d.gpsFixAgeMs};
   const road=window.JalanVectorMap?.getReportRoad?.(point,heading,d.gpsAccuracy,true);
   if(!P.sameRoad(road,window.JalanVectorMap?.getReportRoad?.(p.point,p.heading,d.gpsAccuracy,true))){previous=null;matched=null;return;}
-  const at=Date.now()-d.gpsFixAgeMs,old=previous,now={...where,road,point,at,anchor:where.along,verified:false};
+  const at=Date.now()-d.gpsFixAgeMs;
+  // A newly delivered fix can still have been measured before explicit consent.
+  if(enabled&&at<consentSince){previous=null;matched=null;return;}
+  const old=previous,now={...where,road,point,at,anchor:where.along,verified:false};
   previous=now;matched=null;
   if(!old||at<=old.at||at-old.at>12000||!P.sameRoad(old.road,road)||where.along<old.along-4)return;
   const movement=where.along-old.along,elapsed=(at-old.at)/1000,speed=d.speedMps*3.6;

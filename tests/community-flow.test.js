@@ -28,14 +28,15 @@ test('first trip ignores legacy auto-on sharing, requires explicit consent, and 
  const road={key:'vector-abba',level:'0:surface'};let active=true,resolveSignature,readerRoad=road;
  w.JalanVectorMap={getReportRoad:()=>readerRoad};w.JalanGPS={getState:()=>({active,route})};
  w.JalanRouteTraffic={freeFlowAt:()=>60};w.JalanFlowModel=M;w.JalanReportModel=P;
- let storageReadable=true;
+ let storageReadable=true,clock=Date.now();
+ class TestDate extends Date{static now(){return clock;}}
  const localStorage={getItem:k=>{if(!storageReadable)throw Error('blocked storage');return storage.get(k)??null;},
   setItem:(k,v)=>{if(!storageReadable)throw Error('blocked storage');storage.set(k,v);}};
  const src=fs.readFileSync(path.join(__dirname,'../passenger-community-flow.js'),'utf8');
  const setPref=on=>{box.checked=on;box.dispatchEvent(new Event('change'));};
  const next=()=>new Promise(resolve=>setImmediate(resolve));
  const crypto={getRandomValues:b=>b.fill(1),subtle:{importKey:async()=>1,sign:()=>new Promise(resolve=>{resolveSignature=()=>resolve(new Uint8Array(32));})}};
- vm.runInNewContext(src,{window:w,document:d,location:{search:'?mode=passenger'},URLSearchParams,localStorage,crypto,TextEncoder,Uint8Array,Date,Event,AbortController,setTimeout:()=>1,clearTimeout(){},setInterval(){},
+ vm.runInNewContext(src,{window:w,document:d,location:{search:'?mode=passenger'},URLSearchParams,localStorage,crypto,TextEncoder,Uint8Array,Date:TestDate,Event,AbortController,setTimeout:()=>1,clearTimeout(){},setInterval(){},
   fetch:async(url,options)=>{calls.push([url,JSON.parse(options.body),options.signal]);return {ok:true,json:async()=>({sections:[{segment:M.roadSegment(shape.cells[0],road),expiresAt:Date.now()+60000,type:'heavy',speed:15,normal:60}]})};}});
  const fix=(lon,age=0)=>w.dispatchEvent(new CustomEvent('jalan:gps-fix',{detail:{matched:true,gpsReliable:true,gpsAccuracy:5,gpsFixAgeMs:age,gpsPosition:[0,lon],heading:90,speedMps:5,speedLimitIndex:0}}));
  assert.equal(box.checked,false,'legacy v1 ON must not grant v2 sharing permission');
@@ -44,7 +45,11 @@ test('first trip ignores legacy auto-on sharing, requires explicit consent, and 
  assert.equal(w.JalanCommunityFlow.sections(route).length,1);
  fix(101,5000);fix(101.0002,1000);await next();
  assert.equal(resolveSignature,undefined,'pre-consent matched driving cannot start observation');
- setPref(true);fix(101,5000);fix(101.0002,1000);await next();assert.ok(resolveSignature);
+ setPref(true);
+ fix(101.0003,1000);await next();assert.equal(resolveSignature,undefined,'a stale pre-consent fix must not initiate an upload');
+ clock+=6000;
+ fix(101.0004,5000);await next();assert.equal(resolveSignature,undefined,'first post-consent fix must not reuse the earlier movement');
+ fix(101.0006,1000);await next();assert.ok(resolveSignature,'fresh post-consent movement may initiate an upload');
  setPref(false);resolveSignature();await next();assert.equal(calls.filter(([u])=>u.endsWith('observe')).length,0);
  w.dispatchEvent(new Event('jalan:journey-stop'));w.dispatchEvent(new Event('jalan:journey-start'));await next();
  assert.equal(box.checked,false);assert.ok(calls.filter(([u])=>u.endsWith('read')).length>=2);
@@ -52,7 +57,7 @@ test('first trip ignores legacy auto-on sharing, requires explicit consent, and 
   readerRoad=other;w.dispatchEvent(new Event('jalan:journey-stop'));w.dispatchEvent(new Event('jalan:journey-start'));await next();
   assert.equal(w.JalanCommunityFlow.sections(route).length,0);assert.equal(w.JalanCommunityFlow.eta(route,0),0);
  }
- readerRoad=road;setPref(true);fix(101,5000);fix(101.0002,1000);await next();resolveSignature();await next();
+ readerRoad=road;setPref(true);clock+=6000;fix(101,5000);fix(101.0002,1000);await next();resolveSignature();await next();
  const obs=calls.find(([u])=>u.endsWith('observe'));assert.ok(obs);assert.deepEqual(Object.keys(obs[1]).sort(),['driver','normal','passAgeMs','region','road','segment','speed']);
  assert.equal(obs[1].speed,18);
  // A browser that loses storage access while active must fail closed even if a
