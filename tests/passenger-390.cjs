@@ -703,6 +703,7 @@ async function main(){
     'verified GPS must create one georeferenced marker');
   assert.equal(await page.locator('#passenger-vehicle-screen').isVisible(),true,
     'upright vehicle HUD is visible only on matched GPS');
+  await require('./passenger-vehicle-icons-390.cjs')(page,'#passenger-vehicle-screen .jalan-vehicle-shape');
   const vehicleFace=page.locator('#passenger-vehicle-screen .vehicle-left');
   assert.match(await vehicleFace.getAttribute('d'),/^M.*Z$/);
   const liveFill=await vehicleFace.evaluate(x=>getComputedStyle(x).fill);
