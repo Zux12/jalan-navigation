@@ -81,6 +81,7 @@
   '<input id="passenger-nav-zoom" type="range" min="0" max="100" step="5" value="80">'+
   '<label for="passenger-nav-tilt">3D tilt <output id="passenger-nav-tilt-value" for="passenger-nav-tilt">100%</output></label>'+
   '<input id="passenger-nav-tilt" type="range" min="0" max="100" step="5" value="100"></div>'+
+  '<button type="button" id="passenger-vehicle-choice" aria-haspopup="dialog" aria-controls="passenger-vehicle-picker">Vehicle icon</button>'+
   '<label class="jalan-map-switch"><span>Show nearby traffic</span><input id="passenger-nearby-traffic" type="checkbox" role="switch"></label>'+
   '<label class="jalan-map-switch"><span>Show EV charging &amp; petrol stations</span><input id="passenger-stations" type="checkbox" role="switch"></label>'+
   '<button type="button" id="passenger-stations-list" hidden>Nearby stations</button>'+

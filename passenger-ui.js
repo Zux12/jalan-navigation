@@ -91,7 +91,7 @@
    [[4,3,0,1],[5,4,1,2],[3,5,2,0]], // side walls
    [[3,6,5]], [[3,4,6]], [[4,5,6]] // left, right and tail facets
  ];
- function drawVehicleShape(svg,heading,pitch,centerInHalo=false){
+ function drawTriangle(svg,heading,pitch,centerInHalo=false){
    const degrees=Math.PI/180;
    const turn=(heading%360+360)%360;
    const tilt=pitch;
@@ -117,6 +117,12 @@
    faces.forEach((face,i)=>svg.children[i+1].setAttribute('d',face));
    return true;
  }
+ function drawVehicleShape(svg,heading,pitch,centerInHalo=false){
+   if(!window.JalanVehicleIcons.drawModel(svg,heading))drawTriangle(svg,heading,pitch,centerInHalo);
+ }
+ const trianglePreview=guidedShape.cloneNode(true);
+ drawTriangle(trianglePreview,0,0);
+ document.addEventListener('DOMContentLoaded',()=>window.JalanVehicleIcons.setupPicker(trianglePreview));
  const startupPosition={ready:false,get followingPoint(){
    return startupMarker&&!freeExploring&&freeActive()&&freeLast&&Date.now()-freeLast.timestamp<=15000?freeLast.point:null;
  }};
@@ -368,6 +374,7 @@
  // The native camera advances within its own animation frame. Paint the
  // overlay before that frame is presented, including during pinch inertia.
  window.addEventListener('jalan:vector-render',syncScreenVehicle);
+ window.addEventListener('jalan:vehicle-icon-change',scheduleScreenVehicle);
  map.on('move zoom zoomend moveend resize',()=>{
    if(!window.JalanVectorMap?.active)scheduleScreenVehicle();
  });
@@ -795,7 +802,7 @@
    const matched=state?.matched&&Number.isFinite(state.accuracy)&&state.accuracy<=75&&state.fixAgeMs<10000;
    const measured=state?.active&&fix?.gpsReliable&&Number.isFinite(fix.gpsAccuracy)&&fix.gpsAccuracy<=65;
    el('passenger-fix').textContent=!measured?
-     'GPS uncertain · grey triangle shows last known position only':
+     'GPS uncertain · grey marker shows last known position only':
      !matched?'GPS measured independently · route alignment pending':
      directionSource==='gps'?'GPS matched · heading-up experimental preview':
      directionSource==='route'?'GPS matched · road direction estimated from route':
@@ -1089,7 +1096,7 @@
    markVehicleUncertain();
    el('passenger-fix').textContent=document.hidden?
      'Safari in background · last-known position only':
-     'GPS stale or unavailable · grey triangle is last-known position only';
+     'GPS stale or unavailable · grey marker is last-known position only';
    hint.textContent='GPS follow paused · waiting for a fresh location update';
  };
  setInterval(expireStalePassengerGPS,2000);
