@@ -66,7 +66,7 @@
     shown={point:from.path.at(offset),path:from.path,offset};
    }else shown={point:from.point.map((v,i)=>v+(target.point[i]-v)*u)};
    frame=t<1?clock.requestAnimationFrame(tick):null;
-   paint(shown.point,t===1);
+   paint(shown.point,t===1,shown.path,shown.offset);
   }
   function feed(point,stamp,speed,accuracy,path=null,offset=null){
    if(!Number.isFinite(stamp)||time!==null&&stamp<time)return;
@@ -84,7 +84,7 @@
    if(target&&target.path===next.path&&distance<deadband)return;
    cancel();
    if(!shown||interval>15000||gap(shown.point,next.point)>Math.max(100,Math.min(interval,15000)*.07)){
-    shown=target=next;paint(shown.point,true);return;
+    shown=target=next;paint(shown.point,true,shown.path,shown.offset);return;
    }
    from=shown;target=next;
    if(from.path&&from.path===next.path&&Math.abs(from.offset-next.offset)>Math.max(40,2.5*gap(from.point,next.point))){

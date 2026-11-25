@@ -779,15 +779,20 @@ async function main(){
   assert.equal((await shape.boundingBox()).width,84,'vehicle keeps its readable screen size');
   assert.ok(Number(await shape.getAttribute('data-pitch'))>0,'vehicle uses the tilted map camera');
   assert.match(await shape.locator('.vehicle-rim').getAttribute('d'),/^M/,'pitch reveals a raised side wall');
-  // Exercise the display boundary using trusted controller progress, without
-  // inventing a road match or waiting for physical travel in this fixture.
+  // Drive a short, measured stretch along the fixture route and wait for the
+  // grey overlay to reach the native map's rendered tiles.
   await live.evaluate(()=>{
-   window.__originalState=JalanGPS.getState;
-   const state=JalanGPS.getState();
-   JalanGPS.getState=()=>({...state,matched:true,accuracy:8,fixAgeMs:0,remainingMeters:state.route.distance/2});
-   window.dispatchEvent(new CustomEvent('jalan:gps-fix',{detail:{matched:false}}));
+   const proto=maplibregl.Map.prototype,original=proto.getSource;
+   proto.getSource=function(id){
+     if(id==='jalan-travelled'){window.__trailMap=this;proto.getSource=original;}
+     return original.call(this,id);
+   };
+   window.__fix({timestamp:Date.now(),coords:{latitude:3.139178,longitude:101.687068,accuracy:5,speed:14,heading:43}});
   });
-  await live.waitForFunction(()=>Object.values(map._layers).some(x=>x.options?.className==='jalan-travelled-route'));
+  await live.waitForFunction(()=>{
+   const gl=window.__trailMap;
+   return gl&&gl.queryRenderedFeatures(gl.project([101.68698,3.139085]),{layers:['jalan-travelled-line']}).length>0;
+  });
   const trail=await live.evaluate(()=>{
    const line=Object.values(map._layers).find(x=>x.options?.className==='jalan-travelled-route');
    return {color:line.options.color,last:line.getLatLngs().at(-1),end:JalanGPS.getState().route.geometry.coordinates.at(-1)};
@@ -799,7 +804,7 @@ async function main(){
   await live.evaluate(()=>window.dispatchEvent(new CustomEvent('jalan:route-change',{detail:{reason:'off-route'}})));
   assert.equal(await live.evaluate(()=>Object.values(map._layers).some(x=>x.options?.className==='jalan-travelled-route')),false,
     'atomic replacement immediately clears obsolete travelled-route geometry');
-  await live.evaluate(()=>{JalanGPS.getState=window.__originalState;});
+
   assert.ok(tileResponses.some(code=>code===200),'actual vector/glyph resources received');
   assert.equal(await live.evaluate(()=>JalanVectorMap.active),true);
   assert.equal(await live.locator('.maplibregl-ctrl-attrib-button').isVisible(),false,
