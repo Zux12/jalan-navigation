@@ -18,7 +18,7 @@ module.exports=async function checkVehicleIcons(page,markerSelector){
  await open();
  assert.equal(await model('classic').isChecked(),true);
  assert.equal(await picker.locator('.vehicle-colours').isVisible(),false);
- for(const name of ['sedan','hatchback','suv','mpv','pickup','motorcycle']){
+ for(const name of ['sedan','hatchback','suv','mpv','pickup','motorcycle','balloon','wau','duck']){
    await model(name).check();
    assert.equal(await preview.getAttribute('data-model'),name);
    const images=new Set();
@@ -26,6 +26,13 @@ module.exports=async function checkVehicleIcons(page,markerSelector){
      await view.selectOption(angle);images.add(await pixels());
    }
    assert.equal(images.size,4,'each angle renders distinct geometry for '+name);
+   if(['balloon','wau','duck'].includes(name)){
+     await colour('yellow').check();
+     await picker.locator('.jalan-dialog-ok').click();
+     await mesh.and(page.locator('canvas[data-model="'+name+'"]')).waitFor();
+     await open();
+     assert.ok(await model(name).isChecked()&&await colour('yellow').isChecked());
+   }
  }
  await model('pickup').check();
  for(const name of ['teal','blue','red','yellow','white','charcoal'])await colour(name).check();
@@ -33,8 +40,7 @@ module.exports=async function checkVehicleIcons(page,markerSelector){
  await colour('white').check();assert.notEqual(await pixels(),charcoal);
  await colour('charcoal').check();
  await picker.locator('.jalan-dialog-ok').click();
- await mesh.waitFor();
- assert.equal(await mesh.getAttribute('data-model'),'pickup');
+ await mesh.and(page.locator('canvas[data-model="pickup"]')).waitFor();
  await open();
  assert.ok(await model('pickup').isChecked()&&await colour('charcoal').isChecked());
  await model('sedan').check();await colour('red').check();
