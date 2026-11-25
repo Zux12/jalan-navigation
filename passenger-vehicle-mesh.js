@@ -17,6 +17,91 @@
    pickup:   [15,-34,34,16,27,-19,6,-12,3,7.5,-22,22]
  };
 
+ // The balloon's alternating fabric gores meet at the crown. A pennant streams
+ // towards +Y so its direction is visible even when the basket is hidden.
+ function hotAirBalloon({face,ring,bridge,tube}){
+   const profile=[[12.5,3.7],[15.4,6.2],[19,11.5],[23,16.1],[27,17.2],[31,15.4],[34,11.5],[36,5.5],[36.5,2.1]];
+   const panels=12,steps=panels*2;
+   const bands=profile.map(([z,r])=>Array.from({length:steps},(_,i)=>{
+     const angle=i*2*Math.PI/steps,bulge=i%2?1.025:.985;
+     return [r*bulge*Math.cos(angle),-2+r*bulge*Math.sin(angle),z];
+   }));
+   for(let j=1;j<bands.length;j++){
+     const low=bands[j-1],high=bands[j];
+     for(let i=0;i<steps;i++){
+       const next=(i+1)%steps;
+       face([low[i],low[next],high[next],high[i]],Math.floor(i/2)%2?'cream':'paint');
+     }
+   }
+   face(bands[0],'weave');face(bands[bands.length-1],'gold');
+   const base=ring(4.5,-5.4,1.4,1,1),rim=ring(5.2,-6.1,2.1,5.9,1.3);
+   bridge(base,rim,'wicker');face(base,'weave');face(rim,'weave');
+   for(const z of [2.7,4.2,5.9]){
+     const outer=ring(4.8+z*.08,-5.7-z*.09,1.7+z*.09,z,1.2);
+     bridge(outer,outer.map(([x,y])=>[x,y,z+.55]),z===5.9?'gold':'weave');
+   }
+   for(const x of [-1,1])for(const y of [-1,1])
+     tube([x*4.6,-2+y*3.4,6.1],[x*5.1,-2+y*4.1,16],.48,.48,'weave',6);
+   const ribbon=[[0,11,27],[-1,16,25],[1,20,24],[2,24,21.5],[0,27,20]];
+   for(let i=1;i<ribbon.length;i++){
+     const a=ribbon[i-1],b=ribbon[i],halfWidth=i===ribbon.length-1?.65:1.55;
+     face([[a[0]-1.55,a[1],a[2]],[a[0]+1.55,a[1],a[2]+.3],
+       [b[0]+halfWidth,b[1],b[2]+.3],[b[0]-halfWidth,b[1],b[2]]],i%2?'gold':'paintShade');
+   }
+ }
+
+ // Each half is cut as fabric strips. Their lower outline forms the wau bulan's
+ // separate crescent tail. The cambered sail rises above a bamboo spine.
+ function wauBulan({face,tube}){
+   const wing=[[0,-24,8],[6,-17.7,6],[12,-13.4,3.4],[19,-10.8,1],[25,-6.6,-.2],[29,-1.8,.3]];
+   const moon=[[0,9.2,23],[5,10.7,22],[10,10.6,19.4],[15,8.6,15.9],[19,5.9,11],[22,2.4,4.2]];
+   const rise=(x,y)=>12.5-y*.12-Math.abs(x)*.25;
+   function drawSail(stations,isMoon,side){
+     const cuts=isMoon?[0,.13,.55,.69,.87,1]:[0,.09,.42,.51,.82,.92,1];
+     const fabric=isMoon?['gold','paint','cream','paint','gold']:['gold','paint','cream','paint','gold','paintShade'];
+     function point(row,t,under=false){
+       const [x,front,rear]=row,y=front+(rear-front)*t;
+       return [x*side,y,rise(x,y)+(under?-.8:1.4*Math.sin(Math.PI*t))];
+     }
+     for(let j=1;j<stations.length;j++){
+       const a=stations[j-1],b=stations[j];
+       for(let i=1;i<cuts.length;i++){
+         const u=cuts[i-1],v=cuts[i];
+         face([point(a,u),point(b,u),point(b,v),point(a,v)],fabric[i-1]);
+       }
+       face([point(a,0,true),point(b,0,true),point(b,1,true),point(a,1,true)],'paintShade');
+       for(const t of [0,1])face([point(a,t),point(b,t),point(b,t,true),point(a,t,true)],'gold');
+     }
+   }
+   for(const side of [-1,1]){
+     drawSail(wing,false,side);drawSail(moon,true,side);
+     const panel=[[3,-10],[8,-11.4],[12,-9.5],[8,-8.8]];
+     face(panel.map(([x,y])=>[side*x,y,rise(x,y)+1.75]),'gold');
+     // Two short knotted tails mark the trailing edge in a top-down view.
+     const knots=[[side*3,21,rise(3,21)],[side*4.4,25.5,8],[side*3.1,28.7,7],[side*5.4,32,5]];
+     for(let i=1;i<knots.length;i++){
+       const a=knots[i-1],b=knots[i];
+       face([[a[0]-1,a[1],a[2]],[a[0]+1,a[1],a[2]],
+         [b[0]+1,b[1],b[2]],[b[0]-1,b[1],b[2]]],i===2?'cream':'paint');
+     }
+   }
+   tube([0,-24,rise(0,-24)+.6],[0,23,rise(0,23)+.6],.7,.85,'gold',8);
+ }
+
+ function rubberDuck({oval,tube}){
+   oval([0,5.3,9.1],[13.7,17.2,9.1],'paint',20,10);
+   tube([0,16.7,10],[0,24,15.8],5.8,1.3,'paint',14);
+   oval([0,-9,19.3],[9.6,10,10],'paint',20,10);
+   oval([0,-18.5,16.5],[6.1,6.7,1.8],'billEdge',16,6);
+   oval([0,-18.8,17.8],[6.9,7.4,2.5],'bill',16,8);
+   for(const side of [-1,1]){
+     oval([side*10.6,6,11.8],[4,9.4,4.8],'paintShade',16,8);
+     oval([side*6.15,-15.9,22.7],[1.8,1.55,1.9],'eye',12,6);
+     oval([side*6.45,-16.9,23.4],[.7,.65,.7],'headlamp',8,5);
+     oval([side*2.5,-22.6,19.65],[.68,.82,.33],'billEdge',8,5);
+   }
+ }
+
  function build(model){
    const vertices=[],faces=[],ids=new Map();
    function vertex(p){
@@ -88,7 +173,13 @@
        }
      }
    }
-   if(model==='motorcycle'){
+   if(model==='balloon'){
+     hotAirBalloon({face,ring,bridge,tube});
+   }else if(model==='wau'){
+     wauBulan({face,tube});
+   }else if(model==='duck'){
+     rubberDuck({oval,tube});
+   }else if(model==='motorcycle'){
      wheel(0,-19,8,4.6,true);wheel(0,20,8.6,5.8,true);
      for(const side of [-1,1]){
        tube([side*2.9,-19,7.9],[side*2.9,-12,22],1.05,1.3,'metal');

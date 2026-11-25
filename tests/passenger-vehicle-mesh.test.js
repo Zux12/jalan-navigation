@@ -30,3 +30,29 @@ test('tilt changes geometry at a fixed bearing and rotating reveals the correct 
    draw(-180,65);assert.equal(paints,3,'equivalent camera bearings reuse the painted frame');
  }
 });
+
+test('the three new markers stay in frame on the road and show the selected paint',()=>{
+ for(const model of ['balloon','wau','duck']){
+   const mesh=scope.window.JalanVehicleMesh.get(model);
+   // During navigation the road position stays fixed at the centre. At any
+   // rotation and tilt the distance from that centre cannot exceed this radius.
+   for(const vertex of mesh.vertices)assert.ok(Math.hypot(...vertex)<42,model+' exceeds the marker canvas');
+   let image;
+   const canvas={clientWidth:84,dataset:{},getContext:()=>({
+     createImageData:(w,h)=>({data:new Uint8ClampedArray(w*h*4)}),
+     putImageData(frame){image=Buffer.from(frame.data);}
+   })};
+   function paintPixels(colour,predicate){
+     scope.window.JalanVehicleRenderer.draw(canvas,model,colour,-24,53,false);
+     let count=0;
+     for(let i=0;i<image.length;i+=4){
+       if(image[i+3]&&predicate(image[i],image[i+1],image[i+2]))count++;
+     }
+     return count;
+   }
+   const neutral=(r,g,b)=>r>145&&r===g&&g===b;
+   const white=paintPixels('#ffffff',neutral);
+   assert.ok(white>paintPixels('#1975d9',neutral)+200,model+' white paint is visible');
+   assert.ok(paintPixels('#1975d9',(r,g,b)=>b>r+65&&b>g+20)>200,model+' blue paint is visible');
+ }
+});

@@ -2,10 +2,11 @@
 (() => {
  'use strict';
  if(new URLSearchParams(location.search).get('mode')!=='passenger')return;
- const models={classic:'Classic triangle',sedan:'Sedan',hatchback:'Hatchback',suv:'SUV',mpv:'MPV',pickup:'Pickup',motorcycle:'Motorcycle'};
+ const models={classic:'Classic triangle',sedan:'Sedan',hatchback:'Hatchback',suv:'SUV',mpv:'MPV',pickup:'Pickup',motorcycle:'Motorcycle',
+   balloon:'Hot-air balloon',wau:'Wau bulan',duck:'Rubber duck'};
  // The fallback artwork uses the same six paint choices.
  const colours={teal:['Teal','#00aaa0'],blue:['Blue','#1975d9'],red:['Red','#cf3447'],
-   yellow:['Yellow','#efbb28'],white:['White','#fff'],charcoal:['Charcoal','#38414d']};
+   yellow:['Yellow','#efbb28'],white:['White','#ffffff'],charcoal:['Charcoal','#38414d']};
  const colourNames=Object.keys(colours);
  const key='jalan-passenger-vehicle-icon-v1';
  const sprite=model=>'icons/vehicles/'+model+'.webp';

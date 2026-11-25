@@ -5,7 +5,8 @@
  const materials={
    tyre:'#252c33',rim:'#8996a3',inset:'#394452',metal:'#cfdae3',trim:'#303d48',
    glass:'#29485a',glassSky:'#59879b',frame:'#25303b',grille:'#202933',headlamp:'#f2f9ff',
-   tail:'#e23847',plate:'#d4dbe1',bed:'#46515d',engine:'#738291',pants:'#293c50',jacket:'#445667'
+   tail:'#e23847',plate:'#d4dbe1',bed:'#46515d',engine:'#738291',pants:'#293c50',jacket:'#445667',
+   cream:'#fff0cb',gold:'#e7ac43',wicker:'#bd8552',weave:'#865334',bill:'#ff8c24',billEdge:'#cd6223',eye:'#182332'
  };
  const states=new WeakMap();
  const rgb=hex=>[1,3,5].map(i=>parseInt(hex.slice(i,i+2),16));
