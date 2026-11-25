@@ -118,7 +118,7 @@
    return true;
  }
  function drawVehicleShape(svg,heading,pitch,centerInHalo=false){
-   if(!window.JalanVehicleIcons.drawModel(svg,heading))drawTriangle(svg,heading,pitch,centerInHalo);
+   if(!window.JalanVehicleIcons.drawModel(svg,heading,pitch,centerInHalo))drawTriangle(svg,heading,pitch,centerInHalo);
  }
  const trianglePreview=guidedShape.cloneNode(true);
  drawTriangle(trianglePreview,0,0);
