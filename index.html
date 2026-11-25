@@ -6,7 +6,7 @@
   <!-- GitHub Pages cannot set response CSP headers; this meta policy blocks unlisted client origins. -->
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; base-uri 'self'; object-src 'none'; form-action 'self'; script-src 'self' https://unpkg.com https://maps.googleapis.com https://maps.gstatic.com; style-src 'self' 'unsafe-inline' https://unpkg.com https://fonts.googleapis.com; img-src 'self' data: blob: https://tiles.openfreemap.org https://unpkg.com https://*.tile.openstreetmap.org https://api.tomtom.com https://maps.gstatic.com https://maps.googleapis.com https://lh3.googleusercontent.com; font-src 'self' data: https://fonts.gstatic.com; media-src 'self' blob:; connect-src 'self' https://tiles.openfreemap.org https://api.tomtom.com https://router.project-osrm.org https://nominatim.openstreetmap.org https://overpass-api.de https://mterm2026-559f9bf571b5.herokuapp.com https://maps.googleapis.com https://places.googleapis.com https://maps.gstatic.com; worker-src 'self' blob:; frame-src 'none'; upgrade-insecure-requests" />
   <link rel="preload" href="fonts/DancingScript.ttf" as="font" type="font/ttf" crossorigin />
-  <link rel="stylesheet" href="passenger-launch.css?v=4" />
+  <link rel="stylesheet" href="passenger-launch.css?v=5" />
   <script src="passenger-language-copy.js?v=stations1"></script>
   <script src="passenger-language.js?v=1"></script>
   <script src="passenger-launch.js?v=8"></script>
@@ -43,7 +43,6 @@
     <div class="jalan-launch-progress" aria-hidden="true"><span></span></div>
     <p id="jalan-launch-status" role="status">Loading your map…</p>
     <button id="jalan-launch-retry" type="button" hidden>Try again</button>
-    <p class="jalan-launch-developer">IgniteInno Ventures</p>
   </section>
   <small id="jalan-home-credits" translate="no" hidden>
     <a class="jalan-tiles-credit" href="https://openmaptiles.org/" target="_blank" rel="noopener noreferrer">© OpenMapTiles</a>
