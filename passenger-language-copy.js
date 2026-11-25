@@ -64,7 +64,6 @@
     'Edit': 'Sunting',
     'About JALAN': 'Perihal JALAN',
     'Navigation for Malaysia with live traffic, road reports, and turn-by-turn directions.': 'Panduan navigasi untuk perjalanan di Malaysia dengan maklumat trafik semasa, laporan jalan raya dan panduan arah di setiap simpang.',
-    'JALAN helps public servants, private sector workers and the wider community get around every day.': 'JALAN memudahkan perjalanan harian penjawat awam, pekerja sektor swasta dan orang ramai.',
     'Made in Malaysia': 'Buatan Malaysia',
     'Privacy & terms': 'Privasi & terma',
     'Done': 'Selesai',
