@@ -24,13 +24,27 @@
    if(!active||queued)return;queued=true;
    requestAnimationFrame(()=>{queued=false;if(active)syncLayers();});
  };
+ const isTravelled=layer=>layer.options?.className==='jalan-travelled-route';
+ function syncTravelled(layer){
+   const source=gl.getSource('jalan-travelled'),id=L.stamp(layer);
+   if(!map.hasLayer(layer)){source.updateData({remove:[id]});return;}
+   const feature=layer.toGeoJSON(false);
+   feature.id=id;feature.properties={routeScale:layer.options.jalanRouteScale};
+   source.updateData({add:[feature]});
+ }
+ function layerChanged(event){
+   if(isTravelled(event.layer)){watch(event.layer);syncTravelled(event.layer);}
+   else schedule();
+ }
  function watch(layer){
    if(watched.has(layer))return;watched.add(layer);
    ['setLatLng','setLatLngs','setStyle','setIcon','setUrl','bindPopup','bindTooltip'].forEach(name=>{
      if(typeof layer[name]!=='function')return;
      const fn=layer[name];layer[name]=function(...args){
        const result=fn.apply(this,args),cls=layer.options?.icon?.options.className||layer.options?.className;
-       if(active&&name==='setLatLng'&&(cls==='jalan-vehicle-marker'||cls==='jalan-vehicle-accuracy'||cls==='passenger-startup-pin')){
+       if(active&&isTravelled(layer)){
+         if(name==='setLatLngs')syncTravelled(layer);
+       }else if(active&&name==='setLatLng'&&(cls==='jalan-vehicle-marker'||cls==='jalan-vehicle-accuracy'||cls==='passenger-startup-pin')){
          // Keep the moving overlay in the same frame as the camera. Refreshing
          // every station and serializing all route lines here stalls a dense map.
          pins.get(L.stamp(layer))?.marker.setLngLat(lngLat(layer.getLatLng()));
@@ -73,6 +87,7 @@
  function fallback(){
    if(stopped)return;stopped=true;clearTimeout(timer);active=false;
    document.body.classList.remove('passenger-vector-active');
+   map.off('layeradd layerremove',layerChanged);
    // Restore the exact logical layers, including a currently enabled traffic map.
    methods.forEach(name=>{map[name]=original[name];});
    map.options.zoomSnap=zoomSnap;
@@ -288,13 +303,14 @@
    }else if(pin.label){pin.label.remove();pin.label=null;}
  }
  function syncLayers(){
-   const features=[],trafficFeatures=[],stopFeatures=[],travelledFeatures=[],seen=new Set(),tileIds=new Set();
+   const features=[],trafficFeatures=[],stopFeatures=[],seen=new Set(),tileIds=new Set();
    original.eachLayer(layer=>{
+     if(isTravelled(layer))return;
      watch(layer);const id=L.stamp(layer);
      if(layer instanceof L.Polyline&&layer.options.opacity!==0){
        const opt=layer.options,classes=opt.className?.split(' ')||[];
-       const isTravelled=classes.includes('jalan-travelled-route'),isTraffic=classes.includes('jalan-selected-traffic-colour');
-       const output=isTravelled?travelledFeatures:classes.includes('jalan-stop-route')?stopFeatures:isTraffic?trafficFeatures:features;
+       const isTraffic=classes.includes('jalan-selected-traffic-colour');
+       const output=classes.includes('jalan-stop-route')?stopFeatures:isTraffic?trafficFeatures:features;
        const feature=layer.toGeoJSON(opt.jalanRouteScale?false:6);
        feature.properties={leafletId:id,color:opt.color||'#087af5',width:opt.weight||5,
          routeScale:opt.jalanRouteScale||0,opacity:opt.opacity??1};
@@ -305,7 +321,7 @@
    if(popupLayer&&!original.hasLayer(popupLayer)){popup?.remove();popup=null;popupLayer=null;}
    const signature=JSON.stringify(features);
    if(signature!==lineSignature){lineSignature=signature;gl.getSource('jalan-routes').setData({type:'FeatureCollection',features});}
-   trafficFeatures.push(...stopFeatures,...travelledFeatures);
+   trafficFeatures.push(...stopFeatures);
    const coloredSignature=JSON.stringify(trafficFeatures);
    if(coloredSignature!==trafficSignature){
      trafficSignature=coloredSignature;trafficFeatureCount=trafficFeatures.length;
@@ -394,6 +410,11 @@
      layout:{'line-cap':'round','line-join':'round'},
      paint:{'line-color':['get','color'],'line-width':lineWidth(),
        'line-opacity':['get','opacity']}});
+   gl.addSource('jalan-travelled',{type:'geojson',maxzoom:20,tolerance:0,data:{type:'FeatureCollection',features:[]}});
+   for(const [id,color,outline] of [['casing','#ffffff',2],['line','#8293aa',0]]){
+     gl.addLayer({id:'jalan-travelled-'+id,type:'line',source:'jalan-travelled',
+       layout:{'line-cap':'round','line-join':'round'},paint:{'line-color':color,'line-width':lineWidth(outline)}});
+   }
  }
  function dependency(tag,url,integrity){return new Promise((resolve,reject)=>{
    const node=document.createElement(tag);node.crossOrigin='anonymous';node.integrity=integrity;
@@ -432,7 +453,8 @@
          const latest=map.getCenter();gl.jumpTo({center:[latest.lng,latest.lat],zoom:map.getZoom()-1});
          active=true;map.options.zoomSnap=0;
          installCamera();installTiles();
-         map.on('layeradd layerremove',schedule);
+         map.on('layeradd layerremove',layerChanged);
+         original.eachLayer(layer=>{if(isTravelled(layer)){watch(layer);syncTravelled(layer);}});
          document.body.classList.add('passenger-vector-active');
          gl.resize();syncLayers();syncCamera();clearTimeout(timer);
          status.textContent='';emit();

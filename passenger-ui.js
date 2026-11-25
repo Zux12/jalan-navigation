@@ -36,33 +36,35 @@
  };
  map.createPane('passenger-travelled');map.getPane('passenger-travelled').style.zIndex='460';
  map.getPane('passenger-travelled').style.pointerEvents='none';
- let travelled=null,travelRoute=null,travelFraction=0;
- const clearTravelled=()=>{if(travelled)map.removeLayer(travelled);travelled=null;travelRoute=null;travelFraction=0;};
- const paintTravelled=()=>{
-   const state=window.JalanGPS?.getState(),route=state?.route;
-   if(!state?.active||!document.body.classList.contains('passenger-guiding')){clearTravelled();return;}
-   if(route!==travelRoute){clearTravelled();travelRoute=route;}
-   if(!state.matched||state.accuracy>75||state.fixAgeMs>10000||
-      !Number.isFinite(state.remainingMeters)||!(route?.distance>0))return;
-   travelFraction=Math.max(travelFraction,Math.min(1,Math.max(0,1-state.remainingMeters/route.distance)));
-   const path=window.JalanRouteDisplay.shape(route),end=travelFraction*path.total;
-   const coordinates=window.JalanRouteDisplay.section(path,0,end);
-   const passed=coordinates.map(p=>L.latLng(p[1],p[0]));
-   if(passed.length<2)return;
-   if(!travelled)travelled=L.polyline(passed,{jalanRouteScale:1,smoothFactor:0,color:'#8293aa',weight:9,opacity:1,interactive:false,
-     pane:'passenger-travelled',className:'jalan-travelled-route'}).addTo(map);
-   else travelled.setLatLngs(passed);
- };
- window.addEventListener('jalan:gps-fix',()=>requestAnimationFrame(paintTravelled));
- const previousTrail=L.layerGroup().addTo(map);
+ const travelStyle={jalanRouteScale:1,smoothFactor:0,color:'#8293aa',weight:9,opacity:1,interactive:false,
+   pane:'passenger-travelled',className:'jalan-travelled-route'};
+ const travelChunks=[],previousTrail=L.layerGroup().addTo(map);
+ let travelRoute=null,travelEnd=0;
+ function clearTravelled(){
+   for(const line of travelChunks)map.removeLayer(line);
+   travelChunks.length=0;travelRoute=null;travelEnd=0;
+ }
+ function drawTravelled(path,end){
+   // Finished stretches stay on the map. Only copy the moving end each frame.
+   const chunkMetres=500;
+   const first=Math.floor(Math.min(travelEnd,end)/chunkMetres);
+   while(travelChunks.length>Math.ceil(end/chunkMetres))map.removeLayer(travelChunks.pop());
+   for(let i=first;i*chunkMetres<end;i++){
+     const coords=window.JalanRouteDisplay.section(path,i*chunkMetres,Math.min(end,(i+1)*chunkMetres));
+     const points=coords.map(([lon,lat])=>[lat,lon]);
+     if(travelChunks[i])travelChunks[i].setLatLngs(points);
+     else travelChunks.push(L.polyline(points,travelStyle).addTo(map));
+   }
+   travelEnd=end;
+ }
  window.addEventListener('jalan:archive-trail',event=>{
    const {reason,previous}=event.detail;
-   if(reason==='arrived'&&previous?.pinnedStop&&travelled&&travelRoute===previous){
+   if(reason==='arrived'&&previous?.pinnedStop&&travelChunks.length&&travelRoute===previous){
      const path=window.JalanRouteDisplay.shape(previous),end=path.lengths[previous.pinnedStop.index];
-     if(Math.abs(end-path.total*travelFraction)<150)
-       travelled.setLatLngs(window.JalanRouteDisplay.section(path,0,end).map(([lon,lat])=>L.latLng(lat,lon)));
+     if(Math.abs(end-travelEnd)<150)drawTravelled(path,end);
    }
-   if(travelled){previousTrail.addLayer(travelled);travelled=null;}
+   for(const line of travelChunks)previousTrail.addLayer(line);
+   travelChunks.length=0;travelRoute=null;travelEnd=0;
  });
  for(const name of ['jalan:journey-start','jalan:journey-stop','jalan:route-cleared'])
    window.addEventListener(name,()=>previousTrail.clearLayers());
@@ -72,6 +74,9 @@
  // An atomic off-route swap emits route-change before its next GPS fix.
  // Never leave the *old route's* travelled overlay drawn on the new route.
  window.addEventListener('jalan:route-change',clearTravelled);
+ window.addEventListener('jalan:routes-rendered',()=>{
+   if(travelRoute&&travelRoute!==routes[selectedRoute])clearTravelled();
+ });
  // Reuse the existing opt-in page-load one-shot geolocation. A pre-route
  // location triangle represents a measured position, never inferred heading
  // or route-matched driving accuracy.
@@ -385,9 +390,11 @@
      document.body.classList.contains('passenger-map-flat')?
        (lastValidHeading===null?'0deg':lastValidHeading+'deg'):(-angle)+'deg');
  };
- const guidedMotion=viewModel.positionFollower((point,settled)=>{
+ const guidedMotion=viewModel.positionFollower((point,settled,path,offset)=>{
    if(!vehicle||!document.body.classList.contains('passenger-guiding')||document.hidden)return;
    vehicle.setLatLng(point);accuracyHalo?.setLatLng(point);
+   if(path&&travelRoute&&path===window.JalanRouteDisplay.shape(travelRoute)&&offset>travelEnd&&
+      lastGPSDetail?.matched&&Date.now()-lastGPSDetail.vehicleSampleTime<=10000)drawTravelled(path,offset);
    if(!exploring)followPassengerGPS(lastGPSDetail,true,settled);
    scheduleScreenVehicle();
  });
@@ -437,6 +444,7 @@
  }
  function updateVehicle(detail){
    const state=window.JalanGPS?.getState();
+   if(state?.route!==travelRoute){clearTravelled();travelRoute=state?.route;}
    // Measured GPS can remain reliable while the old route is NOT matched.
    // No new point is synthesized from the predictor during a wrong turn.
    const valid=state?.active&&detail?.gpsReliable&&
