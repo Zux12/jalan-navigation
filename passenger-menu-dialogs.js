@@ -25,6 +25,7 @@
    <div><strong translate="no">JALAN</strong><p id="passenger-app-version"></p></div>
   </div>
   <p class="jalan-about-description">Navigation for Malaysia with live traffic, road reports, and turn-by-turn directions.</p>
+  <p class="jalan-about-description">JALAN is designed to make everyday travel easier for public servants, private sector employees and the wider community.</p>
   <p class="jalan-about-developer"><span>Developed by</span> <strong translate="no">IgniteInno Ventures</strong></p>
   <p class="jalan-about-origin"><span aria-hidden="true">🇲🇾</span> <span>Made in Malaysia</span></p>
   <a id="passenger-policy" href="https://igniteinnov.com/jalan/policy.html?lang=en" target="_blank" rel="noopener noreferrer">Privacy &amp; terms</a>

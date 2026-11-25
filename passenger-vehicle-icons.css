@@ -1,0 +1,28 @@
+.jalan-vehicle-shape[data-vehicle-model]>path{display:none}
+.jalan-vehicle-shape[data-vehicle-model],.vehicle-model-art{
+ filter:drop-shadow(0 0 1px white) drop-shadow(0 1px 1px #243447a6)}
+.passenger-vehicle-uncertain .jalan-vehicle-shape[data-vehicle-model]{
+ filter:grayscale(1) drop-shadow(0 0 1px white) drop-shadow(0 1px 1px #243447a6)}
+#passenger-vehicle-picker{width:min(420px,calc(100vw - 20px));padding:20px}
+#passenger-vehicle-picker h2{margin:0 0 12px}
+#passenger-vehicle-picker h2:focus{outline:none}
+.vehicle-road-preview{height:90px;position:relative;overflow:hidden;border-radius:12px;margin-bottom:14px}
+.vehicle-road-preview>svg{height:100%;width:100%}
+.vehicle-preview-icon{position:absolute;width:54px;height:54px;left:50%;top:60%;transform:translate(-50%,-50%)}
+.vehicle-model-art{display:block;width:100%;height:100%;background-repeat:no-repeat;background-size:600% 100%}
+#passenger-vehicle-picker fieldset{border:0;margin:0 0 12px;padding:0;min-width:0}
+#passenger-vehicle-picker legend{padding:0;margin-bottom:6px;font-size:14px}
+.vehicle-model-grid,.vehicle-colour-grid{display:grid;gap:5px;grid-template-columns:repeat(4,minmax(0,1fr))}
+.vehicle-colour-grid{grid-template-columns:repeat(3,minmax(0,1fr))}
+#passenger-vehicle-picker label{position:relative;display:flex;align-items:center;justify-content:center;flex-direction:column;
+ gap:3px;min-height:50px;text-align:center;border:2px solid transparent;border-radius:9px;background:#f1f4f6;
+ cursor:pointer;font:600 .75rem/1.2 system-ui;padding:4px 1px;overflow-wrap:anywhere}
+#passenger-vehicle-picker label:has(:checked){background:#e8f2ff;border-color:#136dec}
+#passenger-vehicle-picker label:has(:focus-visible){outline:3px solid #112e57;outline-offset:1px}
+#passenger-vehicle-picker input{position:absolute;z-index:1;opacity:0;width:100%;height:100%;inset:0;margin:0;cursor:pointer}
+#passenger-vehicle-picker label>.vehicle-model-art,#passenger-vehicle-picker label>svg{height:32px;width:32px}
+#passenger-vehicle-picker .vehicle-colour-grid label{flex-direction:row;gap:6px;font-size:.75rem;min-height:36px;padding:2px 4px;overflow-wrap:normal}
+.vehicle-colour-grid i{flex:none;width:16px;height:16px;border:1px solid #31435255;border-radius:50%}
+.vehicle-picker-actions{display:flex;gap:8px}
+#passenger-vehicle-picker .vehicle-picker-actions button{margin:0;flex:1}
+@media(max-width:350px){.vehicle-colour-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
