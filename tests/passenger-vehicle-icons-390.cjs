@@ -11,26 +11,38 @@ module.exports=async function checkVehicleIcons(page,markerSelector){
    await page.locator('#passenger-vehicle-choice').click();
  };
  const marker=page.locator(markerSelector);
+ const mesh=marker.locator('xpath=following-sibling::canvas[1]');
+ const preview=picker.locator('.vehicle-preview-icon canvas');
+ const view=picker.locator('.vehicle-view-choice select');
+ const pixels=()=>preview.evaluate(canvas=>canvas.toDataURL());
  await open();
  assert.equal(await model('classic').isChecked(),true);
  assert.equal(await picker.locator('.vehicle-colours').isVisible(),false);
  for(const name of ['sedan','hatchback','suv','mpv','pickup','motorcycle']){
    await model(name).check();
-   assert.ok((await picker.locator('.vehicle-preview-icon .vehicle-model-art').getAttribute('style')).includes(name+'.webp'));
+   assert.equal(await preview.getAttribute('data-model'),name);
+   const images=new Set();
+   for(const angle of ['front','side','rear','top']){
+     await view.selectOption(angle);images.add(await pixels());
+   }
+   assert.equal(images.size,4,'each angle renders distinct geometry for '+name);
  }
  await model('pickup').check();
  for(const name of ['teal','blue','red','yellow','white','charcoal'])await colour(name).check();
- assert.equal(await picker.locator('.vehicle-preview-icon .vehicle-model-art').evaluate(el=>el.style.backgroundPositionX),'100%');
+ const charcoal=await pixels();
+ await colour('white').check();assert.notEqual(await pixels(),charcoal);
+ await colour('charcoal').check();
  await picker.locator('.jalan-dialog-ok').click();
- await marker.locator('svg[data-colour="charcoal"] image[href="icons/vehicles/pickup.webp"]').waitFor();
+ await mesh.waitFor();
+ assert.equal(await mesh.getAttribute('data-model'),'pickup');
  await open();
  assert.ok(await model('pickup').isChecked()&&await colour('charcoal').isChecked());
  await model('sedan').check();await colour('red').check();
  await picker.locator('.jalan-dialog-secondary').click();
- assert.equal(await marker.getAttribute('data-vehicle-model'),'pickup','Cancel preserves the active marker');
+ assert.equal(await mesh.getAttribute('data-model'),'pickup','Cancel preserves the active marker');
  await open();await model('classic').check();
  assert.equal(await picker.locator('.vehicle-colours').isVisible(),false);
  await picker.locator('.jalan-dialog-ok').click();
- await marker.locator('image').waitFor({state:'detached'});
+ await mesh.waitFor({state:'detached'});
  assert.equal(await marker.locator('.vehicle-left').isVisible(),true);
 };
