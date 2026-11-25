@@ -11,7 +11,9 @@ module.exports=async function forwardMotion(page,base){
      do{
        await new Promise(requestAnimationFrame);
        const p=marker(name).getLatLng(),center=map.getCenter();
-       frames.push([p.lat,p.lng,center.lat,center.lng]);
+       const trail=Object.values(map._layers).filter(l=>l.options.className==='jalan-travelled-route').at(-1);
+       const tip=trail?.getLatLngs().at(-1);
+       frames.push([p.lat,p.lng,center.lat,center.lng,tip?.lat,tip?.lng]);
        if(p.lat===endpoint[0]&&p.lng===endpoint[1])break;
      }while(performance.now()-started<3500);
      return frames;
@@ -34,7 +36,12 @@ module.exports=async function forwardMotion(page,base){
    const measured=JalanGPS.getState().gpsPosition;
    const guided=await sample('jalan-vehicle-marker',b);
    window.removeEventListener('jalan:gps-fix',count);
-   return {a,corner,b,free,guided,measured,fixes,afterSpike:[afterSpike.lat,afterSpike.lng]};
+   const tip=()=>Object.values(map._layers).filter(l=>l.options.className==='jalan-travelled-route').at(-1)?.getLatLngs().at(-1);
+   const before=tip();
+   window.__offlineGPSWatch({timestamp:at+1,coords:{latitude:end[0],longitude:end[1],accuracy:150,speed:17}});
+   await new Promise(requestAnimationFrame);
+   const held=before?.equals(tip(),1e-12);
+   return {a,corner,b,free,guided,measured,fixes,held,afterSpike:[afterSpike.lat,afterSpike.lng]};
  });
  const {a,corner,b,free,guided}=result;
  assert.deepEqual(result.afterSpike,corner);assert.deepEqual(result.measured,b);assert.equal(result.fixes,2);
@@ -44,6 +51,12 @@ module.exports=async function forwardMotion(page,base){
  assert.ok(guided.some(p=>Math.abs(p[1]-corner[1])<1e-9&&p[0]>a[0]&&p[0]<b[0]),'turn on the road before the second fix');
  assert.ok(new Set(guided.map(p=>p[2]+','+p[3])).size>=3,'guided follow camera advances on multiple frames');
  assert.deepEqual(guided.at(-1).slice(0,2),b);
+ const advancing=guided.filter(p=>p[0]!==a[0]||p[1]!==a[1]);
+ assert.ok(new Set(advancing.map(p=>p.slice(4).join(','))).size>=3,'the grey edge advances between GPS readings');
+ for(const [lat,lon,,,tipLat,tipLon] of advancing){
+   assert.ok(Number.isFinite(tipLat)&&Math.hypot(lat-tipLat,lon-tipLon)<1e-9,'the grey edge follows the triangle around the bend');
+ }
+ assert.ok(result.held,'an inaccurate reading leaves the travelled edge in place');
  await page.evaluate(()=>JalanGPS.stop());
  console.log('PASS continuous free and guided movement between real GPS callbacks, bend, isolated spike and endpoint');
 };
