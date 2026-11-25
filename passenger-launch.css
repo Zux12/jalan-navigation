@@ -17,9 +17,8 @@ html.passenger-launching #jalan-launch,#jalan-launch.jalan-launch-finished{
 .jalan-launch-progress{width:100px;height:4px;border-radius:4px;background:#dce9fa;overflow:hidden;margin-top:30px}
 .jalan-launch-progress span{display:block;width:45%;height:100%;border-radius:4px;background:#1771eb;animation:jalan-launch-progress 1.3s ease-in-out infinite alternate}
 #jalan-launch-status{margin:13px 0 0;max-width:300px;color:#687d96;font:13px/1.5 system-ui}
-#jalan-launch .jalan-launch-developer{position:absolute;bottom:calc(26px + env(safe-area-inset-bottom,0px));margin:0;color:#617690;font:600 11px system-ui;letter-spacing:.7px}
 #jalan-launch-retry{margin-top:18px;border:0;border-radius:12px;background:#176bea;color:#fff;padding:13px 24px;font:700 15px system-ui;cursor:pointer}
 #jalan-launch.jalan-launch-finished{opacity:0;pointer-events:none}
 @keyframes jalan-launch-progress{from{transform:translateX(-15%)}to{transform:translateX(140%)}}
 @media(prefers-reduced-motion:reduce){#jalan-launch .jalan-launch-tagline{animation:none}.jalan-launch-progress span{animation:none;transform:translateX(60%)}#jalan-launch{transition:none}}
-@media(max-height:480px){#jalan-launch .jalan-launch-tagline{font-size:24px}#jalan-launch img{width:80px;height:80px;border-radius:20px}#jalan-launch h1{margin-top:12px;font-size:26px}.jalan-launch-progress{margin-top:15px}#jalan-launch .jalan-launch-developer{bottom:10px}}
+@media(max-height:480px){#jalan-launch .jalan-launch-tagline{font-size:24px}#jalan-launch img{width:80px;height:80px;border-radius:20px}#jalan-launch h1{margin-top:12px;font-size:26px}.jalan-launch-progress{margin-top:15px}}
