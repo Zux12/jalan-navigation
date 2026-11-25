@@ -34,7 +34,7 @@
 .jalan-about-identity img { border-radius:16px; flex:none; }
 .jalan-about-identity strong { font-size:2.125rem; line-height:1.1; letter-spacing:-.045em; font-weight:800; }
 #passenger-app-version { margin:2px 0 0; font-size:.9375rem; color:#546475; }
-.jalan-about-description { margin:20px 0 14px; color:#374b61; }
+.jalan-about-description { margin:20px 0 14px; color:#374b61; font-size:.875rem; }
 .jalan-about-developer { margin:0; }
 .jalan-about-origin { display:flex; align-items:center; gap:8px; margin:8px 0 5px; font-size:.9375rem; }
 #passenger-policy { display:inline-flex; min-height:44px; align-items:center; color:#075fb4; text-underline-offset:.2em; }
