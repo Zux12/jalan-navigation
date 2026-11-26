@@ -28,6 +28,12 @@ module.exports=async function({context,base,root}){
  const input=page.locator('#destination'),options=page.locator('#results [role=option]');
  const boot=async()=>{await page.goto(base+'/index.html?mode=passenger',{waitUntil:'load'});await page.locator('#jalan-search-trigger').click();await input.focus();};
  await boot();
+ const quick=page.locator('.jalan-sheet-quick'),recent=page.locator('.jalan-sheet-recent');
+ const results=page.locator('#results');
+ assert.ok(await quick.isVisible()&&await recent.isVisible(),'empty search offers shortcuts and Recent');
+ for(const control of ['#jalan-home-menu','#passenger-gps-status'])assert.equal(await page.locator(control).isVisible(),false);
+ await input.fill('K');
+ assert.equal(await quick.isVisible()||await recent.isVisible(),false,'the first character gives the space to results');
  assert.ok(await page.locator('link[rel=apple-touch-icon]').getAttribute('href'));
  const manifest=JSON.parse(fs.readFileSync(path.join(root,'passenger.webmanifest'),'utf8'));
  assert.equal(manifest.short_name,'JALAN');assert.equal(manifest.start_url,'./index.html?mode=passenger');
@@ -44,6 +50,24 @@ module.exports=async function({context,base,root}){
  await input.fill('KLC');await page.waitForTimeout(100);await input.fill('KLCC');
  await options.first().waitFor();assert.deepEqual(requests,['KLCC'],'rapid edits collapse to one debounced request');
  assert.equal(await options.count(),3,'invalid coordinates are ignored');assert.equal(await page.locator('#results img').count(),0,'provider names render as text');
+ // Model iOS resizing and panning only the visual viewport over a full-height layout.
+ await page.evaluate(()=>{
+   Object.defineProperties(visualViewport,{height:{configurable:true,value:410},offsetTop:{configurable:true,value:20}});
+   visualViewport.dispatchEvent(new Event('resize'));
+ });
+ const keyboardList=await results.boundingBox();
+ const field=await page.locator('#search-form').boundingBox();
+ assert.ok(Math.abs(keyboardList.y-field.y-field.height)<16,'results start directly below the search field');
+ assert.ok(Math.abs(keyboardList.y+keyboardList.height-430)<16,'results extend down to the keyboard');
+ await input.evaluate(el=>el.blur());
+ await page.evaluate(()=>{
+   delete visualViewport.height;delete visualViewport.offsetTop;
+   visualViewport.dispatchEvent(new Event('resize'));
+ });
+ await page.waitForTimeout(250);
+ assert.equal(await input.inputValue(),'KLCC');
+ assert.equal(await options.count(),3,'keyboard dismissal preserves every result');
+ assert.ok((await results.boundingBox()).height>keyboardList.height+200,'results expand when the keyboard closes');
  await page.screenshot({path:path.join(root,'test-artifacts/destination-suggestions.png')});
  await page.evaluate(()=>{document.getElementById('start-choice').value='map';setStart([3.139,101.6869],'Fixture start');});
  await options.first().tap();await page.waitForFunction(()=>routes.length===1);
@@ -56,8 +80,10 @@ module.exports=async function({context,base,root}){
  const before=requests.length;await input.fill('Fresh');await options.first().waitFor();assert.equal(requests.length,before,'repeated query uses page-memory cache');
  await input.fill('Clear');await page.waitForFunction(()=>document.getElementById('results').getAttribute('aria-busy')==='true');await input.fill('');await page.waitForTimeout(1000);
  assert.equal(await page.locator('#results').isVisible(),false,'clear cancels pending results');
+ assert.ok(await quick.isVisible()&&await recent.isVisible(),'clearing restores shortcuts and Recent');
  await input.fill('Collapse');await page.waitForFunction(()=>document.getElementById('results').getAttribute('aria-busy')==='true');await page.locator('#jalan-sheet-handle').click();await page.waitForTimeout(1000);
  assert.equal(await page.locator('#results').isVisible(),false,'collapse cannot be reopened by a late response');
+ for(const control of ['#jalan-home-menu','#passenger-gps-status'])assert.ok(await page.locator(control).isVisible());
  await page.locator('#jalan-search-trigger').click();await input.fill('Failure');await page.getByText('Suggestions unavailable. Tap Search to try again.').waitFor();
  await input.press('Escape');assert.equal(await input.getAttribute('aria-expanded'),'false');
  const beforeIME=requests.length;await input.dispatchEvent('compositionstart');await input.fill('Compose');await page.waitForTimeout(550);assert.equal(requests.length,beforeIME);

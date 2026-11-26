@@ -463,11 +463,12 @@
    if(!vehicle)vehicle=L.marker(position,{icon:vehicleIcon,interactive:false,
      keyboard:false,zIndexOffset:950}).addTo(map);
 
+   const haloColour=detail.vehicleCertain===false?'#8090a0':'#13a8d1';
    if(!accuracyHalo)accuracyHalo=L.circle(position,{radius:Math.max(5,detail.gpsAccuracy),
-     className:'jalan-vehicle-accuracy',color:'#13a8d1',fillColor:'#13a8d1',fillOpacity:0.08,weight:1,
+     className:'jalan-vehicle-accuracy',color:haloColour,fillColor:haloColour,fillOpacity:0.08,weight:1,
      interactive:false}).addTo(map);
    else accuracyHalo.setRadius(Math.max(5,detail.gpsAccuracy))
-     .setStyle({color:'#13a8d1',fillColor:'#13a8d1'});
+     .setStyle({color:haloColour,fillColor:haloColour});
    // Use the segment already chosen by the matcher. A fresh nearest-road
    // search here could pick the other carriageway or another pass of a loop.
    let path=null,offset=null;

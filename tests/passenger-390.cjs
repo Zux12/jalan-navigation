@@ -121,9 +121,9 @@ async function main(){
   await page.screenshot({path:path.join(root,'test-artifacts/passenger-voice-menu.png')});
   await page.locator('#passenger-sound-ok').click();
   await page.locator('#passenger-about').click();
-  assert.match(await page.locator('#passenger-about-dialog').innerText(),/IgniteInno Ventures/);
   assert.match(await page.locator('#passenger-app-version').innerText(),/4.8.0/);
   const about=page.locator('#passenger-about-dialog'),policy=about.getByRole('link',{name:'Privacy & terms'});
+  assert.doesNotMatch(await about.innerText(),/Developed by|IgniteInno Ventures/i);
   assert.equal(await about.getByText('Made in Malaysia').isVisible(),true);
   assert.equal(await about.locator('a').count(),1);
   assert.equal(await policy.getAttribute('href'),'https://igniteinnov.com/jalan/policy.html?lang=en');
@@ -132,7 +132,7 @@ async function main(){
   assert.doesNotMatch(await page.locator('#passenger-app-version').innerText(),/test/i);
   const bounds=await about.boundingBox();
   assert.ok(Math.abs(bounds.y+bounds.height-page.viewportSize().height)<=1&&bounds.y>100,'sheet opens at bottom over the map');
-  await page.screenshot({path:path.join(root,'test-artifacts/passenger-about-igniteinno.png')});
+  await page.screenshot({path:path.join(root,'test-artifacts/passenger-about.png')});
   await page.locator('#passenger-about-ok').click();
   const reopenAbout=async()=>{
     await about.waitFor({state:'hidden'});
@@ -156,8 +156,16 @@ async function main(){
   await about.waitFor({state:'hidden'});
   assert.equal(await page.locator('#jalan-home-menu').getAttribute('aria-expanded'),'false');
   await page.waitForFunction(()=>document.activeElement.id==='jalan-home-menu');
+  await page.locator('#jalan-home-menu').click();
+  await page.locator('#passenger-navigation-settings summary').click();
+  await page.locator('#passenger-vehicle-choice').click();
+  const preTripPicker=page.locator('#passenger-vehicle-picker');
+  assert.ok(await preTripPicker.locator('input[value="classic"]').isChecked());
+  await preTripPicker.locator('input[value="duck"]').check();
+  await preTripPicker.locator('input[value="yellow"]').check();
+  await preTripPicker.locator('.jalan-dialog-ok').click();
   // The search banner must support progressive A→B (not jump to C) on
-  // an actual pointer swipe, while B exposes the session-only Recent area.
+  // an actual pointer swipe, while B exposes the Recent destinations.
   const swipeSearch=async dy=>{
     const b=await page.locator('#jalan-search-trigger').boundingBox();
     const x=b.x+b.width/2,y=b.y+b.height/2;
@@ -175,7 +183,7 @@ async function main(){
   assert.equal(await page.locator('.jalan-sheet-quick button').count(),3);
   await page.locator('#jalan-sheet-handle').click();
   assert.equal(await sheetState(),'c','handle expands to C recent list');
-  assert.match(await page.locator('#jalan-recent-list').textContent(),/during this session/);
+  assert.match(await page.locator('#jalan-recent-list').textContent(),/last 7 selected destinations/);
   await page.locator('#jalan-sheet-handle').click();
   assert.equal(await sheetState(),'b');
   // Drag down from B to A. Handle taps intentionally alternate B/C,
@@ -711,7 +719,7 @@ async function main(){
     'rotating map must not draw a second triangle');
   assert.equal(await page.evaluate(()=>!!locationMarker&&pointLayer.hasLayer(locationMarker)),false,
     'ongoing GPS fixes must not recreate legacy location dot in passenger mode');
-  // A cached 20s-old fix must freeze the last measured vehicle in grey,
+  // A cached 20s-old fix must freeze the last measured vehicle,
   // not falsely follow the route or delete the triangle.
   await page.evaluate(()=>{
     window.__offlineGPSWatch({timestamp:Date.now()-20000,coords:{
@@ -723,8 +731,8 @@ async function main(){
   assert.equal(await page.locator('.jalan-vehicle-marker').count(),1,
     'stale Safari GPS retains one frozen georeferenced triangle');
   assert.equal(await page.locator('#passenger-vehicle-screen').isVisible(),true,
-    'upright grey last-known triangle stays visible');
-  assert.notEqual(await vehicleFace.evaluate(x=>getComputedStyle(x).fill),liveFill,'stale GPS greys the visible mesh');
+    'upright last-known triangle stays visible');
+  assert.equal(await vehicleFace.evaluate(x=>getComputedStyle(x).fill),liveFill,'stale GPS preserves the classic triangle colour');
   await page.waitForFunction(()=>document.getElementById('passenger-fix').textContent.includes('last known position'),null,{timeout:1500});
   assert.match(await page.locator('#passenger-fix').innerText(),/last known position/i);
   await page.evaluate(()=>{
@@ -961,7 +969,7 @@ async function main(){
     document.querySelector('.jalan-vehicle-marker')?.classList.contains('jalan-vehicle-uncertain'),
     null,{timeout:1500});
   assert.equal(await page.locator('.jalan-vehicle-marker').count(),1,
-    'weak GPS keeps one grey last-known measured vehicle');
+    'weak GPS keeps one last-known measured vehicle');
   assert.equal(await page.evaluate(()=>
     document.getElementById('map').style.getPropertyValue('--jalan-camera-turn')),
     cameraBeforeWeak,'weak GPS must freeze existing camera instead of inventing a bearing');

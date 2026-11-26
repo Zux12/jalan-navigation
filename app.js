@@ -160,7 +160,7 @@ function setDestinationPlace(place,point){
  const popup=document.createElement('span');popup.textContent='Destination: '+label;
  destinationMarker=L.marker(destination).addTo(pointLayer).bindPopup(popup);
  resultsEl.classList.add('hidden');
- window.dispatchEvent(new CustomEvent('jalan:destination-selected',{detail:{point:[...point],name:destinationName,label,googleId:place.googleId,source:place.source}}));
+ window.dispatchEvent(new CustomEvent('jalan:destination-selected',{detail:{point:[...point],name:destinationName,label,googleId:place.googleId,source:place.source,searchText:place.searchText}}));
 }
 async function selectDestinationPlace(place){
  const point=[Number(place.lat),Number(place.lon)];

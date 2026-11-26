@@ -60,12 +60,6 @@ body.passenger-guiding .interface-switch{display:none}
 /* GPS-anchored vehicle triangle, counter-rotated to remain screen-up while
    the experimental passenger camera visually turns the map underneath. */
 .jalan-vehicle-marker .jalan-vehicle-symbol{display:grid;place-items:center;width:80px;height:80px;color:#00a1cd;background:transparent;font:900 68px system-ui,sans-serif;text-shadow:-2px -2px 0 white,2px -2px 0 white,-2px 2px 0 white,2px 2px 0 white,0 5px 10px #19324a88;transform:rotate(var(--jalan-vehicle-heading,0deg));transform-origin:center center}
-.jalan-vehicle-marker .jalan-vehicle-symbol[data-heading="route"]{color:#128dc6}
-.jalan-vehicle-marker .jalan-vehicle-symbol[data-heading="unavailable"]{color:#8797a6}
-/* A stale or rejected GPS fix freezes the last measured position in grey.
-   The accuracy halo is geographic, not a claim of route/road matching. */
-.passenger-vehicle-screen.passenger-vehicle-uncertain{--vehicle-rim:#526373;--vehicle-left:#bdc9d2;--vehicle-right:#8a99a9;--vehicle-tail:#718192}
-.jalan-vehicle-marker.jalan-vehicle-uncertain .jalan-vehicle-symbol{color:#8b98a8}
 
 
 .passenger-bottom{pointer-events:auto;position:absolute;left:0;right:0;bottom:0;background:#fff;border-radius:25px 25px 0 0;padding:22px max(18px,env(safe-area-inset-left,0px)) calc(18px + env(safe-area-inset-bottom,0px));box-shadow:0 -10px 25px #19345240;color:#1c2837}

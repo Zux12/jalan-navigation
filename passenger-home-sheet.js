@@ -22,7 +22,7 @@
   '<button type="button" data-shortcut="work">💼 <strong>Work</strong></button>'+
   '<button type="button" data-shortcut="new">＋ <strong>New</strong></button>';
  const recent=document.createElement('section');recent.className='jalan-sheet-recent';
- recent.innerHTML='<h2>Recent</h2><ol id="jalan-recent-list"><li class="jalan-recent-empty">Your recently selected destinations will appear here during this session.</li></ol>';
+ recent.innerHTML='<h2>Recent</h2><ol id="jalan-recent-list"><li class="jalan-recent-empty">Your last 7 selected destinations will appear here.</li></ol>';
  sheet.append(handle,searchTrigger,header,results,quick,recent);document.body.append(sheet);
  const recentHeading=recent.querySelector('h2');
  const recentCredit=document.createElement('span');
@@ -115,7 +115,42 @@
  window.addEventListener('jalan:journey-stop',()=>requestAnimationFrame(paintNavigation));
  paintNavigation();
  const input=$('destination'),form=$('search-form'),list=$('jalan-recent-list');
+ const viewport=window.visualViewport;
+ function sizeSearchSheet(){
+   if(!viewport||sheet.dataset.state!=='c')return;
+   const covered=Math.max(0,document.documentElement.clientHeight-viewport.offsetTop-viewport.height);
+   sheet.style.setProperty('--search-covered-bottom',covered+'px');
+   sheet.style.setProperty('--search-visible-height',viewport.height+'px');
+ }
+ viewport?.addEventListener('resize',sizeSearchSheet);
+ viewport?.addEventListener('scroll',sizeSearchSheet);
+ function showSearchResults(){
+   if(!sheet.hasAttribute('data-place-mode'))sheet.toggleAttribute('data-searching',Boolean(input.value.trim()));
+ }
+ input.addEventListener('input',showSearchResults);
+ form.addEventListener('submit',showSearchResults,true);
  const recentRows=new Map();
+ const recentStorageKey='jalan-passenger-recent-v1',recentLimit=7;
+ const recentKey=p=>p.googleId?'google:'+p.googleId:'point:'+p.point.join(',');
+ function readRecent(){
+   try{
+     const records=JSON.parse(localStorage.getItem(recentStorageKey));
+     if(Array.isArray(records))return records.filter(p=>p&&(
+       typeof p.googleId==='string'&&p.googleId.length>0||
+       !p.googleId&&validCoordinates(p.point)&&typeof p.name==='string'&&typeof p.label==='string'
+     )).slice(0,recentLimit);
+   }catch{}
+   return [];
+ }
+ function saveRecent(place){
+   // Restore Google content from its ID. Only the passenger's own query is kept with it.
+   const record=place.source==='google'
+     ?{googleId:place.googleId,searchText:place.searchText}
+     :{point:place.point,name:place.name,label:place.label};
+   if(place.source==='google'&&!place.googleId)return;
+   const records=[record,...readRecent().filter(p=>recentKey(p)!==recentKey(record))];
+   try{localStorage.setItem(recentStorageKey,JSON.stringify(records.slice(0,recentLimit)));}catch{}
+ }
  let recentDetailId=0;
  const routeSearchButton=$('passenger-search'),navigation=$('passenger-navigation');
  let routeSearch=null;
@@ -123,31 +158,46 @@
  const recentVisibility=new IntersectionObserver(entries=>{
    for(const {target,isIntersecting} of entries){
      const entry=recentRows.get(target.dataset.recentKey);
-     if(!entry||!isIntersecting||entry.loading)continue;
-     entry.loading=true;
-     window.JalanGooglePlaceSearch.showDetails(entry.place.googleId,entry.details,entry.controller.signal)
-       .then(()=>{
-         entry.row.classList.add('has-place-details');
-         entry.fallback.hidden=true;
-         recentVisibility.unobserve(target);
-       })
-       .catch(()=>{
-         // Keep the exact destination selectable offline. Retry on its next appearance.
-         entry.loading=false;entry.fallback.translate=true;entry.fallback.textContent=entry.place.name+' · Address unavailable';
-       });
+     if(entry&&isIntersecting)loadRecentDetails(entry);
    }
  });
+ function loadRecentDetails(entry){
+   if(entry.loading)return entry.loading;
+   entry.loading=window.JalanGooglePlaceSearch.showDetails(entry.place.googleId,entry.details,entry.controller.signal)
+     .then(widget=>{
+       const place=entry.place;
+       if(!place.point){
+         const loc=widget.place?.location,point=[loc?.lat(),loc?.lng()];
+         if(!validCoordinates(point))throw Error('Missing recent location');
+         place.point=point;
+         if(widget.place.displayName)place.name=place.label=widget.place.displayName;
+         entry.button.setAttribute('aria-label','Route to '+place.name);
+       }
+       entry.row.classList.add('has-place-details');
+       entry.fallback.hidden=true;recentVisibility.unobserve(entry.row);
+     })
+     .catch(()=>{
+       entry.loading=null;entry.fallback.translate=true;entry.fallback.textContent=entry.place.name+' · Address unavailable';
+     });
+   return entry.loading;
+ }
  function rememberRecent(place){
    const google=place.source==='google'&&Boolean(place.googleId);
-   const key=google?'google:'+place.googleId:'point:'+place.point.join(',');
+   const key=recentKey(place);
    let entry=recentRows.get(key);
    if(!entry){
      const row=document.createElement('li'),button=document.createElement('button');
      row.dataset.recentKey=key;button.type='button';
      entry={row,button,place};recentRows.set(key,entry);
-     button.addEventListener('click',()=>{
-       const p=entry.place;input.blur();
-       selectDestinationPlace({lat:p.point[0],lon:p.point[1],name:p.name,display_name:p.label,googleId:p.googleId,source:p.source});
+     button.addEventListener('click',async()=>{
+       input.blur();
+       if(!entry.place.point){
+         button.focus({preventScroll:true});
+         await loadRecentDetails(entry);
+         if(!entry.place.point||document.activeElement!==button||!button.getClientRects().length)return;
+       }
+       const p=entry.place;
+       selectDestinationPlace({lat:p.point[0],lon:p.point[1],name:p.name,display_name:p.label,googleId:p.googleId,source:p.source,searchText:p.searchText});
      });
      if(google){
        row.className='jalan-recent-google';
@@ -159,25 +209,39 @@
        recentVisibility.observe(row);
      }else row.append(button);
    }
-   entry.place={...place,point:[...place.point]};
+   entry.place={...place,point:place.point?.slice()};
    if(google)entry.button.setAttribute('aria-label','Route to '+place.name);
    else {entry.button.translate=place.name==='Pinned location';entry.button.textContent=place.label;}
    const empty=list.querySelector('.jalan-recent-empty');
    if(empty?.contains(recentCredit))recentHeading.append(' ',recentCredit);
    empty?.remove();
    if(list.firstElementChild!==entry.row)list.prepend(entry.row);
-   if(recentRows.size>7){
+   if(recentRows.size>recentLimit){
      const last=list.lastElementChild,old=recentRows.get(last.dataset.recentKey);
      recentVisibility.unobserve(last);old.controller?.abort();
      recentRows.delete(last.dataset.recentKey);last.remove();
    }
+ }
+ for(const record of readRecent().reverse()){
+   if(record.googleId){
+     const name=typeof record.searchText==='string'&&record.searchText||'Recent destination';
+     rememberRecent({source:'google',googleId:record.googleId,searchText:record.searchText,name,label:name});
+   }else rememberRecent(record);
  }
  const setState=next=>{
    const state=['a','b','c'].includes(next)?next:'a';
    if(state!=='c'){shortcuts?.cancel();window.JalanDestinationSuggestions?.cancel();}
    if(routeSearch&&state!=='c'){closeRouteSearch();return;}
    if(state!=='c'&&document.activeElement===input)input.blur();
+   const reopening=state==='c'&&sheet.dataset.state!=='c';
    sheet.dataset.state=state;
+   if(state==='c'){
+     sizeSearchSheet();
+     if(reopening&&sheet.hasAttribute('data-searching')){
+       if(input.value.trim())input.dispatchEvent(new Event('input',{bubbles:true}));
+       else sheet.removeAttribute('data-searching');
+     }
+   }
    header.inert=state!=='c';
    handle.setAttribute('aria-expanded',String(state!=='a'));
    handle.setAttribute('aria-label',routeSearch?'Return to current route':
@@ -191,6 +255,7 @@
    shortcuts?.cancel();
    const saved=routeSearch;routeSearch=null;window.JalanDestinationSuggestions?.cancel();
    cancelGesture();input.blur();
+   sheet.removeAttribute('data-searching');
    if(restoreInput)input.value=saved.inputValue;
    results.classList.add('hidden');
    document.body.classList.remove('passenger-route-search');
@@ -323,7 +388,8 @@
  window.addEventListener('jalan:destination-selected',event=>{
    const place=event.detail;
    if(!Array.isArray(place?.point)||place.point.length!==2||!place.point.every(Number.isFinite))return;
-   rememberRecent(place);closeRouteSearch(false,false);
+   sheet.removeAttribute('data-searching');
+   rememberRecent(place);saveRecent(place);closeRouteSearch(false,false);
  });
  window.addEventListener('jalan:routes-rendered',()=>{shortcuts.cancel();closeRouteSearch(false,false);cancelGesture();sheet.classList.add('jalan-sheet-route');input.blur();});
  window.addEventListener('jalan:route-cleared',()=>{closeRouteSearch(false,false);cancelGesture();sheet.classList.remove('jalan-sheet-route');setState('a');});
