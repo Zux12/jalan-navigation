@@ -48,7 +48,10 @@ function scene({tomtom=true,auto=true}={}){
  const feed=(position,delta=3000,accuracy=8,stamp=null,speed=5,heading=90)=>{
   now+=delta;watch({timestamp:stamp??now,coords:{latitude:position[0],longitude:position[1],accuracy,speed,heading}});
  };
- const detour=(cold=false)=>{if(!cold)feed([3,101.6],0);for(let i=1;i<=6;i++)feed([3.0008,101.6+i*.0001]);};
+ const detour=(cold=false)=>{
+  if(!cold)feed([3,101.6],0);
+  for(let i=1;i<=6;i++)feed([cold?3.0008:3+Math.min(i,4)*.0002,101.6+i*.0001],3000,8,null,5,i<=4&&!cold?27:90);
+ };
  const flush=async()=>{for(let i=0;i<4;i++)await new Promise(r=>setImmediate(r));};
  const finish=async({ok=true,invalid=false}={})=>{
   const request=requests.at(-1),url=request.url;
@@ -205,7 +208,9 @@ test('pending lateral drift does not feed route history or trigger a new route',
  const s=scene();s.feed([3,101.601]);const count=s.matcherFeeds;
  s.feed([3.00025,101.6011]);s.feed([3.0003,101.6012]);
  assert.equal(s.matcherFeeds,count,'unconfirmed road change is quarantined from route progress');
- assert.equal(s.state().matched,false);assert.deepEqual(Array.from(s.state().vehiclePosition),[3.0003,101.6012]);
+ assert.equal(s.state().matched,false);
+ assert.deepEqual(Array.from(s.state().gpsPosition),[3.0003,101.6012]);
+ assert.deepEqual(Array.from(s.state().vehiclePosition),[3,101.6012]);
  assert.equal(s.requests.length,0);
  s.feed([3,101.6013]);assert.equal(s.matcherFeeds,count+1);
  assert.equal(s.state().matched,true,'credible road-aligned measurements resume matching');
@@ -227,7 +232,9 @@ test('a manual check uses the latest raw GPS even before a turn is confirmed',as
  void s.node('gps-reroute').onclick();
  assert.match(s.requests[0].url.pathname,/3\.000250,101\.601100:/);
  await s.finish();
- assert.deepEqual(Array.from(s.state().vehiclePosition),[3.00025,101.6011]);
+ assert.deepEqual(Array.from(s.state().vehiclePosition),[3,101.6011],'a response alone does not move the displayed vehicle');
+ s.feed([3.00025,101.6011]);
+ assert.deepEqual(Array.from(s.state().vehiclePosition),[3.00025,101.6011],'the next fix matches the replacement route even when stationary');
 });
 test('movement during a slow response requests once more from the newest fix',async()=>{
  const s=scene();s.detour();s.feed([3.0008,101.603],10000);
@@ -255,22 +262,26 @@ test('switching to a faster traffic route keeps the same GPS watch and latest ve
  assert.equal(s.state().route.duration,500);assert.equal(s.state().matched,false);
 });
 
-test('GPS coordinates still turn the triangle when the phone omits heading and speed',()=>{
- const s=scene({auto:false});s.feed([3,101.601]);
+test('a turn can be confirmed from successive coordinates when the phone omits heading and speed',()=>{
+ const s=scene({auto:false});
+ s.context.window.JalanVectorMap={nearbyRoads:()=>[{coordinates:[[101.601,3],[101.601,3.004]]}]};
+ s.feed([3,101.601]);
  for(const latitude of [3.00012,3.00024,3.00036]){
   s.feed([latitude,101.601],2000,8,null,null,null);
-  assert.deepEqual(Array.from(s.state().vehiclePosition),[latitude,101.601]);
-  assert.equal(s.state().vehicleHeading,0);
+  const confirmed=latitude===3.00036;
+  assert.equal(s.state().vehiclePosition[0],confirmed?latitude:3);
+  assert.equal(s.state().vehicleHeading,confirmed?0:90);
  }
  assert.equal(s.requests.length,0);
 });
 
-test('stopping mid-turn holds the measured triangle when the phone drops its heading',()=>{
+test('stopping during a possible turn cannot pull the triangle away from the route',()=>{
  const s=scene({auto:false});s.feed([3,101.601]);
  const turn=[3.00009,101.601];s.feed(turn,2000,8,null,5,0);
- assert.deepEqual(Array.from(s.state().vehiclePosition),turn);
+ assert.deepEqual(Array.from(s.state().vehiclePosition),[3,101.601]);
  s.feed(turn,1000,8,null,0,null);
- assert.deepEqual(Array.from(s.state().vehiclePosition),turn);
+ assert.deepEqual(Array.from(s.state().vehiclePosition),[3,101.601]);
  s.feed([3.00018,101.601],2000,8,null,5,0);
- assert.deepEqual(Array.from(s.state().vehiclePosition),[3.00018,101.601]);
+ assert.deepEqual(Array.from(s.state().vehiclePosition),[3,101.601]);
+ assert.deepEqual(Array.from(s.state().gpsPosition),[3.00018,101.601]);
 });

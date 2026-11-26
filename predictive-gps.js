@@ -112,21 +112,45 @@
      return {position:established.position,onRoute:false,certain:true,allowDeviation:true,mode:'road-departure'};
    }
    if(match.distance<=band&&!diverging){
-    lastRoad={position:match.position,along:match.along,time,heading:match.bearing,motionHeading:course??match.bearing};pending=null;departed=false;departureLine=null;
+    lastRoad={...match,raw,accuracy,time,motionHeading:course??match.bearing};pending=null;departed=false;departureLine=null;
     return {position:match.position,heading:match.bearing,segmentIndex:match.segmentIndex,
      speedLimitIndex:match.distance<=12&&(course===null||difference(course,match.bearing)<=45)?match.segmentIndex:null,onRoute:true,certain:true,allowDeviation:false,mode:'road-aligned'};
    }
-   if(departed&&(!departureLine||roads===null))
-    return {position:raw,onRoute:false,certain:false,allowDeviation:true,mode:'departure-unverified'};
    if(departed&&departureLine){
     const previousRoad=nearest(raw,departureLine);
     if(previousRoad.distance<=Math.max(12,Math.min(25,accuracy*1.5)))
      return {position:previousRoad.position,onRoute:false,certain:true,allowDeviation:true,mode:'road-departure'};
    }
-   const held=match.distance<=80?match.position:(lastRoad?.position||raw);
-   if(!pending||time-pending.lastTime>7000){pending={first:[...raw],firstOffset:match.distance,firstTime:time,lastTime:time,count:1,
-    motionHeading:lastRoad?.motionHeading??null,motionTime:lastRoad?.time??time,turnPlausible:true};}
+   // After a confirmed exit, losing the side street at a tile boundary must
+   // not send the marker back to the old route while rerouting.
+   if(departed)return {position:raw,onRoute:false,certain:false,allowDeviation:true,mode:'departure-unverified'};
+   const held=match.distance<=80?match:lastRoad;
+   const provisional={position:held?.position??raw,heading:held?.bearing,segmentIndex:held?.segmentIndex,
+    onRoute:false,certain:false,allowDeviation:false,mode:'checking-drift'};
+   if(Number.isFinite(speed)&&speed>=0&&speed<.6){
+    pending=null;
+    return provisional;
+   }
+   if(!pending||time-pending.lastTime>7000){
+    let plausibleEntry=true;
+    if(lastRoad&&course!==null&&speed>=15){
+     // At road speed the GPS displacement must be compatible with the
+     // measured course. Allow both fixes' error and time to steer between them.
+     const seconds=Math.max(0,(time-lastRoad.time)/1000);
+     const step=dist(lastRoad.raw,raw),angle=difference(bearing(lastRoad.raw,raw),course);
+     const sideways=step*Math.abs(Math.sin(rad(angle)));
+     plausibleEntry=sideways<=lastRoad.accuracy+accuracy+2.5*seconds*seconds;
+    }
+    pending={first:raw,firstOffset:match.distance,firstTime:time,lastTime:time,count:1,
+     motionHeading:lastRoad?.motionHeading??null,motionTime:lastRoad?.time??time,turnPlausible:plausibleEntry,outwardOffset:match.distance,outwardSteps:0,recent:[]};
+   }
    else{pending.count++;pending.lastTime=time;}
+   if(match.distance>=pending.outwardOffset+Math.max(4,accuracy*.5)){
+    pending.outwardOffset=match.distance;
+    pending.outwardSteps++;
+   }
+   pending.recent.push({position:raw,offset:match.distance,tolerance:Math.max(12,Math.min(25,accuracy*1.5))});
+   if(pending.recent.length>3)pending.recent.shift();
    const elapsed=(time-pending.firstTime)/1000,travel=dist(pending.first,raw),
     pathHeading=travel>=Math.max(8,accuracy)?bearing(pending.first,raw):null,
     coherent=pathHeading!==null&&(course===null||difference(course,pathHeading)<=45),
@@ -144,33 +168,41 @@
    const elevatedBaseline=lastRoad&&Array.isArray(roads)&&roads.some(road=>{
     if(!road.bridge&&!road.tunnel&&Number(road.layer||0)===0)return false;
     const line=road.coordinates?.map(p=>[p[1],p[0]]);if(!line||line.length<2)return false;
-    const near=nearest(lastRoad.position,line),angle=difference(lastRoad.heading,near.bearing);
+    const near=nearest(lastRoad.position,line),angle=difference(lastRoad.bearing,near.bearing);
     return near.distance<=12&&Math.min(angle,180-angle)<=25;
    });
-   if(Array.isArray(roads)&&coherent&&possibleTurn&&!elevatedBaseline){
+   if(Array.isArray(roads)&&coherent&&possibleTurn&&!elevatedBaseline&&pending.recent.length===3&&elapsed>=2){
     for(const road of roads){
      if(road.bridge||road.tunnel||Number(road.layer||0)!==0)continue;
      const line=road.coordinates?.map(p=>[p[1],p[0]]);
      if(!line||line.length<2)continue;
      const candidate=nearest(raw,line),angle=difference(pathHeading,candidate.bearing),aligned=Math.min(angle,180-angle)<=35;
-     if(candidate.distance>Math.max(12,Math.min(25,accuracy*1.5))||!aligned)continue;
+     if(!aligned||candidate.distance+3>=match.distance||
+        pending.recent.some(sample=>nearest(sample.position,line).distance>sample.tolerance))continue;
      const anchor=lastRoad?.position||match.position,reach=Math.max(35,Math.min(150,Math.max(0,speed||0)*turnTime+accuracy*2));
      if(!connected(line,anchor,reach))continue;
      if(!supported||candidate.distance<supported.distance)supported={...candidate,line};
     }
    }
-   if(supported&&pending.count>=3&&elapsed>=2){departed=true;departureLine=supported.line;
+   if(supported){departed=true;departureLine=supported.line;
     return {position:supported.position,onRoute:false,certain:true,allowDeviation:true,mode:'road-departure'};}
    // Tile coverage can omit a real exit. Several accurate fixes moving
    // progressively farther from the route can confirm departure without
    // claiming the name or geometry of any particular road.
-   const separating=match.distance>=Math.max(40,2*accuracy)&&
+   const separating=pending.outwardSteps>=2&&match.distance>=Math.max(40,2*accuracy)&&
     match.distance-pending.firstOffset>=Math.max(25,accuracy*2);
-   if((roads===null||separating)&&coherent&&possibleTurn&&pending.count>=4&&elapsed>=8){
+   // With an established route fix, a constant sideways offset is just as
+   // ambiguous on the basic map as it is when vector tiles are available.
+   const acquiredOffRoute=!lastRoad&&match.distance>=Math.max(40,accuracy*2);
+   // One bad heading at the junction must not hold a real detour indefinitely.
+   // Recover as uncertain only after additional fixes keep separating.
+   const sustainedSeparation=elapsed>=12&&match.distance-pending.firstOffset>=Math.max(70,4*accuracy)&&
+    pending.recent.every((sample,i,history)=>i===0||sample.offset>history[i-1].offset+2);
+   if((acquiredOffRoute||separating)&&coherent&&(possibleTurn||sustainedSeparation)&&pending.count>=4&&elapsed>=8){
     departed=true;departureLine=null;
     return {position:raw,onRoute:false,certain:false,allowDeviation:true,mode:'departure-unverified'};
    }
-   return {position:held,heading:lastRoad?.heading,onRoute:false,certain:false,allowDeviation:false,mode:'checking-drift'};
+   return provisional;
   }
   return {feed};
  }

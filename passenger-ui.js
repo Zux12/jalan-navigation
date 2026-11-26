@@ -472,7 +472,7 @@
    // search here could pick the other carriageway or another pass of a loop.
    let path=null,offset=null;
    const i=detail.vehicleSegment,coords=state.route?.geometry?.coordinates;
-   if(detail.matched&&Number.isInteger(i)&&coords?.[i+1]){
+   if(Number.isInteger(i)&&coords?.[i+1]){
      const a=coords[i],b=coords[i+1],c=Math.cos(position[0]*Math.PI/180);
      const dx=(b[0]-a[0])*c,dy=b[1]-a[1],x=(position[1]-a[0])*c,y=position[0]-a[1];
      const u=Math.max(0,Math.min(1,(x*dx+y*dy)/(dx*dx+dy*dy||1)));
@@ -944,7 +944,7 @@
    hideTrafficOffer();clearLiveEta();clearReportFocus();refreshDemoReportMarkers();
    const state=window.JalanGPS?.getState();
    if(state?.active&&state.vehiclePosition&&lastGPSDetail){
-     lastGPSDetail={...lastGPSDetail,vehiclePosition:state.vehiclePosition,vehicleCertain:false,matched:false};
+     lastGPSDetail={...lastGPSDetail,vehiclePosition:state.vehiclePosition,vehicleSegment:null,vehicleCertain:false,matched:false};
      updateVehicle(lastGPSDetail);followPassengerGPS(lastGPSDetail);
    }
  });
