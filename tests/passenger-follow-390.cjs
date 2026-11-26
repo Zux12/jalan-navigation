@@ -68,7 +68,7 @@ module.exports=async(page,context,base)=>{
  await page.waitForFunction(()=>document.body.classList.contains('passenger-following-location'));
  const cdp=await context.newCDPSession(page);
  const dragStart=async()=>{
-  const y=await page.locator('#passenger-journey-sheet').evaluate(sheet=>Math.floor(sheet.getBoundingClientRect().top)-16);
+  const y=await page.locator('#passenger-journey-sheet').evaluate(sheet=>Math.floor(sheet.getBoundingClientRect().top)-50);
   await cdp.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[{x:180,y,id:1}]});
   for(let i=1;i<=5;i++)await cdp.send('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:[{x:180+i*15,y:y-i*8,id:1}]});
  };
