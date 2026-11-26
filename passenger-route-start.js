@@ -8,6 +8,7 @@
  const visible=id=>{const node=el(id);return node&&!node.classList.contains('hidden');};
  const selected=()=>typeof routes!=='undefined'?routes[selectedRoute]:null;
  function eligible(){
+  if(window.JalanNativeLocation && window.JalanNativeLocation.permission!=='allowed')return false;
   const route=selected();
   return !document.body.classList.contains('passenger-station-directory')&&!document.body.classList.contains('passenger-station-open')&&!window.JalanTollChoices?.manualReview&&!document.body.classList.contains('passenger-pin-open')&&!document.body.classList.contains('passenger-pin-routing')&&!suspended&&!document.hidden&&!attempted&&!pointers.size&&!keys.size&&!touches&&
    !go.disabled&&route&&Number.isFinite(route.duration)&&route.geometry?.coordinates?.length>=2&&
@@ -65,6 +66,7 @@
   cancel();choice=null;choices=null;attempted=false;
  });
  window.addEventListener('jalan:journey-start',cancel);
+ window.addEventListener('jalan:iphone-permission',restart);
  const pause=()=>{suspended=true;pointers.clear();keys.clear();touches=0;cancel();};
  const resume=()=>{suspended=false;restart();};
  window.addEventListener('blur',pause);window.addEventListener('focus',resume);
