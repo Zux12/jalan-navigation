@@ -54,6 +54,19 @@ body.passenger-mode .jalan-home-sheet .results{position:static!important;inset:a
  width:100%!important;max-width:none!important;flex:0 1 auto;
  border:0;border-radius:15px;box-shadow:none;padding:0!important;margin:0 0 10px!important;
  max-height:34dvh;overflow:auto;overscroll-behavior:contain;background:#fff;z-index:auto}
+/* In full search, keep the handle and field above one results scroller.
+   The visual viewport can shrink independently of the layout on iPhone. */
+body.passenger-mode .jalan-home-sheet[data-state="c"]{
+ bottom:var(--search-covered-bottom,0px)!important;
+ max-height:calc(var(--search-visible-height,100dvh) - env(safe-area-inset-top,0px) - 4px);
+ padding-bottom:calc(8px + max(0px,env(safe-area-inset-bottom,0px) - var(--search-covered-bottom,0px)))}
+body.passenger-mode .jalan-home-sheet[data-state="c"] .topbar{flex:none}
+body.passenger-mode .jalan-home-sheet[data-state="c"][data-searching] .results{
+ flex:1 1 0;min-height:0;max-height:none;margin-bottom:0!important}
+body.passenger-mode .jalan-home-sheet[data-state="c"][data-searching] :is(.jalan-sheet-quick,.jalan-sheet-recent){
+ display:none}
+body.passenger-mode:has(.jalan-home-sheet[data-state="c"]:not(.jalan-sheet-route))
+ :is(#jalan-home-menu,#passenger-gps-status,#passenger-gps-status-detail){display:none}
 .jalan-sheet-quick{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px;
  margin:7px 0 14px}
 .jalan-sheet-quick button{min-height:64px;background:#fff;border:1px solid #d9dde4;
