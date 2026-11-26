@@ -443,9 +443,11 @@ async function main(){
     'native two-finger twist must rotate the vector map on mobile');
   await cdp.detach();
   // The longer mobile gesture test can exceed the five-second trusted GPS
-  // window. Recenter should require a fresh fix rather than bypassing it.
+  // window. A fresh fix also completes any three-second return that is due.
   await page.evaluate(fix);
-  await page.locator('#passenger-recenter-floating').click();
+  await page.locator('#passenger-recenter-floating').evaluate(button=>{
+    if(button.getClientRects().length)button.click();
+  });
   assert.ok(await page.evaluate(()=>Math.abs(map.getZoom()-18.8)<.001),'Recenter restores the configured navigation zoom');
   await page.waitForFunction(()=>document.body.classList.contains('passenger-following-location'));
   assert.equal(await page.locator('#jalan-home-report').isVisible(),true);
