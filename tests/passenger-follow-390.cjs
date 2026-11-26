@@ -68,9 +68,14 @@ module.exports=async(page,context,base)=>{
  await page.waitForFunction(()=>document.body.classList.contains('passenger-following-location'));
  const cdp=await context.newCDPSession(page);
  const dragStart=async()=>{
-  const y=await page.locator('#passenger-journey-sheet').evaluate(sheet=>Math.floor(sheet.getBoundingClientRect().top)-50);
+  // The earlier sheet-relative point (180,712) hit the interactive OSM
+  // attribution link, not the map. Keep attribution visible and clickable;
+  // start the same real held drag in the central map, clear of the credits.
+  const x=180,y=360;
+  const hit=await page.evaluate(({x,y})=>document.elementFromPoint(x,y)?.id,{x,y});
+  assert.equal(hit,'passenger-map-gestures','held-drag fixture must start on the raster map hit plane');
   // Observe real Chromium input delivery without dispatching synthetic DOM
-  // events or relocating the original touch away from an unexpected overlay.
+  // events; retain a bounded trace if the actual map gesture fails.
   await page.evaluate(({x,y})=>{
    if(window.__followTouchObserver){
     for(const type of window.__followTouchTypes)window.removeEventListener(type,window.__followTouchObserver,true);
@@ -90,9 +95,9 @@ module.exports=async(page,context,base)=>{
     if(events.length<40)events.push({type:e.type,target:describe(e.target),state:state()});
    };
    for(const type of window.__followTouchTypes)window.addEventListener(type,window.__followTouchObserver,{capture:true,passive:true});
-  },{x:180,y});
-  await cdp.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[{x:180,y,id:1}]});
-  for(let i=1;i<=5;i++)await cdp.send('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:[{x:180+i*15,y:y-i*8,id:1}]});
+  },{x,y});
+  await cdp.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[{x,y,id:1}]});
+  for(let i=1;i<=5;i++)await cdp.send('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:[{x:x+i*15,y:y-i*8,id:1}]});
  };
  const release=()=>cdp.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});
  await dragStart();
