@@ -65,10 +65,11 @@ async function fetchRouteData(base,signal,legs){
   response=await fetch(url,options);
   if(response.ok)break;
   const httpError=new Error('TomTom routing HTTP '+response.status);
-  if(!fields.length||signal?.aborted||![400,403].includes(response.status))throw httpError;
+  if(signal?.aborted||![400,403].includes(response.status))throw httpError;
   const error=await response.json().catch(()=>null);
   const reason=error?.detailedError?.message||error?.error?.description||'';
-  if(!/section.?type|speed.?limit|toll.?road|toll section|\blanes?\b/i.test(reason))throw httpError;
+  if(error?.detailedError?.code==='NO_ROUTE_FOUND'||/\bNO_ROUTE_FOUND\b/i.test(reason))httpError.code='NO_ROUTE_FOUND';
+  if(!fields.length||httpError.code||!/section.?type|speed.?limit|toll.?road|toll section|\blanes?\b/i.test(reason))throw httpError;
   if(fields.includes('speedLimit')&&/speed.?limit/i.test(reason))
    fields=fields.filter(field=>field!=='speedLimit');
   else if(fields.includes('lanes'))
@@ -146,7 +147,7 @@ async function requestRoutes(from,to,{signal,via,tollPolicy}={}){
   }else if(!tollPolicy.onward)url.searchParams.set('avoid','tollRoads');
  }
  const data=await fetchRouteData(url,signal,legs);
- if(!data.routes?.length)throw Error('No routes returned');
+ if(!data.routes?.length)throw Object.assign(Error('No routes returned'),{code:'NO_ROUTE_FOUND'});
  return via?data.routes.map(r=>window.JalanPinnedRoute.tomtom(r,via,normal)):data.routes.map(normal);
 }
 async function calculate(){
@@ -154,6 +155,7 @@ async function calculate(){
  try{key();}catch(e){status(e.message);return;}
  clearRoute(false);const id=++token;routeAbort=new AbortController();
  statusEl.textContent='Calculating TomTom traffic-aware route…';
+ window.JalanPassengerRouteNotice?.('Finding routes…');
  routeEl.textContent='Loading TomTom routes…';routeEl.classList.remove('hidden');
  try{
   const candidates=await requestRoutes([...startPoint],[...destination],{signal:routeAbort.signal});
@@ -163,6 +165,9 @@ async function calculate(){
   statusEl.textContent='TomTom traffic-aware route active.';refreshRouteIncidents(true);
  }catch(e){
   if(e.name==='AbortError'||id!==token)return;
+  window.JalanPassengerRouteNotice?.(e.code==='NO_ROUTE_FOUND'
+   ?'No driving route found. Try selecting a road entrance or a different destination.'
+   :'Could not load routes. Check your connection and try again.');
   routeEl.textContent='TomTom route unavailable: '+e.message;
   status('Uncheck TomTom primary routing to use OSRM. '+e.message);
  }

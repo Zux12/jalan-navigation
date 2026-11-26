@@ -4,6 +4,12 @@
  let loading,loaderId=0;
  const config=()=>window.JalanPublicConfig||{};
  const configured=()=>config().googlePlacesFallback===true&&/^[\w-]{20,160}$/.test(config().googleMapsBrowserKey||'');
+ function coordinates(place){
+  const loc=place?.location;
+  const lat=typeof loc?.lat==='function'?loc.lat():loc?.lat;
+  const lon=typeof loc?.lng==='function'?loc.lng():loc?.lng;
+  return Number.isFinite(lat)&&Math.abs(lat)<=90&&Number.isFinite(lon)&&Math.abs(lon)<=180?{lat,lon}:null;
+ }
  async function load(){
   if(!configured())throw Error('Google search is not configured');
   if(window.google?.maps?.importLibrary){await google.maps.importLibrary('places');return;}
@@ -57,23 +63,34 @@
    if(signal.aborted)return;
    stopWaiting();widget.remove();onError();
   }
-  const cleanup=()=>{stopWaiting();widget.remove();};
+  let detailLookup;
+  const detailHost=document.createElement('div');
+  const cleanup=()=>{stopWaiting();detailLookup?.abort();detailHost.remove();widget.remove();};
   signal.addEventListener('abort',cleanup,{once:true});
   widget.addEventListener('gmp-load',()=>{
    if(signal.aborted)return;stopWaiting();
    if(!widget.places?.length){widget.remove();onEmpty();}else onReady();
   });
   widget.addEventListener('gmp-error',failSearch);
-  widget.addEventListener('gmp-select',event=>{
+  widget.addEventListener('gmp-select',async event=>{
    if(signal.aborted)return;
-   const place=event.place,location=place?.location;
-   const lat=typeof location?.lat==='function'?location.lat():location?.lat;
-   const lon=typeof location?.lng==='function'?location.lng():location?.lng;
-   if(!Number.isFinite(lat)||!Number.isFinite(lon)||Math.abs(lat)>90||Math.abs(lon)>180){onError();return;}
+   detailLookup?.abort();
+   detailHost.remove();
+   const place=event.place;
+   let point=coordinates(place);
+   if(!point){
+    if(!place?.id){onError();return;}
+    const lookup=new AbortController();detailLookup=lookup;
+    container.append(detailHost);
+    try{point=await resolve(place.id,detailHost,lookup.signal);}
+    catch{if(!signal.aborted&&!lookup.signal.aborted)onError();return;}
+    finally{if(detailLookup===lookup){detailHost.remove();detailLookup=null;}}
+    if(signal.aborted||lookup.signal.aborted)return;
+   }
    // The selection event can contain just an ID and a point. Recent displays
    // the provider's name and address by that ID, even for an ambiguous search.
    const name=place.displayName||query.trim()||'Selected destination';
-   onSelect({lat,lon,name,display_name:name,source:'google',googleId:place.id,searchText:query});
+   onSelect({...point,name,display_name:name,source:'google',googleId:place.id,searchText:query});
   });
   container.replaceChildren(widget);
   visibility.observe(widget);
@@ -134,12 +151,10 @@
  }
  async function resolve(id,container,signal){
   const widget=await showDetails(id,container,signal);
-  const loc=widget.place?.location;
+  const point=coordinates(widget.place);
   widget.remove();
-  const lat=typeof loc?.lat==='function'?loc.lat():loc?.lat;
-  const lon=typeof loc?.lng==='function'?loc.lng():loc?.lng;
-  if(!Number.isFinite(lat)||!Number.isFinite(lon)||Math.abs(lat)>90||Math.abs(lon)>180)throw Error('Saved place location unavailable');
-  return {lat,lon};
+  if(!point)throw Error('Saved place location unavailable');
+  return point;
  }
  window.addEventListener('jalan:language-change',()=>{
   document.querySelectorAll('gmp-place-search,gmp-place-details-compact').forEach(widget=>{widget.lang=window.JalanLanguage.code;});
