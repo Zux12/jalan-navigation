@@ -325,6 +325,7 @@
  let routeLineMuted=false;
  let exploring=false,lastGPSDetail=null,returnTimer=null,returnPending=false;
  const mapContacts=new Set();
+ const followPaused=()=>exploring||mapContacts.size>0;
  const cancelAutoReturn=()=>{clearTimeout(returnTimer);returnTimer=null;returnPending=false;};
  const syncMapAction=()=>{
    const visible=!screenVehicle.classList.contains('hidden');
@@ -402,7 +403,7 @@
    vehicle.setLatLng(point);accuracyHalo?.setLatLng(point);
    if(path&&travelRoute&&path===window.JalanRouteDisplay.shape(travelRoute)&&offset>travelEnd&&
       lastGPSDetail?.matched&&Date.now()-lastGPSDetail.vehicleSampleTime<=10000)drawTravelled(path,offset);
-   if(!exploring)followPassengerGPS(lastGPSDetail,true,settled);
+   followPassengerGPS(lastGPSDetail,true,settled);
    scheduleScreenVehicle();
  });
  const guidedTurn=viewModel.bearingFollower(bearing=>{
@@ -512,7 +513,7 @@
    if(symbol){symbol.dataset.heading=directionSource;symbol.textContent='▲';}
    const guiding=document.body.classList.contains('passenger-guiding')&&
      !document.body.classList.contains('passenger-map-flat');
-   if(!exploring){
+   if(!followPaused()){
      if(guiding)guidedTurn.aim(lastValidHeading??0);
      applyCameraAngle(guiding?-guidedTurn.bearing:0);
    }
@@ -1054,7 +1055,7 @@
    return points[points.length-1]||position;
  };
  const followPassengerGPS=(detail,frame=false,settled=true)=>{
-   if(exploring||!document.body.classList.contains('passenger-guiding'))return;
+   if(followPaused()||!document.body.classList.contains('passenger-guiding'))return;
    const state=window.JalanGPS?.getState();
    if(!state?.active||!state.gpsReliable||!Number.isFinite(state.gpsFixAgeMs)||state.gpsFixAgeMs>10000||!detail?.gpsReliable||
       !Number.isFinite(detail.gpsAccuracy)||detail.gpsAccuracy>65||
@@ -1132,18 +1133,26 @@
  window.addEventListener('jalan:vector-gesture',()=>{startExplore(false);});
  window.addEventListener('jalan:vector-gesture-end',queueAutoReturn);
  map.getContainer().addEventListener('pointerdown',event=>{
-   mapContacts.add(event.pointerId);cancelAutoReturn();
+   if(!document.body.classList.contains('passenger-guiding'))return;
+   // A GPS camera jump resets MapLibre's touch recognizers even before
+   // dragstart or zoomstart. Give the first contact ownership immediately.
+   mapContacts.add(event.pointerId);cancelAutoReturn();guidedTurn.reset();
  },true);
  const releaseMapContact=event=>{
    if(mapContacts.delete(event.pointerId)&&!mapContacts.size)queueAutoReturn();
  };
- window.addEventListener('pointerup',releaseMapContact);
- window.addEventListener('pointercancel',releaseMapContact);
+ window.addEventListener('pointerup',releaseMapContact,true);
+ window.addEventListener('pointercancel',releaseMapContact,true);
+ const resetMapInput=()=>{
+   freeTurn.reset();guidedTurn.reset();cancelAutoReturn();mapContacts.clear();gesture=null;
+ };
  document.addEventListener('visibilitychange',()=>{
-   if(document.hidden){freeTurn.reset();guidedTurn.reset();cancelAutoReturn();mapContacts.clear();gesture=null;}
+   if(document.hidden)resetMapInput();
    else queueAutoReturn();
  });
- window.addEventListener('pagehide',()=>{freeTurn.reset();guidedTurn.reset();cancelAutoReturn();});
+ window.addEventListener('blur',resetMapInput);
+ window.addEventListener('focus',queueAutoReturn);
+ window.addEventListener('pagehide',resetMapInput);
 
  window.addEventListener('jalan:map-renderer',()=>{
    if(freeActive()&&startupMarker){refreshFreeCamera();scheduleScreenVehicle();return;}
@@ -1262,7 +1271,7 @@
  window.JalanPassengerCamera={getSettings:()=>({...viewSettings}),setSetting:setViewSetting};
  el('passenger-2d').addEventListener('click',()=>{gesture=null;setViewSetting('tilt',viewSettings.tilt===0?lastTilt:0);});
  const refreshViewLayout=()=>{
-   if(!document.body.classList.contains('passenger-guiding')||exploring)return;
+   if(!document.body.classList.contains('passenger-guiding')||followPaused())return;
    applyCameraAngle(currentCameraAngle());
    if(lastGPSDetail)followPassengerGPS(lastGPSDetail);
  };
