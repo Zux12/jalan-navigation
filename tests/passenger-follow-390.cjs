@@ -68,13 +68,24 @@ module.exports=async(page,context,base)=>{
  await page.waitForFunction(()=>document.body.classList.contains('passenger-following-location'));
  const cdp=await context.newCDPSession(page);
  const dragStart=async()=>{
-  const y=await page.locator('#passenger-journey-sheet').evaluate(sheet=>Math.floor(sheet.getBoundingClientRect().top)-50);
-  await cdp.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[{x:180,y,id:1}]});
-  for(let i=1;i<=5;i++)await cdp.send('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:[{x:180+i*15,y:y-i*8,id:1}]});
+  // The journey sheet is still settling just after Go. Touch an exposed strip
+  // of the map so a sheet, marker or control cannot receive the drag instead.
+  const point=await page.waitForFunction(()=>{
+   const surface=document.getElementById('passenger-map-gestures');
+   const top=document.getElementById('passenger-journey-sheet').getBoundingClientRect().top;
+   const x=Math.floor(innerWidth/2)-40;
+   for(let y=Math.floor(top)-70;y>80;y-=20){
+    if(document.elementFromPoint(x,y)===surface&&document.elementFromPoint(x+75,y-40)===surface)return {x,y};
+   }
+   return false;
+  });
+  const {x,y}=await point.jsonValue();await point.dispose();
+  await cdp.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[{x,y,id:1}]});
+  for(let i=1;i<=5;i++)await cdp.send('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:[{x:x+i*15,y:y-i*8,id:1}]});
  };
  const release=()=>cdp.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});
  await dragStart();
- assert.equal(await page.locator('#passenger-recenter-floating').isVisible(),true);
+ await page.locator('#passenger-recenter-floating').waitFor({state:'visible',timeout:2000});
  assert.equal(await page.locator('#jalan-home-report').isVisible(),false);
  await page.waitForTimeout(3200);await fresh();
  assert.equal(await atCurrent(),false,'holding a finger longer than three seconds never recenters');
