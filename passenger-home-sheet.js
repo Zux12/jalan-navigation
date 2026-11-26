@@ -96,6 +96,14 @@
  // Retain internal status/action hooks for the navigation engine, outside the menu.
  $('passenger-journey-options').classList.add('hidden');
  document.body.append(menu,speed,report,notice,menuPanel);
+ function showRouteNotice(message=''){
+   notice.textContent=message;
+   notice.classList.toggle('hidden',!message);
+ }
+ window.JalanPassengerRouteNotice=showRouteNotice;
+ for(const event of ['jalan:route-cleared','jalan:routes-rendered']){
+   window.addEventListener(event,()=>showRouteNotice());
+ }
  const nearbyTraffic=$('passenger-nearby-traffic');
  nearbyTraffic.checked=window.JalanTomTom.getNearbyTraffic();
  nearbyTraffic.addEventListener('change',()=>window.JalanTomTom.setNearbyTraffic(nearbyTraffic.checked));
@@ -115,6 +123,7 @@
  window.addEventListener('jalan:journey-stop',()=>requestAnimationFrame(paintNavigation));
  paintNavigation();
  const input=$('destination'),form=$('search-form'),list=$('jalan-recent-list');
+ input.addEventListener('focus',()=>showRouteNotice());
  const viewport=window.visualViewport;
  function sizeSearchSheet(){
    if(!viewport||sheet.dataset.state!=='c')return;
