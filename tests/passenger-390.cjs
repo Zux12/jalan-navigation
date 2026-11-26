@@ -121,9 +121,9 @@ async function main(){
   await page.screenshot({path:path.join(root,'test-artifacts/passenger-voice-menu.png')});
   await page.locator('#passenger-sound-ok').click();
   await page.locator('#passenger-about').click();
-  assert.match(await page.locator('#passenger-about-dialog').innerText(),/IgniteInno Ventures/);
   assert.match(await page.locator('#passenger-app-version').innerText(),/4.8.0/);
   const about=page.locator('#passenger-about-dialog'),policy=about.getByRole('link',{name:'Privacy & terms'});
+  assert.doesNotMatch(await about.innerText(),/Developed by|IgniteInno Ventures/i);
   assert.equal(await about.getByText('Made in Malaysia').isVisible(),true);
   assert.equal(await about.locator('a').count(),1);
   assert.equal(await policy.getAttribute('href'),'https://igniteinnov.com/jalan/policy.html?lang=en');
@@ -132,7 +132,7 @@ async function main(){
   assert.doesNotMatch(await page.locator('#passenger-app-version').innerText(),/test/i);
   const bounds=await about.boundingBox();
   assert.ok(Math.abs(bounds.y+bounds.height-page.viewportSize().height)<=1&&bounds.y>100,'sheet opens at bottom over the map');
-  await page.screenshot({path:path.join(root,'test-artifacts/passenger-about-igniteinno.png')});
+  await page.screenshot({path:path.join(root,'test-artifacts/passenger-about.png')});
   await page.locator('#passenger-about-ok').click();
   const reopenAbout=async()=>{
     await about.waitFor({state:'hidden'});
