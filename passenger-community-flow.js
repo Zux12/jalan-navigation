@@ -4,19 +4,33 @@
  if(new URLSearchParams(location.search).get('mode')!=='passenger')return;
  const model=window.JalanFlowModel,P=window.JalanReportModel;
  const base='https://mterm2026-559f9bf571b5.herokuapp.com/api/jalan/reports/flow/';
- const box=document.getElementById('passenger-share-speed'),pref='jalan-traffic-sharing-v1';
+ const box=document.getElementById('passenger-share-speed'),pref='jalan-traffic-sharing-v2';
  let storageAvailable=true;
  const get=k=>{try{return localStorage.getItem(k);}catch{storageAvailable=false;return null;}};
  const set=(k,v)=>{try{localStorage.setItem(k,v);}catch{storageAvailable=false;}};
- const saved=get(pref);if(storageAvailable&&saved===null){set(pref,'on');}
- let enabled=storageAvailable&&saved!=='off',active=false,route=null,sections=[],lookup=new Map(),cacheUntil=0,previous=null,matched=null,readCell=null;
- let seedKey=null,seedPromise=null,epoch=0,reader=null,lastRead=0,regionOffset=0;
+ // v1 could have been set ON without a deliberate user choice. Never treat it as consent.
+ const saved=get(pref);
+ let enabled=storageAvailable&&saved==='on',active=false,route=null,sections=[],lookup=new Map(),cacheUntil=0,previous=null,matched=null,readCell=null;
+ let seedKey=null,seedPromise=null,epoch=0,reader=null,lastRead=0,regionOffset=0,consentSince=0;
  const writes=new Set(),lastSent=new Map(),verifiedRoads=new Map();
  box.checked=enabled;
  function resetWrites(){epoch++;for(const c of writes)c.abort();writes.clear();previous=null;matched=null;readCell=null;lastSent.clear();}
- function setting(on,persist){enabled=on;box.checked=on;if(persist)set(pref,on?'on':'off');if(!on)resetWrites();}
+ function setting(on,persist){
+  const wasEnabled=enabled;
+  if(persist)set(pref,on?'on':'off');
+  // Failed persistence or unavailable storage must never permit observations.
+  enabled=Boolean(on&&storageAvailable);box.checked=enabled;
+  // Never derive an upload from movement accumulated while sharing was off.
+  if(!enabled||!wasEnabled)resetWrites();
+  if(enabled&&!wasEnabled)consentSince=Date.now();
+ }
  box.addEventListener('change',()=>setting(box.checked,true));
- window.addEventListener('storage',e=>{if(e.key===pref||e.key===null)setting(get(pref)!=='off',false);});
+ window.addEventListener('storage',e=>{
+  if(e.key!==pref&&e.key!==null)return;
+  const stored=get(pref);
+  // Cleared, removed, malformed or unreadable settings are not permission.
+  setting(storageAvailable&&stored==='on',false);
+ });
  function stop(){active=false;resetWrites();reader?.abort();reader=null;route=null;sections=[];lookup.clear();verifiedRoads.clear();cacheUntil=0;changed();}
  function changed(){window.dispatchEvent(new Event('jalan:community-flow'));}
  function useRoute(r){if(r===route)return;resetWrites();reader?.abort();reader=null;route=r;sections=[];lookup=new Map();verifiedRoads.clear();cacheUntil=0;lastRead=0;regionOffset=0;changed();}
@@ -62,11 +76,15 @@
  function secret(){
   if(seedPromise)return seedPromise;
   let seed=get('jalan-traffic-seed-v1');
+  if(!storageAvailable){setting(false,false);throw Error('Traffic storage unavailable');}
   if(!/^[a-f0-9]{64}$/.test(seed||'')){seed=hex(crypto.getRandomValues(new Uint8Array(32)));set('jalan-traffic-seed-v1',seed);}
+  if(!storageAvailable){setting(false,false);throw Error('Traffic storage unavailable');}
   seedPromise=crypto.subtle.importKey('raw',new TextEncoder().encode(seed),{name:'HMAC',hash:'SHA-256'},false,['sign']);return seedPromise;
  }
  const hex=bytes=>Array.from(bytes,n=>n.toString(16).padStart(2,'0')).join('');
  async function send(cell,road,speed,normal,passAgeMs=null){
+  const livePreference=get(pref);
+  if(!storageAvailable||livePreference!=='on'){setting(false,false);return;}
   const segment=model.roadSegment(cell,road);if(!segment)return;
   const passed=passAgeMs!==null;
   const before=epoch,at=Date.now(),last=lastSent.get(cell.segment);
@@ -74,7 +92,10 @@
   lastSent.set(cell.segment,{at,passed});
   const c=new AbortController();writes.add(c);
   try{seedKey=await secret();const driver=hex(new Uint8Array(await crypto.subtle.sign('HMAC',seedKey,new TextEncoder().encode(segment))));
-   if(before!==epoch||!active||!enabled||document.hidden||!window.JalanGPS.getState().active)return;
+   // Storage can disappear or be cleared while signing awaits crypto.
+   const preferenceAfterSign=get(pref);
+   if(!storageAvailable||preferenceAfterSign!=='on'){setting(false,false);return;}
+   if(before!==epoch||!storageAvailable||!active||!enabled||document.hidden||!window.JalanGPS.getState().active)return;
    await post('observe',{segment,region:cell.region,driver,road,speed:Math.round(speed),normal:Number.isFinite(normal)&&normal>=15&&normal<=180?Math.round(normal):null,passAgeMs},c);
   }catch{}finally{writes.delete(c);}
  }
@@ -91,7 +112,10 @@
   readCell={segment:where.cell.segment,at:Date.now()-d.gpsFixAgeMs};
   const road=window.JalanVectorMap?.getReportRoad?.(point,heading,d.gpsAccuracy,true);
   if(!P.sameRoad(road,window.JalanVectorMap?.getReportRoad?.(p.point,p.heading,d.gpsAccuracy,true))){previous=null;matched=null;return;}
-  const at=Date.now()-d.gpsFixAgeMs,old=previous,now={...where,road,point,at,anchor:where.along,verified:false};
+  const at=Date.now()-d.gpsFixAgeMs;
+  // A newly delivered fix can still have been measured before explicit consent.
+  if(enabled&&at<consentSince){previous=null;matched=null;return;}
+  const old=previous,now={...where,road,point,at,anchor:where.along,verified:false};
   previous=now;matched=null;
   if(!old||at<=old.at||at-old.at>12000||!P.sameRoad(old.road,road)||where.along<old.along-4)return;
   const movement=where.along-old.along,elapsed=(at-old.at)/1000,speed=d.speedMps*3.6;
@@ -107,6 +131,10 @@
   // Mean speed across the measured traversal, including time spent stopped.
   for(let n=old.cell.order;n<=where.cell.order&&n<=old.cell.order+10;n++){
    const c=path.cells[n],length=c.end-c.start,exit=c.end-length*.2;
+   // Endpoint fixes alone cannot establish the identity/grade of every
+   // intervening cell. Use the same conservative interior check as reads.
+   const resolve=window.JalanVectorMap?.getReportRoad;
+   if(!resolve||!P.sameRoad(road,model.readRoad(path,c,resolve)))continue;
    const entry=c===old.cell?(old.entry||{along:old.along,at:old.at}):
     {along:c.start,at:old.at+(c.start-old.along)*1000/(movement/elapsed)};
    const crossed=length>=6&&entry.along<=c.start+length*.2&&old.along<exit&&where.along>=exit;

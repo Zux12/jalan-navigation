@@ -14,9 +14,31 @@ module.exports=async(browser,base,root)=>{
  await r.fulfill({status,contentType:'application/json',headers:{'access-control-allow-origin':'*'},body:JSON.stringify(data)});});
  await page.goto(base+'/index.html?mode=passenger');
  const preference=page.locator('#passenger-share-speed');
- assert.equal(await preference.isChecked(),true,'first trip shares by default');
+ assert.equal(await preference.isChecked(),false,'new visitor must explicitly opt in to speed observations');
+ // The consent copy must remain understandable in both supported languages without changing consent.
+ const consentLabel=page.locator('label.jalan-share-speed');
+ assert.equal((await consentLabel.textContent()).trim(),'Share my speed to help detect traffic (optional)');
+ await page.evaluate(()=>JalanLanguage.set('ms',false));
+ assert.equal((await consentLabel.textContent()).trim(),'Kongsi kelajuan saya untuk membantu mengesan kesesakan (pilihan)');
+ assert.equal(await preference.isChecked(),false,'language switch must not enable sharing');
+ await page.evaluate(()=>JalanLanguage.set('en',false));
+ assert.equal((await consentLabel.textContent()).trim(),'Share my speed to help detect traffic (optional)');
+ assert.equal(await preference.isChecked(),false,'returning to English must not enable sharing');
  await preference.evaluate(el=>{el.click();});await page.reload();
- assert.equal(await preference.isChecked(),false,'switching sharing off survives reload');
+ assert.equal(await preference.isChecked(),true,'explicit opt-in survives reload');
+ await preference.evaluate(el=>{el.click();});await page.reload();
+ assert.equal(await preference.isChecked(),false,'opt-out survives reload');
+ // Simulate browser storage becoming unavailable AFTER a first-trip opt-in.
+ await preference.evaluate(el=>el.click());assert.equal(await preference.isChecked(),true);
+ await page.evaluate(()=>{
+  const original=Storage.prototype.getItem;
+  Storage.prototype.getItem=()=>{throw Error('storage denied after launch');};
+  try{window.dispatchEvent(new StorageEvent('storage',{key:'jalan-traffic-sharing-v2'}));}
+  finally{Storage.prototype.getItem=original;}
+ });
+ assert.equal(await preference.isChecked(),false,'late storage denial cannot re-enable observation');
+ await preference.evaluate(el=>el.click());
+ assert.equal(await preference.isChecked(),false,'failed storage preference save leaves sharing disabled');
  const restricted=await browser.newContext({viewport:{width:390,height:844},isMobile:true,hasTouch:true});
  try{
   await restricted.addInitScript(()=>{Storage.prototype.getItem=()=>{throw Error('blocked');};});
