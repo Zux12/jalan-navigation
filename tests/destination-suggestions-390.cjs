@@ -93,6 +93,35 @@ module.exports=async function({context,base,root}){
  await boot();await page.evaluate(()=>{const key=document.getElementById('tt-key');key.value='';key.dispatchEvent(new Event('input'));});
  const noKey=requests.length;await input.fill('Manual');await page.waitForTimeout(600);assert.equal(requests.length,noKey,'no key does not silently autocomplete through public Nominatim');assert.equal(manual,0);
  await input.press('Enter');await page.locator('#results button').first().waitFor();assert.equal(manual,1,'explicit Search fallback still works');
+ // The native shell handles permission. Exercise the web handoff through real search and route controls.
+ await page.addInitScript(()=>{
+   let permission='denied';
+   window.__openedSettings=0;
+   window.JalanNativeLocation={get permission(){return permission;},openSettings(){window.__openedSettings++;}};
+   window.__allowLocation=()=>{
+     permission='allowed';dispatchEvent(new CustomEvent('jalan:iphone-permission',{detail:{previous:'denied',permission}}));
+   };
+   Object.defineProperty(navigator,'geolocation',{configurable:true,value:{
+     getCurrentPosition(ok,fail){queueMicrotask(()=>permission==='allowed'
+       ?ok({coords:{latitude:3.139,longitude:101.6869,accuracy:5},timestamp:Date.now()}):fail({code:1}));},
+     watchPosition(){return 1;},clearWatch(){}
+   }});
+ });
+ await boot();
+ await input.fill('KLCC');await options.first().click();
+ const card=page.locator('#iphone-location-destination'),prompt=page.locator('#iphone-location-title');
+ await card.waitFor();assert.equal(await prompt.isVisible(),false);
+ await card.getByRole('button',{name:'Go',exact:true}).click();await prompt.waitFor();
+ await page.getByRole('button',{name:'Keep browsing'}).click();
+ assert.equal(await page.evaluate(()=>destinationName),'Petronas Twin Towers');
+ await card.getByRole('button',{name:'Go',exact:true}).click();
+ await page.getByRole('button',{name:'Open Settings'}).click();
+ assert.equal(await page.evaluate(()=>window.__openedSettings),1);
+ await page.evaluate(()=>window.__allowLocation());
+ await page.waitForFunction(()=>routes.length===1);
+ assert.deepEqual(await page.evaluate(()=>destination),[3.15785,101.71165]);
+ assert.equal(await card.isVisible(),false);
+ console.log('PASS iPhone denial allows search, Go opens Settings, and return keeps the chosen destination');
  assert.deepEqual(errors,[]);await page.close();
  console.log('PASS destination typeahead: debounce, text safety, exact route selection, stale/clear/collapse/IME, keyboard, cache, no-key manual fallback and install icons');
 };

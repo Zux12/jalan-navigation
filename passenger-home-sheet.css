@@ -218,3 +218,13 @@ body.passenger-mode .jalan-home-sheet[data-place-mode=resolve] .topbar{display:n
 .jalan-saved-places li button:first-child{flex:1;min-width:0;overflow-wrap:anywhere}
 .jalan-saved-places li .jalan-edit-place{width:auto;flex:none}
 .jalan-saved-places small{display:block;font-weight:400;line-height:1.35;color:#576778}
+
+body.iphone-location-planning .jalan-home-sheet{display:none!important}
+#iphone-location-destination{position:fixed;z-index:1450;left:0;right:0;bottom:0;
+ background:white;border-radius:24px 24px 0 0;padding:18px 20px calc(16px + env(safe-area-inset-bottom,0px));
+ box-shadow:0 -4px 20px #13283e26;color:#19334e}
+#iphone-location-destination[hidden]{display:none}
+#iphone-location-destination strong{font:700 20px system-ui;overflow-wrap:anywhere}
+#iphone-location-destination>div:last-child{display:flex;gap:10px;margin-top:12px}
+#iphone-location-destination button{flex:1;border:0;border-radius:14px;min-height:48px;margin:0;font:700 17px system-ui}
+#iphone-location-destination [role=status]{font:15px system-ui}
