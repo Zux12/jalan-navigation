@@ -1151,12 +1151,12 @@ async function main(){
   assert.equal(await page.locator('#passenger-auto-reroute').getAttribute('aria-pressed'),'true');
   await page.evaluate(()=>{
     window.__detourGPSWatch=window.__offlineGPSWatch;
-    const send=(latitude,longitude,advance)=>{
+    const send=(latitude,longitude,advance,heading=90)=>{
       window.__detourNow+=advance;
-      window.__offlineGPSWatch({timestamp:Date.now(),coords:{latitude,longitude,accuracy:8,speed:5,heading:90}});
+      window.__offlineGPSWatch({timestamp:Date.now(),coords:{latitude,longitude,accuracy:8,speed:5,heading}});
     };
     send(3,101.6,0);
-    for(let i=1;i<=6;i++)send(3.0008,101.6+i*.0001,3000);
+    for(let i=1;i<=6;i++)send(3+Math.min(i,4)*.0002,101.6+i*.0001,3000,i<=4?27:90);
   });
   await page.waitForFunction(()=>document.getElementById('passenger-reroute-status').dataset.state==='checking');
   assert.equal(detourRequests,1,'Go automatically requests one route after a sustained detour');

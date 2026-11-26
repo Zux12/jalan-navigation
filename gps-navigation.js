@@ -173,12 +173,11 @@
     predictor.feed({position:raw,accuracy,time:fix.timestamp||Date.now(),speed:fix.coords.speed});
   const mode=display?(display.allowDeviation?'deviation':display.onRoute?result.mode:'predicted'):result.mode;
   const p=result.position;lastFixAt=now;latestMode=mode;
-  // Correct small drift on a matched road. During a possible or confirmed
-  // departure, publish the accepted measurement immediately, even without tiles.
-  // A stopped phone can drop its heading, changing the road classifier's
-  // answer even though the measured position is exactly the same.
+  // Keep the display on the selected road through ambiguous fixes. The
+  // original measurement remains available for routing and GPS diagnostics.
   const unchanged=vehiclePosition&&(meters(raw,vehiclePosition)<0.5||samePoint(raw,previousMeasurement));
-  if(!unchanged)vehiclePosition=display?.onRoute?display.position:raw;
+  if(!unchanged||display?.mode!==vehicleMode)vehiclePosition=display?.position??raw;
+  if(display?.mode==='checking-drift'&&Number.isFinite(display.heading))vehicleHeading=display.heading;
   vehicleCertain=display?display.certain:mode==='matched';
   vehicleMode=display?.mode||mode;
   rerouteFix=lastPositionFix;
@@ -186,7 +185,7 @@
   const trustworthy=measured&&mode==='matched'&&Number.isFinite(accuracy);
   if(trustworthy)progress=Math.max(progress,result.along);
   latestMatched=trustworthy;lastReportedAccuracy=trustworthy?accuracy:Infinity;
-  window.dispatchEvent(new CustomEvent('jalan:gps-fix',{detail:{vehicleSegment:trustworthy&&display?.onRoute?display.segmentIndex:null,vehicleSampleTime:lastPositionFix.at,speedLimitIndex:trustworthy?display?.speedLimitIndex:null,accuracy:trustworthy?accuracy:Infinity,remainingSeconds:route?remainingTime():null,remainingMeters:route?route.distance*Math.max(0,total-progress)/total:null,speedMps:fix.coords.speed,matchedPosition:trustworthy?p:null,heading:fix.coords.heading,routeSegment:route?.geometry?.coordinates?.length?'route-'+selectedRoute:null,matched:trustworthy,nearDestination:trustworthy&&!!(destination&&meters(p,destination)<110),...positionEvidence(measured)}}));
+  window.dispatchEvent(new CustomEvent('jalan:gps-fix',{detail:{vehicleSegment:display?.segmentIndex??null,vehicleSampleTime:lastPositionFix.at,speedLimitIndex:trustworthy?display?.speedLimitIndex:null,accuracy:trustworthy?accuracy:Infinity,remainingSeconds:route?remainingTime():null,remainingMeters:route?route.distance*Math.max(0,total-progress)/total:null,speedMps:fix.coords.speed,matchedPosition:trustworthy?p:null,heading:fix.coords.heading,routeSegment:route?.geometry?.coordinates?.length?'route-'+selectedRoute:null,matched:trustworthy,nearDestination:trustworthy&&!!(destination&&meters(p,destination)<110),...positionEvidence(measured)}}));
   updateLocation(raw);marker?.setLatLng(vehiclePosition);
   el('gps-accuracy').textContent=Number.isFinite(accuracy)?Math.round(accuracy)+' m':'Unknown';
   el('gps-match-status').textContent={matched:'On route · GPS matched',predicted:'Route prediction · checking GPS',uncertain:'GPS uncertain · estimated position',deviation:'Deviation confirmed',waiting:'Waiting for reliable GPS',stale:'Old GPS reading ignored',invalid:'Invalid GPS reading'}[mode]||'Route prediction';
@@ -308,7 +307,7 @@
   progress=0;offCount=0;latestMatched=false;latestMode='waiting';lastReportedAccuracy=Infinity;
   // A response describes the request-time position. Preserve the latest live
   // marker and camera, including movement since the request was dispatched.
-  vehicleCertain=false;
+  vehicleCertain=false;vehicleMode='waiting';
   renderRoutes({preserveGPS:true});
   el('gps-instruction').textContent='New route ready · checking current GPS position';
   el('gps-detail').textContent='Turn guidance resumes after matching the updated route';
