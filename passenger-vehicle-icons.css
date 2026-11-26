@@ -4,8 +4,6 @@
 #map.jalan-free-raster .passenger-startup-pin .vehicle-map-mesh{transform:translate(-50%,-50%) rotate(calc(0deg - var(--jalan-free-turn,0deg)))}
 .vehicle-map-mesh,.vehicle-model-art{
  filter:drop-shadow(0 0 1px white) drop-shadow(0 1px 1px #243447a6)}
-.passenger-vehicle-uncertain .vehicle-map-mesh{
- filter:grayscale(1) drop-shadow(0 0 1px white) drop-shadow(0 1px 1px #243447a6)}
 #passenger-vehicle-picker{width:min(420px,calc(100vw - 20px));padding:20px}
 #passenger-vehicle-picker h2{margin:0 0 12px}
 #passenger-vehicle-picker h2:focus{outline:none}

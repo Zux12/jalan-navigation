@@ -15,9 +15,18 @@ module.exports=async function checkVehicleIcons(page,markerSelector){
  const preview=picker.locator('.vehicle-preview-icon canvas');
  const view=picker.locator('.vehicle-view-choice select');
  const pixels=()=>preview.evaluate(canvas=>canvas.toDataURL());
+ assert.equal(await mesh.getAttribute('data-model'),'duck','Go keeps the chosen vehicle');
+ const filter=await mesh.evaluate(canvas=>{
+   const screen=canvas.closest('.passenger-vehicle-screen');
+   const uncertain=screen.classList.contains('passenger-vehicle-uncertain');
+   screen.classList.add('passenger-vehicle-uncertain');
+   const value=getComputedStyle(canvas).filter;
+   screen.classList.toggle('passenger-vehicle-uncertain',uncertain);
+   return value;
+ });
+ assert.doesNotMatch(filter,/grayscale/,'GPS uncertainty preserves the chosen paint in guidance');
  await open();
- assert.equal(await model('classic').isChecked(),true);
- assert.equal(await picker.locator('.vehicle-colours').isVisible(),false);
+ assert.ok(await model('duck').isChecked()&&await colour('yellow').isChecked(),'Go keeps the saved colour');
  for(const name of ['sedan','hatchback','suv','mpv','pickup','motorcycle','balloon','wau','duck']){
    await model(name).check();
    assert.equal(await preview.getAttribute('data-model'),name);

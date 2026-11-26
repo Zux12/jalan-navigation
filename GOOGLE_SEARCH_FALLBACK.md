@@ -18,7 +18,7 @@ The Passenger page supports TomTom and optional Google Places UI Kit suggestions
   controls. No second search field, separate provider button, ordinary Places
   REST request or `fetchFields` call. A Google error or empty response preserves available TomTom suggestions. Both providers may list the same branch.
 - Selecting a returned point calls existing `selectDestinationPlace()`, then
-  existing TomTom route choice. When a Google Recent row comes into view, its place ID loads the selected name and address in a compact UI Kit component. Route uses the original selected point even when details are unavailable. Recent is session-only.
+  existing TomTom route choice. When a Google Recent row comes into view, its place ID loads the selected name and address in a compact UI Kit component. The seven most recently selected destinations are kept on the device. A Google entry stores its place ID and the passenger’s search text, and refreshes its details and position after a restart. Within the same session its original selected point remains usable even when details are unavailable.
 - New input, clear, collapse, submit, hidden page and destination selection
   detach old results and invalidate callbacks. Google keyboard focus can remain
   inside its widget after leaving the input. Google content is not cached. The result deadline runs only while the Google list is visible.
