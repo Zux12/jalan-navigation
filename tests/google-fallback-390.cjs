@@ -17,7 +17,13 @@ function sdkFixture(){
     const attribution=document.createElement('p');attribution.textContent='Google Maps · simulated provider';shadow.append(attribution);
     for(const selected of widget.places){
      const button=document.createElement('button');button.textContent=selected.displayName;
-     button.onclick=()=>{const event=new Event('gmp-select');event.place=(value==='q bistro taman melati'||value==='ayer 8')?{id:selected.id,location:selected.location}:selected;widget.dispatchEvent(event);};shadow.append(button);
+     button.onclick=()=>{
+      const event=new Event('gmp-select');
+      if(value==='q bistro taman melati')event.place={id:selected.id};
+      else if(value==='ayer 8')event.place={id:selected.id,location:selected.location};
+      else event.place=selected;
+      widget.dispatchEvent(event);
+     };shadow.append(button);
     }
     widget.dispatchEvent(new Event('gmp-load'));
    },value==='Slow Google'?1000:30);
@@ -278,6 +284,16 @@ module.exports=async function({context,base,root}){
  });
  assert.deepEqual(stationTypes,{types:[['gas_station'],['electric_vehicle_charging_station']],markers:1,combined:true,picked:'SHARED_FORECOURT',credited:true});
  console.log('PASS exact Google branch names and addresses in Recent, shared entrance, provider failure and reuse');
+ await boot();
+ await page.evaluate(()=>{document.getElementById('start-choice').value='map';setStart([3.139,101.6869],'Fixture start');});
+ await page.route('https://api.tomtom.com/routing/**',route=>route.fulfill({status:400,headers,
+  json:{detailedError:{message:'Engine error while executing route request: NO_ROUTE_FOUND: No valid route found'}}}));
+ await input.fill('q bistro taman melati');
+ await widget.getByRole('button',{name:'Q Bistro Taman Melati'}).click();
+ await page.getByRole('status').filter({hasText:'No driving route found.'}).waitFor();
+ assert.equal(await page.evaluate(()=>routes.length),0);
+ assert.equal(await page.locator('#passenger-go').isVisible(),false);
+ console.log('PASS Google place-ID lookup on selection and visible no-driving-route feedback');
  assert.deepEqual(errors,[]);await page.close();
  console.log('PASS synthetic Google UI Kit fallback: multiple branches and both providers, narrowed and zero-match queries, original single input, lazy SDK, attribution host intact, exact point to TomTom routes, keyboard, stale/clear/collapse, empty/error and submit');
 };

@@ -68,10 +68,18 @@ module.exports=async(page,context,base)=>{
  await page.waitForFunction(()=>document.body.classList.contains('passenger-following-location'));
  const cdp=await context.newCDPSession(page);
  const dragStart=async()=>{
-  // The earlier sheet-relative point (180,712) hit the interactive OSM
-  // attribution link, not the map. Keep attribution visible and clickable;
-  // start the same real held drag in the central map, clear of the credits.
-  const x=180,y=360;
+  // The journey sheet is still settling just after Go. Touch an exposed strip
+  // of the map so a sheet, marker or control cannot receive the drag instead.
+  const point=await page.waitForFunction(()=>{
+   const surface=document.getElementById('passenger-map-gestures');
+   const top=document.getElementById('passenger-journey-sheet').getBoundingClientRect().top;
+   const x=Math.floor(innerWidth/2)-40;
+   for(let y=Math.floor(top)-70;y>80;y-=20){
+    if(document.elementFromPoint(x,y)===surface&&document.elementFromPoint(x+75,y-40)===surface)return {x,y};
+   }
+   return false;
+  });
+  const {x,y}=await point.jsonValue();await point.dispose();
   const hit=await page.evaluate(({x,y})=>document.elementFromPoint(x,y)?.id,{x,y});
   assert.equal(hit,'passenger-map-gestures','held-drag fixture must start on the raster map hit plane');
   // Observe real Chromium input delivery without dispatching synthetic DOM
@@ -101,9 +109,13 @@ module.exports=async(page,context,base)=>{
  };
  const release=()=>cdp.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});
  await dragStart();
- const recenterVisible=await page.locator('#passenger-recenter-floating').isVisible();
- if(!recenterVisible)console.error('FOLLOW TOUCH DIAGNOSTIC',JSON.stringify(await page.evaluate(()=>window.__followTouchTrace)));
- assert.equal(recenterVisible,true,'real held map drag must expose Recenter');
+ try{
+  await page.locator('#passenger-recenter-floating').waitFor({state:'visible',timeout:2000});
+ }catch(error){
+  console.error('FOLLOW TOUCH DIAGNOSTIC',JSON.stringify(await page.evaluate(()=>window.__followTouchTrace)));
+  throw error;
+ }
+ assert.equal(await page.locator('#passenger-recenter-floating').isVisible(),true,'real held map drag must expose Recenter');
  assert.equal(await page.locator('#jalan-home-report').isVisible(),false);
  await page.waitForTimeout(3200);await fresh();
  assert.equal(await atCurrent(),false,'holding a finger longer than three seconds never recenters');

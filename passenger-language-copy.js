@@ -9,6 +9,8 @@
     "All routes found have tolls.": "Semua laluan yang ditemui mempunyai tol.",
     "Could not confirm a toll-free route.": "Laluan tanpa tol tidak dapat disahkan.",
     "Could not load routes.": "Laluan tidak dapat dimuatkan.",
+    "Could not load routes. Check your connection and try again.": "Laluan gagal dimuatkan. Semak sambungan internet dan cuba lagi.",
+    "No driving route found. Try selecting a road entrance or a different destination.": "Tiada laluan memandu ditemui. Cuba pilih pintu masuk jalan atau destinasi lain.",
     "Show routes with tolls": "Lihat laluan bertol",
     "Show all routes": "Lihat semua laluan",
     "Continuing on your current route.": "Perjalanan diteruskan mengikut laluan semasa.",

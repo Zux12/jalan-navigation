@@ -174,12 +174,14 @@ async function selectDestinationPlace(place){
  if($('start-choice').value==='map'){
   if(!startPoint){chooseStart=true;statusEl.textContent='Tap the map to choose your starting point.';map.setView(destination,12);return;}
  }else{
-  try{statusEl.textContent='Finding your starting location…';const origin=await getGPS();
+  try{statusEl.textContent='Finding your starting location…';window.JalanPassengerRouteNotice?.(statusEl.textContent);const origin=await getGPS();
    if(!current())return;setStart(origin,'Your starting location');
   }catch(err){
    if(current()){
     statusEl.textContent=err.message+' Select “Choose on map” to continue.';map.setView(destination,13);
-    if(window.JalanNativeLocation && err.code===1)window.dispatchEvent(new Event('jalan:iphone-origin-needed'));
+    if(window.JalanNativeLocation && err.code===1){
+     window.JalanPassengerRouteNotice?.();window.dispatchEvent(new Event('jalan:iphone-origin-needed'));
+    }else window.JalanPassengerRouteNotice?.('Could not get your location. Allow location access and retry.');
    }
    return;
   }
