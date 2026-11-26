@@ -3,7 +3,8 @@ const assert=require('node:assert/strict');
 module.exports=async function forwardMotion(page,base){
  await page.goto(base+'/index.html?mode=passenger',{waitUntil:'load'});
  const result=await page.evaluate(async()=>{
-   const a=[3.139,101.687],corner=[a[0],a[1]+.00012],b=[a[0]+.00012,corner[1]],end=[a[0]+.001,corner[1]];
+   const a=[3.139,101.687],corner=[a[0],a[1]+.00012],b=[a[0]+.00012,corner[1]];
+   const nextCorner=[b[0]+.00014,b[1]],end=[nextCorner[0],b[1]+.001];
    const marker=name=>Object.values(map._layers).find(l=>l.options?.icon?.options.className===name);
    const emit=(name,detail)=>window.dispatchEvent(new CustomEvent(name,{detail}));
    async function sample(name,endpoint){
@@ -27,7 +28,7 @@ module.exports=async function forwardMotion(page,base){
    emit('jalan:free-location',{point:[4.5,103.2],accuracy:6,timestamp:at+1000,heading:90,speed:13});
    const afterSpike=marker('passenger-startup-pin').getLatLng();
    $('tt-primary').checked=false;setStart(a,'Start');destination=end;
-   routes=[{provider:'osrm',duration:120,distance:130,legs:[],geometry:{type:'LineString',coordinates:[a,corner,b,end].map(([lat,lon])=>[lon,lat])}}];
+   routes=[{provider:'osrm',duration:120,distance:130,legs:[],geometry:{type:'LineString',coordinates:[a,corner,b,nextCorner,end].map(([lat,lon])=>[lon,lat])}}];
    selectedRoute=0;renderRoutes();$('passenger-go').click();
    let fixes=0;const count=()=>fixes++;window.addEventListener('jalan:gps-fix',count);
    at=Date.now();
@@ -41,7 +42,12 @@ module.exports=async function forwardMotion(page,base){
    window.__offlineGPSWatch({timestamp:at+1,coords:{latitude:end[0],longitude:end[1],accuracy:150,speed:17}});
    await new Promise(requestAnimationFrame);
    const held=before?.equals(tip(),1e-12);
-   return {a,corner,b,free,guided,measured,fixes,held,afterSpike:[afterSpike.lat,afterSpike.lng]};
+   const expected=[nextCorner[0],b[1]+.00028];
+   fix([expected[0]+.00017,expected[1]],90,Date.now());
+   const pending=JalanGPS.getState().vehicleMode;
+   const checking=await sample('jalan-vehicle-marker',expected);
+   return {a,corner,b,free,guided,measured,fixes,held,afterSpike:[afterSpike.lat,afterSpike.lng],
+    checking,nextCorner,expected,pending};
  });
  const {a,corner,b,free,guided}=result;
  assert.deepEqual(result.afterSpike,corner);assert.deepEqual(result.measured,b);assert.equal(result.fixes,2);
@@ -57,6 +63,12 @@ module.exports=async function forwardMotion(page,base){
    assert.ok(Number.isFinite(tipLat)&&Math.hypot(lat-tipLat,lon-tipLon)<1e-9,'the grey edge follows the triangle around the bend');
  }
  assert.ok(result.held,'an inaccurate reading leaves the travelled edge in place');
+ assert.equal(result.pending,'checking-drift');
+ assert.deepEqual(result.checking.at(-1).slice(0,2),result.expected);
+ for(const [lat,lon] of result.checking){
+   assert.ok(Math.abs(lon-b[1])<1e-9||Math.abs(lat-result.nextCorner[0])<1e-9,
+     'every animation frame stays on one side of the bend during uncertain GPS');
+ }
  await page.evaluate(()=>JalanGPS.stop());
  console.log('PASS continuous free and guided movement between real GPS callbacks, bend, isolated spike and endpoint');
 };
