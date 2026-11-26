@@ -161,8 +161,14 @@
  input.addEventListener('input',schedule);
  input.addEventListener('compositionstart',()=>{composing=true;cancel();});
  input.addEventListener('compositionend',()=>{composing=false;schedule();});
- input.addEventListener('blur',()=>{blurTimer=setTimeout(()=>{if(!list.contains(document.activeElement))cancel();},180);});
- list.addEventListener('focusout',()=>{blurTimer=setTimeout(()=>{if(document.activeElement!==input&&!list.contains(document.activeElement))cancel();},180);});
+ const passengerSearchOpen=()=>input.closest('.jalan-home-sheet[data-state="c"]:not(.jalan-sheet-route)');
+ function handleBlur(){
+  clearTimeout(blurTimer);
+  if(passengerSearchOpen())return;
+  blurTimer=setTimeout(()=>{if(document.activeElement!==input&&!list.contains(document.activeElement))cancel();},180);
+ }
+ input.addEventListener('blur',handleBlur);
+ list.addEventListener('focusout',handleBlur);
  input.addEventListener('keydown',event=>{
   if(composing||event.isComposing||!ownsList)return;
   if(event.key==='Escape'){event.preventDefault();event.stopPropagation();cancel();return;}
@@ -177,8 +183,11 @@
  form.addEventListener('submit',event=>{
   const useFallback=window.JalanGooglePlaceSearch?.configured()===true;
   cancel();
+  const inSheet=passengerSearchOpen();
+  if(inSheet)input.blur();
   if(useFallback){
-   event.preventDefault();event.stopImmediatePropagation();input.focus();
+   event.preventDefault();event.stopImmediatePropagation();
+   if(!inSheet)input.focus();
    const query=input.value.trim();if(query.length>=3)search(query,epoch);
   }
  },true);

@@ -115,6 +115,20 @@
  window.addEventListener('jalan:journey-stop',()=>requestAnimationFrame(paintNavigation));
  paintNavigation();
  const input=$('destination'),form=$('search-form'),list=$('jalan-recent-list');
+ const viewport=window.visualViewport;
+ function sizeSearchSheet(){
+   if(!viewport||sheet.dataset.state!=='c')return;
+   const covered=Math.max(0,document.documentElement.clientHeight-viewport.offsetTop-viewport.height);
+   sheet.style.setProperty('--search-covered-bottom',covered+'px');
+   sheet.style.setProperty('--search-visible-height',viewport.height+'px');
+ }
+ viewport?.addEventListener('resize',sizeSearchSheet);
+ viewport?.addEventListener('scroll',sizeSearchSheet);
+ function showSearchResults(){
+   if(!sheet.hasAttribute('data-place-mode'))sheet.toggleAttribute('data-searching',Boolean(input.value.trim()));
+ }
+ input.addEventListener('input',showSearchResults);
+ form.addEventListener('submit',showSearchResults,true);
  const recentRows=new Map();
  let recentDetailId=0;
  const routeSearchButton=$('passenger-search'),navigation=$('passenger-navigation');
@@ -177,7 +191,15 @@
    if(state!=='c'){shortcuts?.cancel();window.JalanDestinationSuggestions?.cancel();}
    if(routeSearch&&state!=='c'){closeRouteSearch();return;}
    if(state!=='c'&&document.activeElement===input)input.blur();
+   const reopening=state==='c'&&sheet.dataset.state!=='c';
    sheet.dataset.state=state;
+   if(state==='c'){
+     sizeSearchSheet();
+     if(reopening&&sheet.hasAttribute('data-searching')){
+       if(input.value.trim())input.dispatchEvent(new Event('input',{bubbles:true}));
+       else sheet.removeAttribute('data-searching');
+     }
+   }
    header.inert=state!=='c';
    handle.setAttribute('aria-expanded',String(state!=='a'));
    handle.setAttribute('aria-label',routeSearch?'Return to current route':
@@ -191,6 +213,7 @@
    shortcuts?.cancel();
    const saved=routeSearch;routeSearch=null;window.JalanDestinationSuggestions?.cancel();
    cancelGesture();input.blur();
+   sheet.removeAttribute('data-searching');
    if(restoreInput)input.value=saved.inputValue;
    results.classList.add('hidden');
    document.body.classList.remove('passenger-route-search');
@@ -323,6 +346,7 @@
  window.addEventListener('jalan:destination-selected',event=>{
    const place=event.detail;
    if(!Array.isArray(place?.point)||place.point.length!==2||!place.point.every(Number.isFinite))return;
+   sheet.removeAttribute('data-searching');
    rememberRecent(place);closeRouteSearch(false,false);
  });
  window.addEventListener('jalan:routes-rendered',()=>{shortcuts.cancel();closeRouteSearch(false,false);cancelGesture();sheet.classList.add('jalan-sheet-route');input.blur();});
