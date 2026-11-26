@@ -91,7 +91,6 @@
     'Privacy & terms': 'Privasi & terma',
     'Done': 'Selesai',
     'JALAN development': 'Pembangunan JALAN',
-    'Developed by': 'Dibangunkan oleh',
     'Application algorithms & navigation logic': 'Algoritma aplikasi dan logik navigasi',
     'Supporting technology & services': 'Teknologi dan perkhidmatan sokongan',
     'Map and map data': 'Peta dan data peta',
