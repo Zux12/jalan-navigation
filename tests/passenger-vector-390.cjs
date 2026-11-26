@@ -387,6 +387,7 @@ async function main(){
   const initialCenter=await page.evaluate(()=>[map.getCenter().lat,map.getCenter().lng]);
   await page.mouse.move(150,380);await page.mouse.down();
   try{
+    await page.evaluate(fix); // A fix between contact and the first move used to cancel the drag.
     await page.mouse.move(240,430,{steps:12});
     // Measure the drag while the finger is held. GPU load may otherwise
     // let the normal three-second return expire before the runner reads it.
@@ -420,6 +421,7 @@ async function main(){
   const gesture=async(from,to)=>{
     const points=(pair)=>pair.map(([x,y],id)=>({x,y,id:id+1}));
     await cdp.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:points(from)});
+    await page.evaluate(fix);
     for(let step=1;step<=10;step++){
       const intermediate=from.map(([x,y],i)=>[x+(to[i][0]-x)*step/10,y+(to[i][1]-y)*step/10]);
       await cdp.send('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:points(intermediate)});
@@ -427,6 +429,8 @@ async function main(){
     }
     await cdp.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});
   };
+  await page.evaluate(fix);
+  await page.locator('#passenger-recenter').evaluate(button=>button.click());
   const pinchBefore=await page.evaluate(()=>JalanVectorMap.getState().zoom);
   await gesture([[160,355],[230,355]],[[95,355],[295,355]]);
   await page.waitForTimeout(350);
@@ -439,9 +443,11 @@ async function main(){
     'native two-finger twist must rotate the vector map on mobile');
   await cdp.detach();
   // The longer mobile gesture test can exceed the five-second trusted GPS
-  // window. Recenter should require a fresh fix rather than bypassing it.
+  // window. A fresh fix also completes any three-second return that is due.
   await page.evaluate(fix);
-  await page.locator('#passenger-recenter-floating').click();
+  await page.locator('#passenger-recenter-floating').evaluate(button=>{
+    if(button.getClientRects().length)button.click();
+  });
   assert.ok(await page.evaluate(()=>Math.abs(map.getZoom()-18.8)<.001),'Recenter restores the configured navigation zoom');
   await page.waitForFunction(()=>document.body.classList.contains('passenger-following-location'));
   assert.equal(await page.locator('#jalan-home-report').isVisible(),true);
@@ -459,6 +465,8 @@ async function main(){
   await page.locator('#jalan-home-menu').click();
   if(!await page.locator('#passenger-navigation-settings').evaluate(x=>x.open))await page.locator('#passenger-navigation-settings>summary').click();
   await page.locator('#passenger-nav-tilt').evaluate(el=>{el.value='0';el.dispatchEvent(new Event('input',{bubbles:true}));});
+  assert.equal(await page.locator('#jalan-vector-map canvas').evaluate(canvas=>getComputedStyle(canvas).pointerEvents),'auto',
+    'flat detailed map accepts touches during guidance');
   assert.equal(await page.evaluate(()=>JalanVectorMap.getPitch()),0);
   if(!await page.locator('#passenger-navigation-settings').evaluate(x=>x.open))await page.locator('#passenger-navigation-settings>summary').click();
   await page.locator('#passenger-nav-tilt').evaluate(el=>{el.value='100';el.dispatchEvent(new Event('input',{bubbles:true}));});

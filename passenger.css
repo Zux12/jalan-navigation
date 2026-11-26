@@ -39,9 +39,9 @@ body.passenger-mode .passenger-overview{position:fixed;z-index:1300;bottom:calc(
 .passenger-delta-pin{background:#fff;border:2px solid #e2e8f0;border-radius:10px;padding:5px 8px;white-space:nowrap;font:bold 12px system-ui,sans-serif;box-shadow:0 4px 10px #10243c4d;color:#172d45}
 /* Reduce the artificial empty horizon seen in the initial passenger desktop
    preview. This is still a flat Leaflet map with visual perspective ONLY. */
-body.passenger-guiding #map{transform:perspective(1200px) rotateX(var(--jalan-raster-pitch,17deg)) rotateZ(var(--jalan-camera-turn,0deg)) scale(1.35) translateY(0);transform-origin:50% 50%;pointer-events:none!important}
+body.passenger-guiding:not(.passenger-vector-active) #map{transform:perspective(1200px) rotateX(var(--jalan-raster-pitch,17deg)) rotateZ(var(--jalan-camera-turn,0deg)) scale(1.35) translateY(0);transform-origin:50% 50%;pointer-events:none!important}
 body.passenger-guiding{background:#dbe4eb}
-body.passenger-guiding.passenger-map-flat #map{transform:rotateZ(var(--jalan-camera-turn,0deg));pointer-events:none!important}
+body.passenger-guiding.passenger-map-flat:not(.passenger-vector-active) #map{transform:rotateZ(var(--jalan-camera-turn,0deg));pointer-events:none!important}
 body.passenger-guiding .topbar,body.passenger-guiding .results,body.passenger-guiding .passenger-overview{display:none!important}
 body.passenger-guiding .interface-switch{display:none}
 .passenger-navigation{position:fixed;inset:0;z-index:1500;pointer-events:none;font-family:system-ui,sans-serif;color:#fff}
@@ -124,15 +124,13 @@ body.passenger-mode .passenger-go{margin-top:4px;min-height:54px}
  body.passenger-mode .passenger-overview{max-height:calc(100dvh - 174px - env(safe-area-inset-top,0px))}
 }
 
-/* The perspective transform invalidates native Leaflet touch hit-testing, so
-   route exploration uses a separate gesture plane. In flat 2D, restore native
-   Leaflet drag/pinch and remove the gesture plane from hit testing. */
-.passenger-map-gestures{position:absolute;z-index:1;top:calc(136px + env(safe-area-inset-top,0px));bottom:185px;left:0;right:0;pointer-events:auto;touch-action:none;cursor:grab}
+/* The basic map handles gestures beneath the actual banners and controls.
+   Let their own bounds determine which parts of the map are uncovered. */
+.passenger-map-gestures{position:absolute;z-index:1;inset:0;pointer-events:auto;touch-action:none;cursor:grab}
 .passenger-map-gestures:active{cursor:grabbing}
 body.passenger-map-flat .passenger-map-gestures{pointer-events:auto}
 .passenger-turn,.passenger-bottom{z-index:3}
 .passenger-gesture-hint{font-size:11px;color:#60748c;text-align:center;margin:2px 0 10px}
-@media(max-height:650px){.passenger-map-gestures{bottom:150px}}
 
 /* Map rotation in either view is owned by the custom touch plane. */
 
@@ -174,7 +172,6 @@ body.passenger-guiding .passenger-stats span{font-size:clamp(12px,3.3vw,16px);wh
 .passenger-turn-list li .turn-list-arrow{font-size:25px;min-width:34px;text-align:center}
 .passenger-turn-list li strong{font-size:15px}
 .passenger-turn-list li small{display:block;color:#bad8e5;font-size:12px;padding-top:3px}
-body.passenger-guiding .passenger-map-gestures{top:calc(115px + env(safe-area-inset-top,0px))}
 
 /* Fixed guidance header, with an independently scrollable reports/turns panel. */
 body.passenger-guiding .passenger-turn{position:fixed;top:0;left:0;right:0}
