@@ -242,7 +242,27 @@ module.exports=async function({context,base,root}){
  await page.waitForFunction(()=>routes.length>0);
  assert.equal(routeCalls,beforeRecentRoute+1,'Recent routes directly to the selected point');
  assert.equal(await recent.locator('li').first().getAttribute('data-recent-key'),'google:FIXTURE_AYER_South');
- assert.equal(await recent.locator('li').count(),2,'reselection reorders the existing branch');
+ assert.equal(await recent.locator('li[data-recent-key^="google:FIXTURE_AYER_"]').count(),2,'reselection reorders the existing branch');
+ const history=await page.evaluate(()=>JSON.parse(localStorage.getItem('jalan-passenger-recent-v1')));
+ assert.deepEqual(history[0],{googleId:'FIXTURE_AYER_South',searchText:'ayer 8'},'only the place ID and typed query persist for Google');
+ await boot();
+ assert.equal(await recent.locator('li').first().getAttribute('data-recent-key'),'google:FIXTURE_AYER_South');
+ await south.getByText('Fixture South Street, Putrajaya').waitFor();
+ await page.evaluate(()=>{document.getElementById('start-choice').value='map';setStart([3.139,101.6869],'Fixture start');});
+ await south.getByRole('button',{name:/Route to/}).click();
+ await page.waitForFunction(()=>routes.length>0);
+ assert.deepEqual(await page.evaluate(()=>destination),expectedEndpoint,'reopened Recent resolves to the selected Google branch');
+ await page.evaluate(()=>{
+   for(let i=0;i<9;i++)setDestinationPlace({name:'Stop '+i,display_name:'Address '+i},[3.1+i*.01,101.7]);
+ });
+ await boot();
+ assert.deepEqual(await recent.locator('li button').allTextContents(),[8,7,6,5,4,3,2].map(i=>'Address '+i));
+ await page.evaluate(()=>{document.getElementById('start-choice').value='map';setStart([3.139,101.6869],'Fixture start');});
+ expectedEndpoint=[3.15,101.7];
+ await recent.getByRole('button',{name:'Address 5',exact:true}).click();
+ await page.waitForFunction(()=>routes.length>0);
+ await boot();
+ assert.deepEqual(await recent.locator('li button').allTextContents(),[5,8,7,6,4,3,2].map(i=>'Address '+i),'revisiting a saved coordinate moves it to the top after restart');
  const stationTypes=await page.evaluate(async()=>{
    const host=document.createElement('div');document.body.append(host);
    const controller=new AbortController();let all,selected;

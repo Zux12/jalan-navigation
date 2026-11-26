@@ -166,7 +166,7 @@ async function main(){
   await handle.press('ArrowUp');
   await recentCredit.waitFor({state:'visible'});
   const emptyRow=page.locator('.jalan-recent-empty');
-  assert.equal(await emptyRow.textContent(),'Your recently selected destinations will appear here during this session. © OpenStreetMap');
+  assert.equal(await emptyRow.textContent(),'Your last 7 selected destinations will appear here. © OpenStreetMap');
   assert.equal(await recentCredit.evaluate(el=>el.tagName==='SPAN'&&!el.closest('a')&&getComputedStyle(el).font===getComputedStyle(el.parentElement).font),true);
   await page.evaluate(()=>JalanLanguage.set('ms'));
   assert.match(await emptyRow.textContent(),/di sini\. © OpenStreetMap$/);

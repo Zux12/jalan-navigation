@@ -73,7 +73,7 @@
    // The selection event can contain just an ID and a point. Recent displays
    // the provider's name and address by that ID, even for an ambiguous search.
    const name=place.displayName||query.trim()||'Selected destination';
-   onSelect({lat,lon,name,display_name:name,source:'google',googleId:place.id});
+   onSelect({lat,lon,name,display_name:name,source:'google',googleId:place.id,searchText:query});
   });
   container.replaceChildren(widget);
   visibility.observe(widget);
