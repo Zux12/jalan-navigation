@@ -213,3 +213,47 @@ test('traffic observations never inherit endpoint road identity across an ambigu
   if(interior===bridge)assert.ok(!observations.some(o=>o.segment===M.roadSegment(middle,bridge)),'do not manufacture a bridge observation from surface endpoint fixes');
  }
 });
+
+test('resetting the persisted traffic seed rotates the open-tab identifier and rejects a signature from an obsolete seed',async()=>{
+ const src=fs.readFileSync(path.join(__dirname,'../passenger-community-flow.js'),'utf8');
+ const w=new EventTarget(),d=new EventTarget(),box=new EventTarget(),observations=[];
+ d.getElementById=()=>box;
+ const road={key:'vector-abba',level:'0:surface'};
+ w.JalanVectorMap={getReportRoad:()=>road};w.JalanGPS={getState:()=>({active:true,route})};
+ w.JalanRouteTraffic={freeFlowAt:()=>60};w.JalanFlowModel=M;w.JalanReportModel=P;
+ const pref='jalan-traffic-sharing-v2',seed='jalan-traffic-seed-v1';
+ const values=new Map([[pref,'on'],[seed,'11'.repeat(32)]]);
+ const localStorage={getItem:k=>values.get(k)??null,setItem:(k,v)=>values.set(k,v)};
+ let finishSignature,clock=Date.now();class TestDate extends Date{static now(){return clock;}}
+ const crypto={getRandomValues:b=>b.fill(2),subtle:{
+  importKey:async(_format,bytes)=>String.fromCharCode(...bytes),
+  sign:(_algo,key)=>new Promise(resolve=>{finishSignature=()=>resolve(new Uint8Array(32).fill(parseInt(key.slice(0,2),16)));})}};
+ vm.runInNewContext(src,{window:w,document:d,location:{search:'?mode=passenger'},URLSearchParams,localStorage,crypto,TextEncoder,Uint8Array,Date:TestDate,Event,AbortController,
+  setTimeout:()=>1,clearTimeout(){},setInterval(){},fetch:async(url,options)=>{
+   if(url.endsWith('observe'))observations.push(JSON.parse(options.body));
+   return {ok:true,json:async()=>({sections:[]})};
+  }});
+ const next=()=>new Promise(resolve=>setImmediate(resolve));
+ const fix=(lon,age)=>w.dispatchEvent(new CustomEvent('jalan:gps-fix',{detail:{
+  matched:true,gpsReliable:true,gpsAccuracy:5,gpsFixAgeMs:age,gpsPosition:[0,lon],
+  heading:90,speedMps:5,speedLimitIndex:0}}));
+ const movement=async()=>{finishSignature=undefined;fix(101,5000);fix(101.0002,1000);await next();assert.equal(typeof finishSignature,'function','movement reached signing');};
+ w.dispatchEvent(new Event('jalan:journey-start'));
+ await movement();finishSignature();await next();
+ assert.equal(observations.length,1);
+ assert.equal(observations[0].driver,'11'.repeat(32));
+ values.clear();
+ const cleared=new Event('storage');cleared.key=null;w.dispatchEvent(cleared);
+ assert.equal(box.checked,false);
+ box.checked=true;box.dispatchEvent(new Event('change'));
+ clock+=6000;
+ await movement();finishSignature();await next();
+ assert.equal(observations.length,2);
+ assert.equal(observations[1].segment,observations[0].segment);
+ assert.equal(observations[1].driver,'02'.repeat(32),'cleared seed cannot be reused after explicit opt-in');
+ clock+=24000;
+ await movement();
+ values.set(seed,'33'.repeat(32)); // no storage event: changed while signing
+ finishSignature();await next();
+ assert.equal(observations.length,2,'an obsolete in-flight signature must not be posted');
+});

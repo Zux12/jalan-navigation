@@ -4,14 +4,14 @@
  if(new URLSearchParams(location.search).get('mode')!=='passenger')return;
  const model=window.JalanFlowModel,P=window.JalanReportModel;
  const base='https://mterm2026-559f9bf571b5.herokuapp.com/api/jalan/reports/flow/';
- const box=document.getElementById('passenger-share-speed'),pref='jalan-traffic-sharing-v2';
+ const box=document.getElementById('passenger-share-speed'),pref='jalan-traffic-sharing-v2',seedPref='jalan-traffic-seed-v1';
  let storageAvailable=true;
  const get=k=>{try{return localStorage.getItem(k);}catch{storageAvailable=false;return null;}};
  const set=(k,v)=>{try{localStorage.setItem(k,v);}catch{storageAvailable=false;}};
  // v1 could have been set ON without a deliberate user choice. Never treat it as consent.
  const saved=get(pref);
  let enabled=storageAvailable&&saved==='on',active=false,route=null,sections=[],lookup=new Map(),cacheUntil=0,previous=null,matched=null,readCell=null;
- let seedKey=null,seedPromise=null,epoch=0,reader=null,lastRead=0,regionOffset=0,consentSince=0;
+ let seedCache=null,epoch=0,reader=null,lastRead=0,regionOffset=0,consentSince=0;
  const writes=new Set(),lastSent=new Map(),verifiedRoads=new Map();
  box.checked=enabled;
  function resetWrites(){epoch++;for(const c of writes)c.abort();writes.clear();previous=null;matched=null;readCell=null;lastSent.clear();}
@@ -26,6 +26,8 @@
  }
  box.addEventListener('change',()=>setting(box.checked,true));
  window.addEventListener('storage',e=>{
+  // A cleared or replaced identifier must not survive in an open tab.
+  if(e.key===seedPref||e.key===null){seedCache=null;resetWrites();}
   if(e.key!==pref&&e.key!==null)return;
   const stored=get(pref);
   // Cleared, removed, malformed or unreadable settings are not permission.
@@ -74,12 +76,13 @@
   sections=next;cacheUntil=sections.reduce((v,s)=>Math.min(v,s.expiresAt),Infinity);if(dirty)changed();}
  function current(r){if(!r||r!==route)return [];if(cacheUntil&&Date.now()>=cacheUntil)refresh();return sections;}
  function secret(){
-  if(seedPromise)return seedPromise;
-  let seed=get('jalan-traffic-seed-v1');
+  let seed=get(seedPref);
   if(!storageAvailable){setting(false,false);throw Error('Traffic storage unavailable');}
-  if(!/^[a-f0-9]{64}$/.test(seed||'')){seed=hex(crypto.getRandomValues(new Uint8Array(32)));set('jalan-traffic-seed-v1',seed);}
+  if(!/^[a-f0-9]{64}$/.test(seed||'')){seed=hex(crypto.getRandomValues(new Uint8Array(32)));set(seedPref,seed);}
   if(!storageAvailable){setting(false,false);throw Error('Traffic storage unavailable');}
-  seedPromise=crypto.subtle.importKey('raw',new TextEncoder().encode(seed),{name:'HMAC',hash:'SHA-256'},false,['sign']);return seedPromise;
+  // Only reuse the imported key while its exact persisted seed is still current.
+  if(!seedCache||seedCache.value!==seed)seedCache={value:seed,key:crypto.subtle.importKey('raw',new TextEncoder().encode(seed),{name:'HMAC',hash:'SHA-256'},false,['sign'])};
+  return seedCache;
  }
  const hex=bytes=>Array.from(bytes,n=>n.toString(16).padStart(2,'0')).join('');
  async function send(cell,road,speed,normal,passAgeMs=null){
@@ -91,10 +94,11 @@
   if(last&&at-last.at<20000&&(!passed||last.passed))return;
   lastSent.set(cell.segment,{at,passed});
   const c=new AbortController();writes.add(c);
-  try{seedKey=await secret();const driver=hex(new Uint8Array(await crypto.subtle.sign('HMAC',seedKey,new TextEncoder().encode(segment))));
-   // Storage can disappear or be cleared while signing awaits crypto.
-   const preferenceAfterSign=get(pref);
+  try{const token=secret(),key=await token.key;const driver=hex(new Uint8Array(await crypto.subtle.sign('HMAC',key,new TextEncoder().encode(segment))));
+   // Storage or its identifier can change while signing awaits crypto.
+   const preferenceAfterSign=get(pref),seedAfterSign=get(seedPref);
    if(!storageAvailable||preferenceAfterSign!=='on'){setting(false,false);return;}
+   if(seedAfterSign!==token.value)return;
    if(before!==epoch||!storageAvailable||!active||!enabled||document.hidden||!window.JalanGPS.getState().active)return;
    await post('observe',{segment,region:cell.region,driver,road,speed:Math.round(speed),normal:Number.isFinite(normal)&&normal>=15&&normal<=180?Math.round(normal):null,passAgeMs},c);
   }catch{}finally{writes.delete(c);}
