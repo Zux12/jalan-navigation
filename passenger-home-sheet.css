@@ -21,7 +21,7 @@ body.passenger-mode:not(.passenger-route-search):not(.passenger-guiding):has(.ja
  bottom:auto;top:calc(4px + env(safe-area-inset-top,0px))
 }
 body.passenger-guiding:not(.passenger-route-search) #jalan-home-credits{
- z-index:1501;top:auto;bottom:calc(102px + var(--passenger-map-footer-offset,0px))
+ z-index:1501;top:auto;bottom:var(--passenger-credit-bottom,calc(102px + var(--passenger-map-footer-offset,0px)));transition:none
 }
 @media(prefers-reduced-motion:reduce){#jalan-home-credits{transition:none}}
 /* Compact states belong to sheet gestures; expanded lists retain native scroll. */

@@ -8,7 +8,17 @@
  let expanded=false,gesture=null,suppressClickUntil=0,currentRoute=null,viaAt=null,progressMeters=0,lastPaint='';
  const active=()=>document.body.classList.contains('passenger-guiding');
  function measure(){
-  if(!active())return 0;
+  // Attribution follows the actual sheet even without a GPS fix or while the
+  // map camera is manually held. Never depend on the camera-follow offset.
+  if(!active()){
+   document.body.style.removeProperty('--passenger-credit-bottom');return 0;
+  }
+  const top=panel.getBoundingClientRect().top;
+  if(Number.isFinite(top)){
+   const bottom=Math.max(0,innerHeight-top+6)+'px';
+   if(document.body.style.getPropertyValue('--passenger-credit-bottom')!==bottom)
+    document.body.style.setProperty('--passenger-credit-bottom',bottom);
+  }
   const style=getComputedStyle(panel);
   const peek=handle.offsetHeight+panel.querySelector('.passenger-stats').offsetHeight+(parseFloat(style.paddingBottom)||0);
   const cap=parseFloat(style.maxHeight)||innerHeight-190;

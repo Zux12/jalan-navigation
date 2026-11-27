@@ -66,6 +66,12 @@ async function main(){
   await page.route('https://unpkg.com/leaflet@1.9.4/dist/leaflet.css',route=>
    route.fulfill({status:200,contentType:'text/css',
     body:fs.readFileSync(path.join(leaflet,'leaflet.css'))}));
+  // Serve the same pinned Leaflet marker PNGs locally; the no-network guard
+  // otherwise intentionally blocks the CSS-relative CDN assets.
+  await page.route(/^https:\/\/unpkg\.com\/leaflet@1\.9\.4\/dist\/images\/(marker-icon(?:-2x)?|marker-shadow)\.png$/,route=>{
+   const name=new URL(route.request().url()).pathname.split('/').pop();
+   return route.fulfill({status:200,contentType:'image/png',body:fs.readFileSync(path.join(leaflet,'images',name))});
+  });
   await page.goto(base+'/index.html?mode=passenger&ios=2',{waitUntil:'load'});
   await page.locator('#jalan-launch').waitFor({state:'hidden'});
   assert.equal(await page.locator('#map').evaluate(x=>getComputedStyle(x).visibility),'visible','failed detailed-map dependency releases usable fallback');
@@ -1254,6 +1260,15 @@ async function main(){
   assert.equal(await page.locator('#passenger-recenter-floating').isVisible(),false,'map controls cannot overlap the expanded sheet');
   const actionBoxes=await page.locator('.passenger-journey-actions button').evaluateAll(nodes=>nodes.map(x=>{const r=x.getBoundingClientRect();return {left:r.left,right:r.right,top:r.top,bottom:r.bottom}}));
   assert.ok(actionBoxes[0].right<actionBoxes[1].left&&actionBoxes[0].top===actionBoxes[1].top&&actionBoxes[1].bottom<844);
+  await page.waitForFunction(()=>{
+    const credit=document.getElementById('jalan-home-credits'),sheet=document.getElementById('passenger-journey-sheet');
+    const r=credit.getBoundingClientRect(),s=sheet.getBoundingClientRect();
+    return r.height>0&&r.bottom<=s.top-2&&r.top>=0;
+  },null,{timeout:5000});
+  await page.waitForFunction(()=>{
+    const pin=destinationMarker.getElement();
+    return pin instanceof HTMLImageElement&&pin.complete&&pin.naturalWidth>0;
+  },null,{timeout:5000});
   await page.screenshot({path:path.join(root,'test-artifacts/passenger-journey-expanded.png')});
   await page.waitForTimeout(750);
   await page.locator('#passenger-journey-resume').click();
