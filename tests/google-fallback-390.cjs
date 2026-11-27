@@ -97,7 +97,19 @@ module.exports=async function({context,base,root}){
  const jalanHeading=page.getByRole('heading',{name:'JALAN Result',exact:true});
  const googleHeading=page.getByRole('heading',{name:'Google Maps Results',exact:true});
  await googleHeading.waitFor();
- assert.equal(await googleHeading.innerText(),'Results','the provider supplies its own Google Maps wordmark');
+ assert.equal(await googleHeading.innerText(),'Google Maps Results','the heading is separate from the provider-owned wordmark');
+ // The complete widget must start below the app heading, including when
+ // font sizes change. Do not rely on the provider's internal shadow layout.
+ const separated=()=>googleHeading.evaluate(heading=>{
+  const widget=heading.nextElementSibling;
+  return widget?.matches('gmp-place-search') &&
+    getComputedStyle(heading).position==='static' &&
+    heading.getBoundingClientRect().bottom<=widget.getBoundingClientRect().top;
+ });
+ assert.equal(await separated(),true,'app heading cannot cover any part of provider widget at 390px');
+ await page.evaluate(()=>document.documentElement.style.fontSize='150%');
+ try{assert.equal(await separated(),true,'larger text keeps the whole provider widget below the heading');}
+ finally{await page.evaluate(()=>document.documentElement.style.removeProperty('font-size'));}
  assert.equal(await jalanHeading.count(),0,'TomTom branches appear without a heading');
  assert.equal(await googleHeading.evaluate(el=>getComputedStyle(el).pointerEvents),'none','caption cannot intercept the info button');
  const rowStyle=await widget.evaluate(el=>{

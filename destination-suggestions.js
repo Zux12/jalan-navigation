@@ -125,7 +125,7 @@
   googleNote('Checking Google for places…');
   const caption=document.createElement('h3');
   caption.className='destination-google-caption';
-  caption.textContent='Results';
+  caption.textContent='Google Maps Results';
   caption.setAttribute('aria-label','Google Maps Results');
   function finished(){section.removeAttribute('aria-busy');}
   function googleReady(){
