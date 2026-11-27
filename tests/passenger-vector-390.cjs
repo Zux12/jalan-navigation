@@ -101,7 +101,7 @@ async function main(){
   await dependencies(page);
   let releaseStyle;const styleReady=new Promise(resolve=>{releaseStyle=resolve;});
   await page.route('https://tiles.openfreemap.org/styles/positron',async route=>{await styleReady;await route.fulfill({json:style});});
-  await page.goto(base+'/index.html?mode=passenger');
+  await page.goto(base+'/index.html?mode=passenger&ios=2');
   assert.equal(await page.locator('#jalan-launch').isVisible(),true,'brand covers the old map while detailed style is pending');
   assert.equal(await page.locator('#map').evaluate(x=>getComputedStyle(x).visibility),'hidden');
   assert.equal(await page.locator('#jalan-home-credits').isVisible(),false,'detailed-map splash is credit-free');
@@ -436,6 +436,7 @@ async function main(){
   await page.waitForTimeout(350);
   assert.ok(await page.evaluate(()=>JalanVectorMap.getState().zoom)>pinchBefore+0.1,
     'native two-finger pinch must zoom the vector map on mobile');
+  assert.equal(await page.evaluate(()=>visualViewport.scale),1,'map pinch keeps navigation controls at normal size');
   const twistBefore=await page.evaluate(()=>JalanVectorMap.getBearing());
   await gesture([[150,355],[240,355]],[[195,310],[195,400]]);
   await page.waitForTimeout(250);
