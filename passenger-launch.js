@@ -4,6 +4,12 @@
  const params=new URLSearchParams(location.search);
  if(params.get('mode')!=='passenger')return;
  const root=document.documentElement;
+ // Let lists scroll and let the map renderer handle its own two-finger zoom.
+ root.style.touchAction='pan-x pan-y';
+ if(params.has('ios')||matchMedia('(display-mode: standalone)').matches){
+  const viewport=document.querySelector('meta[name="viewport"]');
+  viewport.content+=', minimum-scale=1, maximum-scale=1, user-scalable=no';
+ }
  root.classList.add('passenger-launching');
  let done=false,basicOnly=params.get('renderer')==='raster',deadline,showMain;
  const mainScreenReady=new Promise(resolve=>{showMain=resolve;});

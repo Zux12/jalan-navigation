@@ -66,7 +66,7 @@ async function main(){
   await page.route('https://unpkg.com/leaflet@1.9.4/dist/leaflet.css',route=>
    route.fulfill({status:200,contentType:'text/css',
     body:fs.readFileSync(path.join(leaflet,'leaflet.css'))}));
-  await page.goto(base+'/index.html?mode=passenger',{waitUntil:'load'});
+  await page.goto(base+'/index.html?mode=passenger&ios=2',{waitUntil:'load'});
   await page.locator('#jalan-launch').waitFor({state:'hidden'});
   assert.equal(await page.locator('#map').evaluate(x=>getComputedStyle(x).visibility),'visible','failed detailed-map dependency releases usable fallback');
   assert.equal(await page.evaluate(()=>document.body.classList.contains('passenger-mode')),true);
@@ -99,6 +99,19 @@ async function main(){
  await page.locator('#passenger-report-cancel').click();
   await page.locator('#jalan-home-menu').click();
   assert.equal(await page.locator('#jalan-home-menu-panel').isVisible(),true);
+  {
+    const title=await page.locator('.jalan-home-menu-head').boundingBox();
+    const x=title.x+title.width/2,y=title.y+title.height/2;
+    const touch=await context.newCDPSession(page);
+    const points=span=>[{x:x-span,y,id:1},{x:x+span,y,id:2}];
+    await touch.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:points(22)});
+    for(const span of [32,44,56,68,80]){
+      await touch.send('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:points(span)});
+    }
+    await touch.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});
+    await touch.detach();
+    assert.equal(await page.evaluate(()=>visualViewport.scale),1,'pinching the menu keeps the app at normal size');
+  }
   assert.equal(await page.locator('#jalan-home-notice').isVisible(),false,'old notices do not obscure the menu');
   assert.equal(await page.locator('#passenger-options').count(),0,'old three-dot control is removed');
   const menuLabels=()=>page.locator('#jalan-home-menu-panel').evaluate(el=>[el.querySelector('#passenger-voice').textContent.split(':')[0],el.querySelector('summary').textContent,el.querySelector('#passenger-about').textContent,el.querySelector('#jalan-home-menu-close').textContent]);
