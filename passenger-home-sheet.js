@@ -127,12 +127,13 @@
  const viewport=window.visualViewport;
  function sizeSearchSheet(){
    if(!viewport||sheet.dataset.state!=='c')return;
-   const covered=Math.max(0,document.documentElement.clientHeight-viewport.offsetTop-viewport.height);
-   sheet.style.setProperty('--search-covered-bottom',covered+'px');
+   sheet.style.setProperty('--search-page-top',viewport.pageTop+'px');
    sheet.style.setProperty('--search-visible-height',viewport.height+'px');
  }
  viewport?.addEventListener('resize',sizeSearchSheet);
  viewport?.addEventListener('scroll',sizeSearchSheet);
+ window.addEventListener('scroll',sizeSearchSheet,{passive:true});
+ window.addEventListener('resize',sizeSearchSheet);
  function showSearchResults(){
    if(!sheet.hasAttribute('data-place-mode'))sheet.toggleAttribute('data-searching',Boolean(input.value.trim()));
  }

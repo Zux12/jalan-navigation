@@ -31,7 +31,26 @@ module.exports=async function({context,base,root}){
  const quick=page.locator('.jalan-sheet-quick'),recent=page.locator('.jalan-sheet-recent');
  const results=page.locator('#results');
  assert.ok(await quick.isVisible()&&await recent.isVisible(),'empty search offers shortcuts and Recent');
- for(const control of ['#jalan-home-menu','#passenger-gps-status'])assert.equal(await page.locator(control).isVisible(),false);
+ // Model a keyboard that already raised the bottom edge used by fixed elements.
+ // The empty search field must be usable immediately, before any query is typed.
+ await page.evaluate(()=>{
+   document.body.style.height='495px';
+   document.body.style.transform='translateZ(0)';
+   Object.defineProperties(visualViewport,{
+     height:{configurable:true,value:495},pageTop:{configurable:true,value:0}
+   });
+   visualViewport.dispatchEvent(new Event('resize'));
+ });
+ const emptyField=await input.boundingBox(),emptySheet=await page.locator('#jalan-home-sheet').boundingBox();
+ assert.ok(emptyField.y>=0 && emptyField.y+emptyField.height<495,'empty field stays on screen above keyboard');
+ assert.ok(Math.abs(emptySheet.y+emptySheet.height-495)<2,'sheet meets keyboard with no map gap');
+ assert.ok(await input.evaluate(el=>{const r=el.getBoundingClientRect();return document.elementFromPoint(r.x+r.width/2,r.y+r.height/2)===el;}),'search field accepts taps');
+ await page.evaluate(()=>{
+   document.body.style.removeProperty('height');document.body.style.removeProperty('transform');
+   delete visualViewport.height;delete visualViewport.pageTop;
+   visualViewport.dispatchEvent(new Event('resize'));
+ });
+ for(const control of ['#jalan-home-menu','#passenger-gps-status','#jalan-home-report','#jalan-home-speed'])assert.equal(await page.locator(control).isVisible(),false);
  await input.fill('K');
  assert.equal(await quick.isVisible()||await recent.isVisible(),false,'the first character gives the space to results');
  assert.ok(await page.locator('link[rel=apple-touch-icon]').getAttribute('href'));
@@ -52,7 +71,7 @@ module.exports=async function({context,base,root}){
  assert.equal(await options.count(),3,'invalid coordinates are ignored');assert.equal(await page.locator('#results img').count(),0,'provider names render as text');
  // Model iOS resizing and panning only the visual viewport over a full-height layout.
  await page.evaluate(()=>{
-   Object.defineProperties(visualViewport,{height:{configurable:true,value:410},offsetTop:{configurable:true,value:20}});
+   Object.defineProperties(visualViewport,{height:{configurable:true,value:410},offsetTop:{configurable:true,value:20},pageTop:{configurable:true,value:20}});
    visualViewport.dispatchEvent(new Event('resize'));
  });
  const keyboardList=await results.boundingBox();
@@ -61,7 +80,7 @@ module.exports=async function({context,base,root}){
  assert.ok(Math.abs(keyboardList.y+keyboardList.height-430)<16,'results extend down to the keyboard');
  await input.evaluate(el=>el.blur());
  await page.evaluate(()=>{
-   delete visualViewport.height;delete visualViewport.offsetTop;
+   delete visualViewport.height;delete visualViewport.offsetTop;delete visualViewport.pageTop;
    visualViewport.dispatchEvent(new Event('resize'));
  });
  await page.waitForTimeout(250);
