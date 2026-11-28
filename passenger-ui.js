@@ -782,24 +782,36 @@
  });
  document.addEventListener('visibilitychange',window.JalanLaneGuidance.clear);
  // Long signposts and the extra graphic both change the height of the banner.
- const cameraAlert=el('passenger-camera-alert');
+ const cameraAlert=el('passenger-camera-alert'),offlineBanner=el('passenger-offline-banner');
  const resizeBanner=new ResizeObserver(()=>{
    const bottom=turnToggle.getBoundingClientRect().bottom;
    if(!bottom)return;
-   turnList.style.top=bottom+'px';
-   document.body.style.setProperty('--passenger-guidance-bottom',(bottom+cameraAlert.getBoundingClientRect().height)+'px');
+   const offlineHeight=offlineBanner.getBoundingClientRect().height;
+   offlineBanner.style.top=bottom+'px';
+   navigation.style.setProperty('--passenger-offline-height',offlineHeight+'px');
+   turnList.style.top=(bottom+offlineHeight)+'px';
+   document.body.style.setProperty('--passenger-guidance-bottom',(bottom+offlineHeight+cameraAlert.getBoundingClientRect().height)+'px');
  });
- resizeBanner.observe(turnToggle);resizeBanner.observe(cameraAlert);
+ resizeBanner.observe(turnToggle);resizeBanner.observe(cameraAlert);resizeBanner.observe(offlineBanner);
+ function paintRouteSummary(){
+   if(!document.body.classList.contains('passenger-guiding'))return;
+   const waiting=offlineBanner.dataset.route==='off';
+   const message=waiting?'Off route':el('gps-instruction').textContent||'Acquiring GPS…';
+   const malay=waiting?'Di luar laluan':window.JalanGPS?.malayInstruction?.(message);
+   window.JalanLanguage.write(el('passenger-instruction'),message,malay);
+   if(waiting)window.JalanLanguage.write(el('passenger-next'),'Checking route','Menyemak laluan');
+   else el('passenger-next').textContent=(el('gps-detail').textContent||'Route preview')
+     .replace(/\s*·\s*GPS matched to selected route\s*$/,'');
+   el('passenger-eta').textContent=waiting?'—':el('gps-eta').textContent||'—';
+   el('passenger-distance').textContent=waiting?'—':el('gps-distance').textContent||'—';
+   el('passenger-turn-arrow').textContent=waiting?'':turnIcon(message,window.JalanGPS?.instructionStep?.(message));
+   window.JalanLanguage.write(el('passenger-turn-details'),message,malay);
+ }
+ window.addEventListener('jalan:offline-banner-change',paintRouteSummary);
  const syncGPS=(fix=null)=>{
    if(!document.body.classList.contains('passenger-guiding'))return;
-   const message=el('gps-instruction').textContent||'Acquiring GPS…';
    refreshJunction();
-   const malay=window.JalanGPS?.malayInstruction?.(message);
-   window.JalanLanguage.write(el('passenger-instruction'),message,malay);
-   el('passenger-next').textContent=(el('gps-detail').textContent||'Route preview')
-     .replace(/\s*·\s*GPS matched to selected route\s*$/,'');
-   el('passenger-eta').textContent=el('gps-eta').textContent||'—';
-   el('passenger-distance').textContent=el('gps-distance').textContent||'—';
+   paintRouteSummary();
    const state=window.JalanGPS?.getState();
    const matched=state?.matched&&Number.isFinite(state.accuracy)&&state.accuracy<=75&&state.fixAgeMs<10000;
    const measured=state?.active&&fix?.gpsReliable&&Number.isFinite(fix.gpsAccuracy)&&fix.gpsAccuracy<=65;
@@ -817,11 +829,9 @@
    el('passenger-speed').textContent=speed;
    el('passenger-speed-floating').firstElementChild.setAttribute('aria-label',speed==='—'?
      'Speed unavailable':speed+' kilometres per hour');
-   el('passenger-turn-arrow').textContent=turnIcon(message,window.JalanGPS?.instructionStep?.(message));
    if(!turnList.classList.contains('hidden')){
      if(activeInfoTab==='reports')renderReports();else renderDirections();
    }
-   window.JalanLanguage.write(el('passenger-turn-details'),message,malay);
  };
  // Passenger controls mirror the existing engineering GPS buttons; no
  // duplicate voice engine. Explicit Go enables off-route recovery for the trip.
@@ -846,11 +856,7 @@
    el('gps-reroute').click();
  });
  window.addEventListener('jalan:navigation-settings',syncNavigationSettings);
- window.addEventListener('jalan:community-flow',()=>{
-   if(!document.body.classList.contains('passenger-guiding'))return;
-   el('passenger-eta').textContent=el('gps-eta').textContent||'—';
-   el('passenger-next').textContent=(el('gps-detail').textContent||'Route preview').replace(/\s*·\s*GPS matched to selected route\s*$/,'');
- });
+ window.addEventListener('jalan:community-flow',paintRouteSummary);
  window.addEventListener('jalan:camera-reports',()=>{if(!turnList.classList.contains('hidden')&&activeInfoTab==='reports')renderReports();});
  window.addEventListener('jalan:community-reports',()=>{if(!turnList.classList.contains('hidden')&&activeInfoTab==='reports')renderReports();});
  window.addEventListener('jalan:reroute-status',event=>{
