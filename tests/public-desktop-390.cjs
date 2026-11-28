@@ -78,11 +78,11 @@ async function main(){
   });
   assert.equal(csp.present,true,'Public GitHub Pages must declare an explicit CSP');
   const connections=csp.policy.split(';').map(x=>x.trim()).find(x=>x.startsWith('connect-src ')).split(/\s+/).slice(1);
-  assert.deepEqual(connections.sort(),["'self'",'https://api.tomtom.com','https://tiles.openfreemap.org',
+  assert.deepEqual(connections.sort(),["'self'",'https://api.met.no','https://api.tomtom.com','https://tiles.openfreemap.org',
     'https://router.project-osrm.org','https://nominatim.openstreetmap.org','https://overpass-api.de',
     'https://mterm2026-559f9bf571b5.herokuapp.com','https://maps.googleapis.com',
     'https://places.googleapis.com','https://maps.gstatic.com'].sort(),
-    'Only documented routing, vector tile and staged Google UI Kit hosts may receive requests');
+    'Only documented map, routing, weather and search hosts may receive requests');
   assert.equal(await page.evaluate(()=>!!window.JalanVectorMap),false,'Engineering Mode does not load the vector renderer');
   assert.equal(csp.result?.directive,'connect-src',
     'Browser must block unexpected cross-origin network calls via CSP');
