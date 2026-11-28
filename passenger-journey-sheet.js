@@ -20,7 +20,7 @@
     document.body.style.setProperty('--passenger-credit-bottom',bottom);
   }
   const style=getComputedStyle(panel);
-  const peek=handle.offsetHeight+panel.querySelector('.passenger-stats').offsetHeight+(parseFloat(style.paddingBottom)||0);
+  const peek=handle.offsetHeight+panel.querySelector('.passenger-stats').offsetHeight+el('passenger-arrival-weather').offsetHeight+(parseFloat(style.paddingBottom)||0);
   const cap=parseFloat(style.maxHeight)||innerHeight-190;
   const full=Math.max(peek,Math.min(cap,peek+content.scrollHeight));
   panel.style.setProperty('--journey-peek',peek+'px');
@@ -176,7 +176,8 @@
  document.addEventListener('keydown',e=>{if(e.key==='Escape'&&expanded){setExpanded(false,true);e.preventDefault();}});
  const resize=()=>{cancel();measure();};
  window.addEventListener('resize',resize);window.visualViewport?.addEventListener('resize',resize);
- new ResizeObserver(measure).observe(panel);
+ const sheetSize=new ResizeObserver(measure);
+ sheetSize.observe(panel);sheetSize.observe(el('passenger-arrival-weather'));
  window.addEventListener('jalan:journey-start',()=>{currentRoute=null;progressMeters=0;setExpanded(false);requestAnimationFrame(paint);});
  window.addEventListener('jalan:journey-stop',()=>setExpanded(false));
  window.addEventListener('jalan:route-cleared',()=>{currentRoute=null;progressMeters=0;setExpanded(false);});

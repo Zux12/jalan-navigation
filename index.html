@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <!-- GitHub Pages cannot set response CSP headers; this meta policy blocks unlisted client origins. -->
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; base-uri 'self'; object-src 'none'; form-action 'self'; script-src 'self' https://unpkg.com https://maps.googleapis.com https://maps.gstatic.com; style-src 'self' 'unsafe-inline' https://unpkg.com https://fonts.googleapis.com; img-src 'self' data: blob: https://tiles.openfreemap.org https://unpkg.com https://*.tile.openstreetmap.org https://api.tomtom.com https://maps.gstatic.com https://maps.googleapis.com https://lh3.googleusercontent.com; font-src 'self' data: https://fonts.gstatic.com; media-src 'self' blob:; connect-src 'self' https://tiles.openfreemap.org https://api.tomtom.com https://router.project-osrm.org https://nominatim.openstreetmap.org https://overpass-api.de https://mterm2026-559f9bf571b5.herokuapp.com https://maps.googleapis.com https://places.googleapis.com https://maps.gstatic.com; worker-src 'self' blob:; frame-src 'none'; upgrade-insecure-requests" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; base-uri 'self'; object-src 'none'; form-action 'self'; script-src 'self' https://unpkg.com https://maps.googleapis.com https://maps.gstatic.com; style-src 'self' 'unsafe-inline' https://unpkg.com https://fonts.googleapis.com; img-src 'self' data: blob: https://tiles.openfreemap.org https://unpkg.com https://*.tile.openstreetmap.org https://api.tomtom.com https://maps.gstatic.com https://maps.googleapis.com https://lh3.googleusercontent.com; font-src 'self' data: https://fonts.gstatic.com; media-src 'self' blob:; connect-src 'self' https://api.met.no https://tiles.openfreemap.org https://api.tomtom.com https://router.project-osrm.org https://nominatim.openstreetmap.org https://overpass-api.de https://mterm2026-559f9bf571b5.herokuapp.com https://maps.googleapis.com https://places.googleapis.com https://maps.gstatic.com; worker-src 'self' blob:; frame-src 'none'; upgrade-insecure-requests" />
   <link rel="preload" href="fonts/DancingScript.ttf" as="font" type="font/ttf" crossorigin />
   <link rel="stylesheet" href="passenger-launch.css?v=5" />
   <script src="passenger-language-copy.js?v=destination-route2-optin2"></script>
@@ -29,6 +29,7 @@
   <link rel="stylesheet" href="passenger-vehicle-icons.css?v=vehicle-recents1" />
   <link rel="stylesheet" href="passenger-reporting.css?v=community2" />
   <link rel="stylesheet" href="passenger-route-sheet.css?v=nearby-traffic1" />
+  <link rel="stylesheet" href="passenger-weather.css?v=icons34" />
   <link rel="stylesheet" href="passenger-journey-sheet.css?v=3" />
   <link rel="stylesheet" href="jalan-kl-preview.css?v=3a1">
   <link rel="stylesheet" href="jalan-kl-3b.css?v=3b1">
@@ -54,6 +55,7 @@
     <a href="index.html?mode=passenger" id="open-passenger">Passenger view</a>
     <a href="index.html?mode=engineering" id="open-engineering">Engineering tests</a>
   </nav>
+  <div id="passenger-weather-stamp" translate="no" hidden></div>
   <section id="passenger-overview" class="passenger-overview hidden" aria-label="Choose route">
     <button id="passenger-route-handle" class="passenger-route-handle" type="button" aria-label="Collapse route choices" aria-expanded="true" aria-controls="passenger-route-content"><span aria-hidden="true"></span></button>
     <div class="passenger-overview-heading"><strong id="passenger-route-title">Choose your route</strong></div>
@@ -85,6 +87,7 @@
     <button id="passenger-recenter-floating" class="passenger-recenter-floating" type="button" aria-label="Recenter map on matched GPS position" title="Recenter map">◎</button>
     <div id="passenger-speed-floating" class="passenger-speed-floating"><span class="passenger-speed-reading" role="img" aria-label="Speed unavailable"><strong id="passenger-speed">—</strong><small>km/h</small></span><span class="passenger-speed-limit" role="img" hidden></span></div>
     <div id="passenger-journey-sheet" class="passenger-bottom" data-expanded="false"><button id="passenger-journey-handle" class="passenger-journey-handle" type="button" aria-controls="passenger-journey-content" aria-expanded="false" aria-label="Expand journey details"><span></span></button><div class="passenger-stats"><b id="passenger-eta">—</b><b id="passenger-distance">—</b><button id="passenger-search" class="passenger-search" type="button" aria-label="Search destination" aria-controls="jalan-home-sheet" aria-expanded="false" title="Search destination"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m15.5 15.5 5 5"/></svg></button></div>
+      <p id="passenger-arrival-weather" translate="no" hidden></p>
       <section id="passenger-journey-content" class="passenger-journey-content" aria-label="Journey details" aria-hidden="true" inert>
         <h2 id="passenger-journey-destination" class="passenger-journey-destination">Destination: Selected destination</h2>
         <p id="passenger-journey-via" class="passenger-journey-via">Via selected route</p>
@@ -327,7 +330,7 @@
   <script src="passenger-gps-status.js?v=3-road1"></script>
   <script src="passenger-speed-limit.js?v=3"></script>
   <script src="passenger-journey-model.js?v=2"></script>
-  <script src="passenger-journey-sheet.js?v=6-credit1"></script>
+  <script src="passenger-journey-sheet.js?v=weather1-credit1"></script>
   <script src="passenger-toll-choices.js?v=stations1"></script>
   <script src="passenger-route-start.js?v=iphone-location1"></script>
   <script src="passenger-vector-map.js?v=smooth-trail1"></script>
@@ -339,5 +342,7 @@
   <script src="passenger-station-planner.js?v=station-pins2"></script>
   <script src="passenger-stations.js?v=station-default-off1"></script>
   <script src="passenger-iphone-location.js?v=1"></script>
+  <script src="passenger-weather-data.js?v=icons34"></script>
+  <script src="passenger-weather.js?v=icons34"></script>
 </body>
 </html>

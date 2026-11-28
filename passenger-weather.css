@@ -1,0 +1,9 @@
+.jalan-weather-icon{pointer-events:none!important}
+.jalan-weather-icon svg{display:block;width:100%;height:100%;pointer-events:none}
+#passenger-arrival-weather{flex:none;color:#42586b;font:600 13px/1.35 system-ui;padding:4px 0 0;
+  margin:0;pointer-events:none}
+#passenger-weather-stamp{position:fixed;z-index:1140;left:max(10px,env(safe-area-inset-left));
+  max-width:calc(100vw - 100px);box-sizing:border-box;color:#354a60;background:#fffffff2;
+  padding:2px 6px;border-radius:5px;pointer-events:none;font:500 10px/1.25 system-ui}
+body:not(.passenger-mode) #passenger-weather-stamp,
+#passenger-weather-stamp[hidden],#passenger-arrival-weather[hidden]{display:none}
