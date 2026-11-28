@@ -56,16 +56,21 @@ module.exports=async(browser,base,root)=>{
  await page.evaluate(()=>{document.getElementById('smart-demo').click();document.getElementById('smart-yes').click();});
  await page.waitForFunction(()=>document.getElementById('passenger-report-toast').textContent==='Traffic report sent.');
  assert.equal(submissions.length,beforePrompt+1);assert.equal(submissions.at(-1).type,'traffic');
- assert.equal(nearbyPosts,0);
+ assert.equal(nearbyPosts,0,'no nearby lookup before guidance starts');
  nearby=[event('ahead-event','accident',[101.689,3.139])];
+ const toggle=sharing.locator('input');
+ await page.evaluate(()=>window.dispatchEvent(new Event('jalan:journey-start')));
+ assert.equal(await toggle.isChecked(),true,'nearby reports start on with guidance');
  await page.evaluate(()=>{window.__reportPosition=[101.688,3.139];window.dispatchEvent(new CustomEvent('jalan:gps-fix',{detail:{gpsReliable:true,gpsPosition:[3.139,101.688],gpsAccuracy:8,gpsFixAgeMs:0,heading:90}}));});
- assert.equal(nearbyPosts,0,'GPS events alone must not upload position or fetch nearby reports');
- assert.equal(await page.evaluate(()=>JalanCommunityReports.getEvents().some(e=>e.id==='ahead-event')),false);
- await page.evaluate(()=>{const box=document.getElementById('passenger-nearby-consent');box.checked=true;box.dispatchEvent(new Event('change',{bubbles:true}));});
  await page.waitForFunction(()=>JalanCommunityReports.getEvents().some(e=>e.id==='ahead-event'));
- assert.equal(nearbyPosts,1,'explicit opt-in allows one body-only nearby lookup');
+ assert.equal(nearbyPosts,1,'a fresh GPS fix performs the first nearby lookup');
  await page.evaluate(()=>{const box=document.getElementById('passenger-nearby-consent');box.checked=false;box.dispatchEvent(new Event('change',{bubbles:true}));});
  assert.equal(await page.evaluate(()=>JalanCommunityReports.getEvents().some(e=>e.id==='ahead-event')),false,'opt-out removes nearby community event from the screen');
+ await page.evaluate(()=>{
+  window.dispatchEvent(new Event('jalan:journey-stop'));
+  window.dispatchEvent(new Event('jalan:journey-start'));
+ });
+ assert.equal(await toggle.isChecked(),false,'GPS restart on the same itinerary respects Off');
  await page.evaluate(()=>window.dispatchEvent(new CustomEvent('jalan:gps-fix',{detail:{gpsReliable:true,gpsPosition:[3.139,101.688],gpsAccuracy:8,gpsFixAgeMs:0,heading:90}})));
  assert.equal(nearbyPosts,1,'opt-out prevents subsequent location POST requests');
  await page.evaluate(()=>{const box=document.getElementById('passenger-nearby-consent');box.checked=true;box.dispatchEvent(new Event('change',{bubbles:true}));});
@@ -95,8 +100,9 @@ module.exports=async(browser,base,root)=>{
  await page.evaluate(()=>document.getElementById('jalan-home-report').click());await page.locator('[data-type=hazard]').click();await page.evaluate(()=>window.__reportAccuracy=200);const count=submissions.length;
  await page.locator('#passenger-report-submit').click();await page.waitForFunction(()=>document.getElementById('passenger-report-status').textContent.includes('Could not confirm submission'));
  assert.equal(submissions.length,count,'poor GPS cannot submit');await page.keyboard.press('Escape');assert.equal(await page.locator('#passenger-report-dialog').isVisible(),false);
- await page.evaluate(()=>window.dispatchEvent(new Event('jalan:journey-stop')));
- assert.equal(await page.locator('#passenger-nearby-consent').isChecked(),false,'Stop revokes the nearby GPS-upload opt-in');
+ await toggle.evaluate(el=>el.click());
+ await page.evaluate(()=>{window.dispatchEvent(new Event('jalan:journey-stop'));window.dispatchEvent(new Event('jalan:route-cleared'));});
+ assert.equal(await toggle.isChecked(),false,'Stop ends nearby lookups');
  const afterStop=nearbyPosts;
  await page.evaluate(()=>window.dispatchEvent(new CustomEvent('jalan:gps-fix',{detail:{gpsReliable:true,gpsPosition:[3.139,101.688],gpsAccuracy:8,gpsFixAgeMs:0,heading:90}})));
  assert.equal(nearbyPosts,afterStop,'even a delayed GPS fix cannot restart uploads after Stop');
@@ -118,6 +124,8 @@ module.exports=async(browser,base,root)=>{
  await page.waitForFunction(()=>!document.getElementById('passenger-report-dialog').open);
  assert.equal(submissions.at(-1).type,'traffic');assert.equal(submissions.at(-1).trafficSeverity,'heavy');
  assert.equal(await page.locator('.jalan-community-report-pin[title*="Heavy Traffic Jam"]').count(),1);
+ await page.evaluate(()=>window.dispatchEvent(new Event('jalan:journey-start')));
+ assert.equal(await toggle.isChecked(),true,'a different trip starts on after the last one was switched off');
  assert.deepEqual(errors,[]);console.log('PASS community reports: weather, submit-time GPS, failed upload, merged icon, directional 50m prompt, once per journey, timeout and inaccurate GPS');
  }finally{await context.close();}
 };

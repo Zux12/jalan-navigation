@@ -55,6 +55,9 @@ module.exports=async function roadDetails(page){
   coords:{latitude:point[0],longitude:point[1],heading:90,speed,accuracy:4},timestamp:Date.now()
  }),{point,speed});
  await page.waitForFunction(()=>!!window.__roadDetailsFix);
+ const nearbyReports=page.locator('#passenger-nearby-consent');
+ assert.equal(await nearbyReports.isChecked(),true);
+ await nearbyReports.evaluate(input=>input.click());
  await drive(point);await driving.waitFor({state:'visible'});
  assert.equal(await driving.textContent(),'80');
  await page.waitForFunction(()=>document.getElementById('passenger-speed').textContent==='29');
