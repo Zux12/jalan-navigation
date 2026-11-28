@@ -80,6 +80,8 @@ module.exports=async(browser,base,root)=>{
  assert.equal(submissions.length,beforePrompt+1);assert.equal(submissions.at(-1).type,'traffic');
  assert.equal(nearbyPosts,0);
  nearby=[event('ahead-event','accident',[101.689,3.139])];
+ await page.evaluate(()=>window.dispatchEvent(new Event('jalan:journey-start')));
+ assert.equal(await sharing.locator('input').isChecked(),false,'starting guidance does not consent to nearby location POSTs');
  await page.evaluate(()=>{window.__reportPosition=[101.688,3.139];window.dispatchEvent(new CustomEvent('jalan:gps-fix',{detail:{gpsReliable:true,gpsPosition:[3.139,101.688],gpsAccuracy:8,gpsFixAgeMs:0,heading:90}}));});
  assert.equal(nearbyPosts,0,'GPS events alone must not upload position or fetch nearby reports');
  assert.equal(await page.evaluate(()=>JalanCommunityReports.getEvents().some(e=>e.id==='ahead-event')),false);
@@ -122,6 +124,10 @@ module.exports=async(browser,base,root)=>{
  const afterStop=nearbyPosts;
  await page.evaluate(()=>window.dispatchEvent(new CustomEvent('jalan:gps-fix',{detail:{gpsReliable:true,gpsPosition:[3.139,101.688],gpsAccuracy:8,gpsFixAgeMs:0,heading:90}})));
  assert.equal(nearbyPosts,afterStop,'even a delayed GPS fix cannot restart uploads after Stop');
+ await page.evaluate(()=>{window.dispatchEvent(new Event('jalan:route-cleared'));window.dispatchEvent(new Event('jalan:journey-start'));});
+ assert.equal(await sharing.locator('input').isChecked(),false,'a new trip does not silently enable nearby lookups');
+ await move(101.688);
+ assert.equal(nearbyPosts,afterStop,'fresh GPS on new trip cannot send location without a new opt-in');
  await page.evaluate(()=>window.__reportAccuracy=8);
  await page.locator('#jalan-home-report').click();
  await page.getByRole('button',{name:'Traffic',exact:true}).click();

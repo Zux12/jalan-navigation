@@ -115,9 +115,9 @@
  window.addEventListener('jalan:gps-fix',event=>{const d=event.detail||{};if(!d.gpsReliable||!Array.isArray(d.gpsPosition)||d.gpsAccuracy>35||d.gpsFixAgeMs>10000){hideCard();return;}const position=[d.gpsPosition[1],d.gpsPosition[0]],heading=P.heading(d.heading)?d.heading:P.heading(d.vehicleHeading)?d.vehicleHeading:lastFix&&P.distance(lastFix.position,position)>=5?P.bearing(lastFix.position,position):null;
   lastFix={position,heading,accuracy:d.gpsAccuracy,at:Date.now(),road:window.JalanVectorMap?.getReportRoad?.(position,heading)||null};checkCard(lastFix);poll();});
  $('passenger-go').addEventListener('click',()=>{if(!window.JalanGPS?.getState?.().active){journey=random();asked=new Set();}},{capture:true});
- window.addEventListener('jalan:journey-start',hideCard);
+ window.addEventListener('jalan:journey-start',()=>{lastFix=null;hideCard();});
  window.addEventListener('jalan:free-location',event=>{const d=event.detail||{},position=Array.isArray(d.point)?[d.point[1],d.point[0]]:null;if(!P.coord(position)||!Number.isFinite(d.accuracy)||d.accuracy>35||Date.now()-d.timestamp>10000)return;lastFix={position,heading:P.heading(d.heading)?d.heading:null,accuracy:d.accuracy,at:d.timestamp,road:null};poll();});
- window.addEventListener('jalan:journey-stop',()=>{nearbyConsent=false;nearbyToggle.checked=false;requestEpoch++;hideCard();events=events.filter(e=>own.has(e.id));paint();window.dispatchEvent(new Event('jalan:community-reports'));});
+ window.addEventListener('jalan:journey-stop',()=>{lastFix=null;nearbyConsent=false;nearbyToggle.checked=false;requestEpoch++;hideCard();events=events.filter(e=>own.has(e.id));paint();window.dispatchEvent(new Event('jalan:community-reports'));});
  document.addEventListener('visibilitychange',()=>{if(document.hidden)hideCard();});
  setInterval(()=>{if(events.some(e=>!P.alive(e))){paint();window.dispatchEvent(new Event('jalan:community-reports'));}if(prompt&&!P.alive(prompt))hideCard();if(lastFix&&Date.now()-lastFix.at>10000)hideCard();poll();},5000);
  window.JalanCommunityReports={reportSlowdown,getEvents:()=>events.filter(e=>P.alive(e)).map(e=>({...e})),routeItems,icon};
