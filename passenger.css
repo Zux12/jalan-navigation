@@ -258,6 +258,15 @@ body.passenger-guiding .passenger-turn-chevron{position:absolute;right:28px;bott
  background:#fff;color:#111;font:700 13px/1 system-ui;font-variant-numeric:tabular-nums;pointer-events:none}
 .passenger-speed-limit[hidden]{display:none}
 
+.passenger-offline-banner:not([hidden]){
+ position:absolute;left:0;right:0;z-index:5;display:flex;align-items:center;gap:8px;
+ padding:6px max(12px,env(safe-area-inset-right)) 6px max(12px,env(safe-area-inset-left));
+ background:#ffe7a6;color:#543800;font:650 13px/1.35 system-ui,sans-serif;pointer-events:none;
+}
+.passenger-offline-banner svg{flex:none}
+.passenger-offline-banner[hidden],
+.passenger-navigation:has(#passenger-offline-banner[data-route="off"]) #passenger-arrival-weather{display:none}
+.passenger-camera-alert{margin-top:var(--passenger-offline-height,0px)}
 .passenger-camera-alert:not([hidden]){position:fixed;left:12px;right:12px;z-index:4;display:flex;align-items:center;gap:8px;background:#fff0c2;color:#503800;border:1px solid #d29b35;border-radius:0 0 10px 10px;padding:9px 12px;pointer-events:none}
 #passenger-camera-distance{margin-left:auto;font-weight:700;font-variant-numeric:tabular-nums}
 .passenger-camera-pin{display:grid;place-items:center;background:#ffe9a6;border:2px solid #81570c;border-radius:50%;box-sizing:border-box;font-size:16px;line-height:1}

@@ -23,7 +23,7 @@
   <title>JALAN 4.8.0 — Testing</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
   <link rel="stylesheet" href="style.css?v=4-7-1" />
-  <link rel="stylesheet" href="passenger.css?v=guidance-touch1" />
+  <link rel="stylesheet" href="passenger.css?v=offline1" />
   <link rel="stylesheet" href="passenger-home-sheet.css?v=search-keyboard2-credit1" />
   <link rel="stylesheet" href="passenger-menu-dialogs.css?v=8" />
   <link rel="stylesheet" href="passenger-vehicle-icons.css?v=vehicle-recents1" />
@@ -80,6 +80,10 @@
     <div id="passenger-map-gestures" class="passenger-map-gestures" aria-label="Pan with one finger; pinch to zoom and twist two fingers to rotate the 2.5D map"></div>
     <button id="passenger-turn-toggle" class="passenger-turn" type="button" aria-expanded="false" aria-controls="passenger-turn-list"><span id="passenger-turn-arrow" aria-hidden="true">↑</span><span class="passenger-turn-copy"><strong id="passenger-instruction">Acquiring GPS…</strong><small id="passenger-next">Following selected route</small></span><span class="passenger-turn-chevron" aria-hidden="true">⌄</span><span id="passenger-junction-guide" hidden role="img"></span></button>
     <div id="passenger-camera-alert" class="passenger-camera-alert" hidden><span aria-hidden="true">📷</span> <strong>Speed camera ahead</strong> <span id="passenger-camera-distance"></span></div>
+    <div id="passenger-offline-banner" class="passenger-offline-banner" role="status" aria-atomic="true" hidden>
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="m3 3 18 18M2 8.5a16 16 0 0 1 3-1.8m4.1-1.2A16 16 0 0 1 22 8.5M5 12a11 11 0 0 1 3.6-2.1m5.7-.3a11 11 0 0 1 4.7 2.4m-11 3.5a6.3 6.3 0 0 1 6.8-1.1"/><circle cx="12" cy="19" r="1" fill="currentColor"/></svg>
+      <span id="passenger-offline-message" translate="no"></span>
+    </div>
     <section id="passenger-turn-list" class="passenger-turn-list hidden" aria-label="Reports and upcoming route directions"><div class="passenger-turn-list-header"><strong>Along your route</strong></div>
       <div class="passenger-turn-tabs" role="tablist" aria-label="Route information"><button type="button" id="passenger-tab-reports" role="tab" aria-controls="passenger-reports-panel" aria-selected="true">Reports</button><button type="button" id="passenger-tab-directions" role="tab" aria-controls="passenger-directions-panel" aria-selected="false">Directions</button></div>
       <section id="passenger-reports-panel" role="tabpanel" aria-labelledby="passenger-tab-reports"><ol id="passenger-report-list"></ol><p id="passenger-report-note" hidden></p></section>
@@ -318,7 +322,8 @@
   <script src="passenger-vehicle-mesh.js?v=fun1"></script>
   <script src="passenger-vehicle-renderer.js?v=fun1"></script>
   <script src="passenger-vehicle-icons.js?v=fun1"></script>
-  <script src="passenger-ui.js?v=guidance-touch1"></script>
+  <script src="passenger-ui.js?v=offline1"></script>
+  <script src="passenger-connectivity.js?v=1"></script>
   <script src="passenger-route-traffic.js?v=community1"></script>
   <script src="passenger-saved-places.js?v=2-lang1"></script>
   <script src="passenger-home-sheet.js?v=search-keyboard2-optin2"></script>
