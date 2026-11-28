@@ -1217,6 +1217,23 @@ async function main(){
   sheetTouch=await context.newCDPSession(page);
   // Active journey sheet: genuine pointer/touch gestures, read-only traffic
   // presentation, Resume continuity and Stop clearing the entire journey.
+  // Return a forecast only for the expected coarse destination, never send
+  // a real weather request. Other map-town requests stay blocked.
+  const weatherRequests=[];
+  const weatherFixture=async route=>{
+    const req=route.request(),u=new URL(req.url());
+    weatherRequests.push({lat:u.searchParams.get('lat'),lon:u.searchParams.get('lon'),
+      keys:[...u.searchParams.keys()].sort(),authorization:req.headers().authorization});
+    if(u.searchParams.get('lat')!=='3'||u.searchParams.get('lon')!=='101.6')
+      return route.abort('blockedbyclient');
+    const hour=3600000,now=Date.now(),first=Math.floor(now/hour)*hour;
+    return route.fulfill({status:200,contentType:'application/json',
+      headers:{'access-control-allow-origin':'*',expires:new Date(now+hour).toUTCString()},
+      body:JSON.stringify({properties:{meta:{updated_at:new Date(now).toISOString()},
+        timeseries:[0,1,2].map(i=>({time:new Date(first+i*hour).toISOString(),
+          data:{instant:{details:{air_temperature:28}},next_1_hours:{summary:{symbol_code:'cloudy'}}}}))}})});
+  };
+  await page.route('https://api.met.no/**',weatherFixture);
   await page.goto(base+'/index.html?mode=passenger',{waitUntil:'load'});
   await page.evaluate(()=>{
     document.getElementById('tt-primary').checked=true;
@@ -1235,6 +1252,21 @@ async function main(){
   await page.locator('#passenger-go').click();
   await page.waitForFunction(()=>document.getElementById('passenger-journey-sheet').offsetHeight>60);
   const journeyState=()=>page.locator('#passenger-journey-sheet').getAttribute('data-expanded');
+  const arrivalWeather=page.locator('#passenger-arrival-weather');
+  await arrivalWeather.waitFor({state:'visible',timeout:20000});
+  assert.match(await arrivalWeather.textContent(),/At arrival.*28°C.*Cloudy/);
+  assert.ok(weatherRequests.some(r=>r.lat==='3'&&r.lon==='101.6'),'coarse destination actually requested');
+  assert.ok(weatherRequests.every(r=>r.keys.join(',')==='lat,lon'&&!r.authorization),
+    'weather fixture requests contain coordinates only, no routing key or authorization');
+  assert.ok(weatherRequests.every(r=>r.lon!=='101.61'),'exact destination must not be sent');
+  const assertWeatherCreditLayout=()=>page.waitForFunction(()=>{
+    const w=document.getElementById('passenger-arrival-weather').getBoundingClientRect();
+    const s=document.getElementById('passenger-journey-sheet').getBoundingClientRect();
+    const c=document.getElementById('jalan-home-credits').getBoundingClientRect();
+    return w.height>0&&w.top>=s.top&&w.bottom<=s.bottom&&s.bottom<=innerHeight+1&&
+      c.height>0&&c.top>=0&&c.bottom<=s.top-2;
+  },null,{timeout:5000});
+  await assertWeatherCreditLayout();
   const beforeJourney=await page.evaluate(()=>{
     window.__journeyBefore={route:JalanGPS.getState().route,watch:window.__offlineGPSWatch,destination,marker:destinationMarker};
     return document.getElementById('passenger-journey-sheet').getBoundingClientRect().height;
@@ -1277,6 +1309,43 @@ async function main(){
     const b=window.__journeyBefore;
     return JalanGPS.getState().active&&JalanGPS.getState().route===b.route&&window.__offlineGPSWatch===b.watch&&destination===b.destination&&destinationMarker===b.marker;
   }),true,'Resume keeps the exact GPS session, route and destination');
+  // Simulated loss of connectivity after a successful forecast. Only the
+  // navigator state and GPS deviation verdict are synthetic; DOM and route
+  // lifecycle are the actual application. No physical outage is implied.
+  await page.evaluate(()=>{
+    Object.defineProperty(navigator,'onLine',{configurable:true,value:false});
+    window.dispatchEvent(new Event('offline'));
+  });
+  const offlineBanner=page.locator('#passenger-offline-banner');
+  await offlineBanner.waitFor({state:'visible',timeout:20000});
+  assert.match(await offlineBanner.textContent(),/Your route is still available/);
+  await assertWeatherCreditLayout();
+  await page.waitForFunction(()=>{
+    const b=document.getElementById('passenger-offline-banner').getBoundingClientRect();
+    const t=document.getElementById('passenger-turn-toggle').getBoundingClientRect();
+    const s=document.getElementById('passenger-journey-sheet').getBoundingClientRect();
+    return b.height>0&&b.top>=t.bottom-1&&b.bottom<s.top;
+  },null,{timeout:5000});
+  await page.evaluate(()=>{
+    window.__offlineOriginalGetState=JalanGPS.getState;
+    JalanGPS.getState=()=>({...window.__offlineOriginalGetState(),deviationConfirmed:true});
+    window.dispatchEvent(new CustomEvent('jalan:gps-fix',{detail:{gpsReliable:true,matched:false}}));
+  });
+  await arrivalWeather.waitFor({state:'hidden'});
+  assert.equal(await page.locator('#passenger-instruction').textContent(),'Off route');
+  assert.equal(await page.locator('#passenger-eta').textContent(),'—');
+  await page.evaluate(()=>{
+    JalanGPS.getState=window.__offlineOriginalGetState;
+    delete window.__offlineOriginalGetState;
+    delete navigator.onLine;
+    window.dispatchEvent(new Event('online'));
+  });
+  await offlineBanner.waitFor({state:'hidden',timeout:15000});
+  await assertWeatherCreditLayout();
+  assert.equal(await page.evaluate(()=>JalanGPS.getState().route===window.__journeyBefore.route),true,
+    'connectivity warning never replaces the selected route');
+  console.log('PASS simulated offline banner, coarse arrival forecast, off-route suppression, attribution and reconnect continuity at 390px');
+  await page.unroute('https://api.met.no/**',weatherFixture);
   await swipeInside('#passenger-distance',-120);
   assert.equal(await journeyState(),'true','swipe on time/km expands details');
   await swipeInside('#passenger-journey-handle',110,{cancel:true});
