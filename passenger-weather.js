@@ -45,18 +45,51 @@
     visible = [];
     text(stamp,'');
   }
+  // Local vector artwork keeps the map symbols consistent across iPhone and browser emoji sets.
+  const iconSize = 34;
+  const cloudPath = 'M7.6 24h17a6 6 0 1 0-.6-12 8.5 8.5 0 0 0-16.2-1.2A6.6 6.6 0 1 0 7.6 24Z';
+  function cloud(fill) {
+    return '<path d="'+cloudPath+'" fill="'+fill+'" stroke="#405569" stroke-width="2"/>';
+  }
+  const paleCloud = cloud('#fffdf6');
+  const sun = '<path d="M16 1.5v3.2m0 22.6v3.2M1.5 16h3.2m22.6 0h3.2M5.7 5.7 8 8m16 16 2.3 2.3M5.7 26.3 8 24M24 8l2.3-2.3" fill="none" stroke="#ee9300" stroke-width="2.4"/>'+
+    '<circle cx="16" cy="16" r="7.2" fill="#ffbf19" stroke="#dc8700" stroke-width="1.5"/>';
+  const moon = '<path d="M21.8 3.1a12.4 12.4 0 1 0 6.4 20.6A12.9 12.9 0 0 1 21.8 3.1Z" fill="#ffdc7c" stroke="#685731" stroke-width="1.8"/>';
+  function behindCloud(sky, cloudTransform) {
+    return '<g transform="translate(11 0) scale(.64)">'+sky+'</g>'+
+      '<g transform="'+cloudTransform+'">'+paleCloud+'</g>';
+  }
+  function rain(fill, streaks) {
+    return '<g transform="translate(0 -3)">'+cloud(fill)+'</g>'+
+      '<path d="'+streaks+'" stroke="#167cb4" stroke-width="2.7" fill="none"/>';
+  }
+  const mapArtwork = {
+    clear:sun, clearNight:moon, cloud:paleCloud,
+    fair:behindCloud(sun,'translate(1 13) scale(.65)'),
+    fairNight:behindCloud(moon,'translate(1 13) scale(.65)'),
+    partlyCloudy:behindCloud(sun,'translate(0 6) scale(.88)'),
+    partlyCloudyNight:behindCloud(moon,'translate(0 6) scale(.88)'),
+    lightRain:rain('#edf4f7','M12 24.5l-2 3m11-3-2 3'),
+    rain:rain('#e0eaf0','M9 24.5l-2.6 4M17 24.5l-2.6 4M25 24.5l-2.6 4'),
+    heavyRain:rain('#9fb3c4','M8 24l-3.5 6M15 24l-3.5 6M22 24l-3.5 6M29 24l-3.5 6'),
+    storm:'<g transform="translate(0 -3)">'+cloud('#8399ad')+'</g>'+
+      '<path d="m17 17-6 8h5l-2 6 9-11h-6l2-3Z" fill="#ffcd30" stroke="#594719" stroke-width="1.2"/>',
+    fog:'<g transform="translate(2 -2) scale(.88)">'+paleCloud+'</g>'+
+      '<path d="M3 24h19m-11 4h18" fill="none" stroke="#647b87" stroke-width="2.3"/>'
+  };
   function placeIcons() {
     const now = Date.now(), shown = new Set(), issues = [];
     for (const {town,point} of visible) {
       const id = key(point), data = cache.get(id), value = slot(data,now);
       if (!value) continue;
-      const [icon,en,my] = condition(value[0]), label = town+' · '+(ms()?my:en);
-      const signature = icon+label;
+      const [,en,my,symbol] = condition(value[0]), label = town+' · '+(ms()?my:en);
+      const signature = symbol+label;
       shown.add(id); issues.push(data.issued);
       if (markers.get(id)?.signature===signature) continue;
       markers.get(id)?.marker.remove();
+      const html = '<svg viewBox="0 0 32 32" aria-hidden="true" focusable="false" stroke-linecap="round" stroke-linejoin="round">'+mapArtwork[symbol]+'</svg>';
       const marker = L.marker(point,{
-        icon:L.divIcon({className:'jalan-weather-icon',html:icon,iconSize:[30,30],iconAnchor:[15,28]}),
+        icon:L.divIcon({className:'jalan-weather-icon',html,iconSize:[iconSize,iconSize],iconAnchor:[iconSize/2,iconSize+2]}),
         interactive:false, keyboard:false, title:label, zIndexOffset:-250
       }).addTo(map);
       markers.set(id,{marker,signature});
@@ -137,7 +170,7 @@
       const point=[lat,lon];
       if (!bounds.contains(point)) continue;
       const p=window.JalanVectorMap?.project(point) || map.latLngToContainerPoint(point);
-      if (p.x<14 || p.x>rect.width-14 || p.y+rect.top<Math.max(35,top)+30 ||
+      if (p.x<iconSize/2 || p.x>rect.width-iconSize/2 || p.y+rect.top<Math.max(35,top)+iconSize+2 ||
           p.y+rect.top>bottom-35 || picked.some(other=>Math.hypot(p.x-other.x,p.y-other.y)<gap)) continue;
       picked.push({town,point,x:p.x,y:p.y});
       if (picked.length===limit) break;

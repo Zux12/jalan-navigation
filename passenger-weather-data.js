@@ -23,15 +23,15 @@
   ];
   function condition(code) {
     const night = code.endsWith('_night');
-    if (code.includes('thunder')) return ['⛈️','Thunderstorms','Ribut petir'];
-    if (code.includes('heavyrain')) return ['🌧️','Heavy rain','Hujan lebat'];
-    if (code.includes('lightrain')) return ['🌦️','Light rain','Hujan renyai'];
-    if (code.includes('rain')) return ['🌧️','Rain','Hujan'];
-    if (code.includes('fog')) return ['🌫️','Fog','Kabus'];
-    if (code.startsWith('partlycloudy')) return [night?'☁️':'⛅','Partly cloudy','Separa mendung'];
-    if (code.startsWith('fair')) return [night?'🌙':'🌤️','Mostly clear','Kebanyakannya cerah'];
-    if (code.startsWith('clearsky')) return [night?'🌙':'☀️','Clear','Cerah'];
-    if (code==='cloudy') return ['☁️','Cloudy','Mendung'];
+    if (code.includes('thunder')) return ['⛈️','Thunderstorms','Ribut petir','storm'];
+    if (code.includes('heavyrain')) return ['🌧️','Heavy rain','Hujan lebat','heavyRain'];
+    if (code.includes('lightrain')) return ['🌦️','Light rain','Hujan renyai','lightRain'];
+    if (code.includes('rain')) return ['🌧️','Rain','Hujan','rain'];
+    if (code.includes('fog')) return ['🌫️','Fog','Kabus','fog'];
+    if (code.startsWith('partlycloudy')) return [night?'☁️':'⛅','Partly cloudy','Separa mendung',night?'partlyCloudyNight':'partlyCloudy'];
+    if (code.startsWith('fair')) return [night?'🌙':'🌤️','Mostly clear','Kebanyakannya cerah',night?'fairNight':'fair'];
+    if (code.startsWith('clearsky')) return [night?'🌙':'☀️','Clear','Cerah',night?'clearNight':'clear'];
+    if (code==='cloudy') return ['☁️','Cloudy','Mendung','cloud'];
     return null;
   }
   function parse(body, expires, now) {
