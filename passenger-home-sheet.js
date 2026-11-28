@@ -85,7 +85,7 @@
   '<label class="jalan-map-switch"><span>Show nearby traffic</span><input id="passenger-nearby-traffic" type="checkbox" role="switch"></label>'+
   '<label class="jalan-map-switch"><span>Show EV charging &amp; petrol stations</span><input id="passenger-stations" type="checkbox" role="switch"></label>'+
   '<button type="button" id="passenger-stations-list" hidden>Nearby stations</button>'+
-  '<label class="jalan-share-speed"><input id="passenger-share-speed" type="checkbox" checked> Share my speed to help detect traffic</label>'+
+  '<label class="jalan-share-speed"><input id="passenger-share-speed" type="checkbox"> Share my speed to help detect traffic (optional)</label>'+
   '<label class="passenger-nearby-consent"><input id="passenger-nearby-consent" type="checkbox"> Share my location for nearby community reports during this journey</label></details>'+
   '<div id="journey-toll-control" hidden><label class="jalan-toll-control jalan-map-switch"><span>Avoid tolls</span><input type="checkbox" role="switch" id="journey-avoid-tolls"></label><div id="journey-toll-feedback" class="jalan-toll-feedback" hidden><p role="status"></p><div></div></div></div>'+
   '<button type="button" id="passenger-about" aria-haspopup="dialog" aria-controls="passenger-about-dialog">About JALAN</button>'+

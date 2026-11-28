@@ -47,7 +47,14 @@ test('checks for working internet behind an apparently connected network and tol
   s.state.backup=false;await s.tick(15000);await s.tick(14999);
   assert.equal(s.banner.hidden,true);await s.tick(1);assert.equal(s.banner.hidden,false);
   s.state.primary=true;await s.tick(5000);assert.equal(s.banner.hidden,true);
-  for(const {options} of s.requests)assert.equal(options.cache,'no-store');
+  for(const {url,options} of s.requests){
+    assert.ok(['passenger.webmanifest','https://mterm2026-559f9bf571b5.herokuapp.com/api/jalan/health'].includes(url));
+    assert.equal(options.cache,'no-store');
+    assert.equal(options.credentials,'omit');
+    assert.equal(options.referrerPolicy,'no-referrer');
+    assert.equal(options.headers,undefined);
+    assert.equal(options.body,undefined);
+  }
 });
 
 test('only confirmed deviations change the message; supports manual rerouting, Malay and returning to the selected road', async t => {

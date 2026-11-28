@@ -807,7 +807,40 @@ async function main(){
    return {color:line.options.color,last:line.getLatLngs().at(-1),end:JalanGPS.getState().route.geometry.coordinates.at(-1)};
   });
   assert.equal(trail.color,'#8293aa');assert.ok(trail.last.lng<trail.end[0],'travelled colour stops before the destination');
-  await live.screenshot({path:path.join(artifacts,'vector-travelled-route.png')});
+  // This required live-WebGL capture has timed out intermittently after the
+  // rendered-trail assertions. Observe compositor inputs without stopping
+  // the renderer, changing the capture timeout, or bypassing the assertion.
+  await live.evaluate(()=>{
+   const gl=window.__trailMap,counts={render:0,idle:0,sourcedata:0,error:0};
+   const handlers=Object.keys(counts).map(type=>{
+    const handler=()=>{counts[type]++;};gl.on(type,handler);return [type,handler];
+   });
+   window.__trailCaptureProbe={
+    snapshot:()=>({counts:{...counts},loaded:gl.loaded(),moving:gl.isMoving(),
+     tilesLoaded:gl.areTilesLoaded(),styleLoaded:gl.isStyleLoaded(),
+     canvas:{width:gl.getCanvas().width,height:gl.getCanvas().height},
+     visibility:document.visibilityState,fonts:document.fonts.status}),
+    dispose:()=>handlers.forEach(([type,handler])=>gl.off(type,handler))
+   };
+  });
+  console.log('TRAIL CAPTURE BEFORE',JSON.stringify(await live.evaluate(()=>window.__trailCaptureProbe.snapshot())));
+  try{
+   await live.screenshot({path:path.join(artifacts,'vector-travelled-route.png')});
+  }catch(captureError){
+   // Bound secondary diagnostics independently; never replace the original
+   // capture failure with a secondary renderer/evaluation failure.
+   let diagnosticTimer;
+   try{
+    const snapshot=await Promise.race([
+     live.evaluate(()=>window.__trailCaptureProbe.snapshot()),
+     new Promise((_,reject)=>{diagnosticTimer=setTimeout(()=>reject(new Error('probe evaluation timeout')),5000);})
+    ]);
+    console.error('TRAIL CAPTURE FAILURE',JSON.stringify(snapshot));
+   }catch(probeError){console.error('TRAIL CAPTURE PROBE UNAVAILABLE',probeError.message);}
+   finally{clearTimeout(diagnosticTimer);}
+   throw captureError;
+  }
+  await live.evaluate(()=>{window.__trailCaptureProbe.dispose();delete window.__trailCaptureProbe;});
   // The real continuous-GPS controller emits this after a successful atomic
   // off-route route swap; old geometry must disappear before the next fix.
   await live.evaluate(()=>window.dispatchEvent(new CustomEvent('jalan:route-change',{detail:{reason:'off-route'}})));
@@ -846,9 +879,17 @@ async function main(){
   console.log('PASS: native WebGL map, GPS projection, gestures, report zoom, traffic lifecycle, graphics and post-style tile-outage fallback, live OpenFreeMap');
  }catch(error){
   if(currentPage&&!currentPage.isClosed()){
-   await currentPage.screenshot({path:path.join(artifacts,'vector-failure.png')});
-   console.error('Renderer state:',await currentPage.evaluate(()=>({state:window.JalanVectorMap?.getState(),
-    message:document.getElementById('jalan-map-status')?.textContent})));
+   try{await currentPage.screenshot({path:path.join(artifacts,'vector-failure.png'),timeout:5000});}
+   catch(secondary){console.error('Failure artifact unavailable:',secondary.message);}
+   let diagnosticTimer;
+   try{
+    console.error('Renderer state:',await Promise.race([
+     currentPage.evaluate(()=>({state:window.JalanVectorMap?.getState(),
+      message:document.getElementById('jalan-map-status')?.textContent})),
+     new Promise((_,reject)=>{diagnosticTimer=setTimeout(()=>reject(new Error('renderer state timeout')),5000);})
+    ]));
+   }catch(secondary){console.error('Renderer state unavailable:',secondary.message);}
+   finally{clearTimeout(diagnosticTimer);}
   }
   throw error;
  }finally{await browser.close();server.close();}

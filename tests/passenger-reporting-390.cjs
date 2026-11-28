@@ -14,9 +14,31 @@ module.exports=async(browser,base,root)=>{
  await r.fulfill({status,contentType:'application/json',headers:{'access-control-allow-origin':'*'},body:JSON.stringify(data)});});
  await page.goto(base+'/index.html?mode=passenger');
  const preference=page.locator('#passenger-share-speed');
- assert.equal(await preference.isChecked(),true,'first trip shares by default');
+ assert.equal(await preference.isChecked(),false,'new visitor must explicitly opt in to speed observations');
+ // The consent copy must remain understandable in both supported languages without changing consent.
+ const consentLabel=page.locator('label.jalan-share-speed');
+ assert.equal((await consentLabel.textContent()).trim(),'Share my speed to help detect traffic (optional)');
+ await page.evaluate(()=>JalanLanguage.set('ms',false));
+ assert.equal((await consentLabel.textContent()).trim(),'Kongsi kelajuan saya untuk membantu mengesan kesesakan (pilihan)');
+ assert.equal(await preference.isChecked(),false,'language switch must not enable sharing');
+ await page.evaluate(()=>JalanLanguage.set('en',false));
+ assert.equal((await consentLabel.textContent()).trim(),'Share my speed to help detect traffic (optional)');
+ assert.equal(await preference.isChecked(),false,'returning to English must not enable sharing');
  await preference.evaluate(el=>{el.click();});await page.reload();
- assert.equal(await preference.isChecked(),false,'switching sharing off survives reload');
+ assert.equal(await preference.isChecked(),true,'explicit opt-in survives reload');
+ await preference.evaluate(el=>{el.click();});await page.reload();
+ assert.equal(await preference.isChecked(),false,'opt-out survives reload');
+ // Simulate browser storage becoming unavailable AFTER a first-trip opt-in.
+ await preference.evaluate(el=>el.click());assert.equal(await preference.isChecked(),true);
+ await page.evaluate(()=>{
+  const original=Storage.prototype.getItem;
+  Storage.prototype.getItem=()=>{throw Error('storage denied after launch');};
+  try{window.dispatchEvent(new StorageEvent('storage',{key:'jalan-traffic-sharing-v2'}));}
+  finally{Storage.prototype.getItem=original;}
+ });
+ assert.equal(await preference.isChecked(),false,'late storage denial cannot re-enable observation');
+ await preference.evaluate(el=>el.click());
+ assert.equal(await preference.isChecked(),false,'failed storage preference save leaves sharing disabled');
  const restricted=await browser.newContext({viewport:{width:390,height:844},isMobile:true,hasTouch:true});
  try{
   await restricted.addInitScript(()=>{Storage.prototype.getItem=()=>{throw Error('blocked');};});
@@ -56,21 +78,18 @@ module.exports=async(browser,base,root)=>{
  await page.evaluate(()=>{document.getElementById('smart-demo').click();document.getElementById('smart-yes').click();});
  await page.waitForFunction(()=>document.getElementById('passenger-report-toast').textContent==='Traffic report sent.');
  assert.equal(submissions.length,beforePrompt+1);assert.equal(submissions.at(-1).type,'traffic');
- assert.equal(nearbyPosts,0,'no nearby lookup before guidance starts');
+ assert.equal(nearbyPosts,0);
  nearby=[event('ahead-event','accident',[101.689,3.139])];
- const toggle=sharing.locator('input');
  await page.evaluate(()=>window.dispatchEvent(new Event('jalan:journey-start')));
- assert.equal(await toggle.isChecked(),true,'nearby reports start on with guidance');
+ assert.equal(await sharing.locator('input').isChecked(),false,'starting guidance does not consent to nearby location POSTs');
  await page.evaluate(()=>{window.__reportPosition=[101.688,3.139];window.dispatchEvent(new CustomEvent('jalan:gps-fix',{detail:{gpsReliable:true,gpsPosition:[3.139,101.688],gpsAccuracy:8,gpsFixAgeMs:0,heading:90}}));});
+ assert.equal(nearbyPosts,0,'GPS events alone must not upload position or fetch nearby reports');
+ assert.equal(await page.evaluate(()=>JalanCommunityReports.getEvents().some(e=>e.id==='ahead-event')),false);
+ await page.evaluate(()=>{const box=document.getElementById('passenger-nearby-consent');box.checked=true;box.dispatchEvent(new Event('change',{bubbles:true}));});
  await page.waitForFunction(()=>JalanCommunityReports.getEvents().some(e=>e.id==='ahead-event'));
- assert.equal(nearbyPosts,1,'a fresh GPS fix performs the first nearby lookup');
+ assert.equal(nearbyPosts,1,'explicit opt-in allows one body-only nearby lookup');
  await page.evaluate(()=>{const box=document.getElementById('passenger-nearby-consent');box.checked=false;box.dispatchEvent(new Event('change',{bubbles:true}));});
  assert.equal(await page.evaluate(()=>JalanCommunityReports.getEvents().some(e=>e.id==='ahead-event')),false,'opt-out removes nearby community event from the screen');
- await page.evaluate(()=>{
-  window.dispatchEvent(new Event('jalan:journey-stop'));
-  window.dispatchEvent(new Event('jalan:journey-start'));
- });
- assert.equal(await toggle.isChecked(),false,'GPS restart on the same itinerary respects Off');
  await page.evaluate(()=>window.dispatchEvent(new CustomEvent('jalan:gps-fix',{detail:{gpsReliable:true,gpsPosition:[3.139,101.688],gpsAccuracy:8,gpsFixAgeMs:0,heading:90}})));
  assert.equal(nearbyPosts,1,'opt-out prevents subsequent location POST requests');
  await page.evaluate(()=>{const box=document.getElementById('passenger-nearby-consent');box.checked=true;box.dispatchEvent(new Event('change',{bubbles:true}));});
@@ -100,12 +119,15 @@ module.exports=async(browser,base,root)=>{
  await page.evaluate(()=>document.getElementById('jalan-home-report').click());await page.locator('[data-type=hazard]').click();await page.evaluate(()=>window.__reportAccuracy=200);const count=submissions.length;
  await page.locator('#passenger-report-submit').click();await page.waitForFunction(()=>document.getElementById('passenger-report-status').textContent.includes('Could not confirm submission'));
  assert.equal(submissions.length,count,'poor GPS cannot submit');await page.keyboard.press('Escape');assert.equal(await page.locator('#passenger-report-dialog').isVisible(),false);
- await toggle.evaluate(el=>el.click());
- await page.evaluate(()=>{window.dispatchEvent(new Event('jalan:journey-stop'));window.dispatchEvent(new Event('jalan:route-cleared'));});
- assert.equal(await toggle.isChecked(),false,'Stop ends nearby lookups');
+ await page.evaluate(()=>window.dispatchEvent(new Event('jalan:journey-stop')));
+ assert.equal(await page.locator('#passenger-nearby-consent').isChecked(),false,'Stop revokes the nearby GPS-upload opt-in');
  const afterStop=nearbyPosts;
  await page.evaluate(()=>window.dispatchEvent(new CustomEvent('jalan:gps-fix',{detail:{gpsReliable:true,gpsPosition:[3.139,101.688],gpsAccuracy:8,gpsFixAgeMs:0,heading:90}})));
  assert.equal(nearbyPosts,afterStop,'even a delayed GPS fix cannot restart uploads after Stop');
+ await page.evaluate(()=>{window.dispatchEvent(new Event('jalan:route-cleared'));window.dispatchEvent(new Event('jalan:journey-start'));});
+ assert.equal(await sharing.locator('input').isChecked(),false,'a new trip does not silently enable nearby lookups');
+ await move(101.688);
+ assert.equal(nearbyPosts,afterStop,'fresh GPS on new trip cannot send location without a new opt-in');
  await page.evaluate(()=>window.__reportAccuracy=8);
  await page.locator('#jalan-home-report').click();
  await page.getByRole('button',{name:'Traffic',exact:true}).click();
@@ -124,8 +146,6 @@ module.exports=async(browser,base,root)=>{
  await page.waitForFunction(()=>!document.getElementById('passenger-report-dialog').open);
  assert.equal(submissions.at(-1).type,'traffic');assert.equal(submissions.at(-1).trafficSeverity,'heavy');
  assert.equal(await page.locator('.jalan-community-report-pin[title*="Heavy Traffic Jam"]').count(),1);
- await page.evaluate(()=>window.dispatchEvent(new Event('jalan:journey-start')));
- assert.equal(await toggle.isChecked(),true,'a different trip starts on after the last one was switched off');
  assert.deepEqual(errors,[]);console.log('PASS community reports: weather, submit-time GPS, failed upload, merged icon, directional 50m prompt, once per journey, timeout and inaccurate GPS');
  }finally{await context.close();}
 };

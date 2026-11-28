@@ -80,12 +80,42 @@ module.exports=async(page,context,base)=>{
    return false;
   });
   const {x,y}=await point.jsonValue();await point.dispose();
+  const hit=await page.evaluate(({x,y})=>document.elementFromPoint(x,y)?.id,{x,y});
+  assert.equal(hit,'passenger-map-gestures','held-drag fixture must start on the raster map hit plane');
+  // Observe real Chromium input delivery without dispatching synthetic DOM
+  // events; retain a bounded trace if the actual map gesture fails.
+  await page.evaluate(({x,y})=>{
+   if(window.__followTouchObserver){
+    for(const type of window.__followTouchTypes)window.removeEventListener(type,window.__followTouchObserver,true);
+   }
+   const describe=node=>node instanceof Element?{tag:node.tagName,id:node.id,classes:node.getAttribute('class')}:null;
+   const state=()=>{
+    const button=document.getElementById('passenger-recenter-floating'),style=getComputedStyle(button);
+    return {following:document.body.classList.contains('passenger-following-location'),
+     vector:document.body.classList.contains('passenger-vector-active'),
+     recenter:{display:style.display,visibility:style.visibility},
+     hint:document.getElementById('passenger-gesture-hint').textContent};
+   };
+   window.__followTouchTrace={start:{x,y,hit:document.elementsFromPoint(x,y).slice(0,6).map(describe),state:state()},events:[]};
+   window.__followTouchTypes=['pointerdown','pointermove','pointercancel','pointerup','touchstart','touchmove','touchcancel','touchend'];
+   window.__followTouchObserver=e=>{
+    const events=window.__followTouchTrace.events;
+    if(events.length<40)events.push({type:e.type,target:describe(e.target),state:state()});
+   };
+   for(const type of window.__followTouchTypes)window.addEventListener(type,window.__followTouchObserver,{capture:true,passive:true});
+  },{x,y});
   await cdp.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[{x,y,id:1}]});
   for(let i=1;i<=5;i++)await cdp.send('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:[{x:x+i*15,y:y-i*8,id:1}]});
  };
  const release=()=>cdp.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});
  await dragStart();
- await page.locator('#passenger-recenter-floating').waitFor({state:'visible',timeout:2000});
+ try{
+  await page.locator('#passenger-recenter-floating').waitFor({state:'visible',timeout:2000});
+ }catch(error){
+  console.error('FOLLOW TOUCH DIAGNOSTIC',JSON.stringify(await page.evaluate(()=>window.__followTouchTrace)));
+  throw error;
+ }
+ assert.equal(await page.locator('#passenger-recenter-floating').isVisible(),true,'real held map drag must expose Recenter');
  assert.equal(await page.locator('#jalan-home-report').isVisible(),false);
  await page.waitForTimeout(3200);await fresh();
  assert.equal(await atCurrent(),false,'holding a finger longer than three seconds never recenters');
